@@ -6,6 +6,7 @@ import (
 	"net/netip"
 	"strings"
 
+	"github.com/qoim/samari/backend/internal/api"
 	"github.com/qoim/samari/backend/internal/auth"
 	"github.com/qoim/samari/backend/internal/http/common"
 	"github.com/qoim/samari/backend/internal/rbac"
@@ -18,25 +19,11 @@ import (
 // (docs/07-IMPLEMENTATION-PLAN.md I8). So login returns the token in the body for
 // the BFF to store; it never sets a Set-Cookie header of its own.
 
-type loginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
+// Payload types live in internal/api, which is the single source of truth the
+// TypeScript in packages/types is generated from (docs/07 I3). Defining them here
+// as well is exactly the drift 03-API-CONTRACT.md:265 warns about.
 
-type loginResponse struct {
-	Token string       `json:"token"`
-	User  userResponse `json:"user"`
-}
-
-type userResponse struct {
-	ID          string   `json:"id"`
-	Email       string   `json:"email"`
-	FullName    string   `json:"full_name"`
-	Roles       []string `json:"roles"`
-	Permissions []string `json:"permissions"`
-}
-
-func identityResponse(ident auth.Identity) userResponse {
+func identityResponse(ident auth.Identity) api.User {
 	roles := make([]string, 0, len(ident.Roles))
 	for _, r := range ident.Roles {
 		roles = append(roles, r.Key)
@@ -47,7 +34,7 @@ func identityResponse(ident auth.Identity) userResponse {
 	if perms == nil {
 		perms = []string{}
 	}
-	return userResponse{
+	return api.User{
 		ID:          ident.User.ID.String(),
 		Email:       ident.User.Email,
 		FullName:    ident.User.FullName,
@@ -57,7 +44,7 @@ func identityResponse(ident auth.Identity) userResponse {
 }
 
 func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
-	var req loginRequest
+	var req api.LoginRequest
 	if err := common.DecodeJSON(r, &req); err != nil {
 		common.Fail(w, r, err)
 		return
@@ -90,7 +77,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.JSON(w, http.StatusOK, loginResponse{Token: token, User: identityResponse(ident)})
+	common.JSON(w, http.StatusOK, api.LoginResponse{Token: token, User: identityResponse(ident)})
 }
 
 // loginError collapses the domain's failure modes for the client.
