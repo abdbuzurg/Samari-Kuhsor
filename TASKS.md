@@ -288,9 +288,43 @@ with three batch queries per page, constant in page size.
 spaces) and an anonymous struct missing `json` tags so `per_page` never unmarshalled. Both were my
 tests being wrong, not the product.
 
-### T12 · Товары — BFF and types — `todo`
+### T12 · Товары — BFF and types — `done`
 **Done when:** no backend hostname, port or service key appears in any client bundle — asserted by
 a test grepping the built output; `packages/types` current.
+
+**Result:** Six BFF routes behind one `proxy()` helper — the shape eleven modules copy. The query
+string is forwarded **whole** rather than allow-listed: Go already validates every parameter, and a
+second drifting copy of those rules in the BFF is how the two layers start disagreeing about what
+is valid.
+
+**Contract bug found by the gate:** tygo maps a Go pointer to an *optional* property (`field?: T`),
+but the API marshals a nil pointer as `"field": null` — `03-API-CONTRACT.md:216` shows
+`"barcode": null` explicitly. The TypeScript claimed `undefined` where the wire carries `null`.
+Fixed with per-field `tstype:"… | null"` tags on **response** DTOs only; request DTOs keep `?`,
+because a POST genuinely does omit `version`.
+
+### T13 · Товары — UI — `done`
+List (KPIs, columns, live search), detail per `05-MODULES.md §2`, edit form with `version_conflict`
+handling.
+
+**Done when:** component tests for four states; a stale-version save surfaces a conflict rather than
+overwriting; `уточняется` renders for null composition/nutrition/shelf-life (`02-SCHEMA.md:176`);
+screenshot drift gate; responsive pass.
+
+**Result:** 22 new component tests (32 total in the CRM). `ListView`, `DetailView`, `StatusTag` and
+`ItemForm` are all module-agnostic — they are what T15 extracts.
+- **`StatusTag` never maps a status key to a colour.** It maps `level` → the prototype's verbatim
+  `.tag-*` class, so green means *healthy* and not merely *branded* (`CLAUDE.md §5`). Tested for
+  every level, plus an unknown level falling back to neutral rather than rendering unstyled.
+- **A 409 is surfaced as an actionable conflict and the save button is disabled** — never retried.
+  Retrying a version conflict overwrites exactly what the guard protected.
+- Field errors render **against their input**, keyed on the API's stable field codes.
+- The empty state distinguishes "no products" from "no matches" — "add your first product" is
+  unhelpful when the answer is "clear the search box".
+- **The form does not offer composition or nutrition inputs at all.** Offering them invites a
+  plausible guess, and the client forbade publishing unverified claims.
+- SKU and item type are locked when editing, with the reason shown: batches and stock movements
+  reference them.
 
 ### T13 · Товары — UI — `todo`
 List (KPIs, columns, live search), detail per `05-MODULES.md §2`, edit form with `version_conflict`

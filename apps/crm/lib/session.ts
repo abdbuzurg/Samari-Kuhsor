@@ -11,14 +11,27 @@ import type { User } from '@samari/types';
  * cookie it cannot read.
  */
 
+export interface FieldProblem {
+  field: string;
+  code: string;
+  message: string;
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
     readonly code: string,
     message: string,
+    /** Per-field problems from a validation failure, so a form can mark inputs. */
+    readonly details?: FieldProblem[],
   ) {
     super(message);
     this.name = 'ApiError';
+  }
+
+  /** The problem reported against a specific field, if any. */
+  forField(field: string): FieldProblem | undefined {
+    return this.details?.find((d) => d.field === field);
   }
 }
 
@@ -34,7 +47,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   if (!res.ok) {
     const error = body?.error;
     // Switch on the stable code, never the message (docs/03-API-CONTRACT.md:116).
-    throw new ApiError(res.status, error?.code ?? 'internal_error', error?.message ?? '');
+    throw new ApiError(
+      res.status,
+      error?.code ?? 'internal_error',
+      error?.message ?? '',
+      error?.details,
+    );
   }
   return body?.data as T;
 }

@@ -119,3 +119,42 @@ export function relay<T>(result: ApiResult<T>): Response {
     headers: { 'Cache-Control': 'no-store' },
   });
 }
+
+/**
+ * Forwards a browser request to the Go API, preserving the query string.
+ *
+ * This is the shape every module's BFF route reuses. The BFF proxies and shapes;
+ * it implements no business rules and makes no authorization decisions, because
+ * those live in Go middleware (docs/03-API-CONTRACT.md:19).
+ *
+ * The query string is forwarded WHOLE rather than allow-listed here. Go already
+ * validates every parameter — sort fields against a whitelist, page sizes
+ * clamped — and a second, drifting copy of those rules in the BFF is how the two
+ * layers start disagreeing about what is valid.
+ */
+export async function proxy<T>(
+  req: Request,
+  path: string,
+  opts: { method?: string; body?: unknown } = {},
+): Promise<Response> {
+  const search = new URL(req.url).search;
+  return relay(
+    await callApi<T>(`${path}${search}`, {
+      method: opts.method ?? req.method,
+      body: opts.body,
+      clientIp: req.headers.get('x-forwarded-for'),
+    }),
+  );
+}
+
+/** Reads a JSON body, tolerating an empty one. */
+export async function readBody(req: Request): Promise<unknown> {
+  const text = await req.text();
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    // Let Go produce the validation error, so there is one source of error text.
+    return text;
+  }
+}

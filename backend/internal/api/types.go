@@ -116,11 +116,11 @@ type User struct {
 // «уточняется» until the client's recipes are lab-verified (docs/02-SCHEMA.md:176).
 type ItemTranslation struct {
 	Name              string  `json:"name"`
-	Description       *string `json:"description"`
-	Ingredients       *string `json:"ingredients"`
-	Nutrition         *string `json:"nutrition"`
-	StorageConditions *string `json:"storage_conditions"`
-	AfterOpening      *string `json:"after_opening"`
+	Description       *string `json:"description" tstype:"string | null"`
+	Ingredients       *string `json:"ingredients" tstype:"string | null"`
+	Nutrition         *string `json:"nutrition" tstype:"string | null"`
+	StorageConditions *string `json:"storage_conditions" tstype:"string | null"`
+	AfterOpening      *string `json:"after_opening" tstype:"string | null"`
 }
 
 // PackagingUnit is a selling unit of an item. A case is a unit, not a product:
@@ -128,14 +128,14 @@ type ItemTranslation struct {
 type PackagingUnit struct {
 	Code      string          `json:"code"`
 	QtyInBase common.Quantity `json:"qty_in_base"`
-	Barcode   *string         `json:"barcode"` // EAN-13, null pending register Q4
+	Barcode   *string         `json:"barcode" tstype:"string | null"` // EAN-13, null pending register Q4
 }
 
 type Price struct {
 	Amount    common.Money `json:"amount"`
 	Currency  string       `json:"currency"`
 	ValidFrom string       `json:"valid_from"`
-	ValidTo   *string      `json:"valid_to"`
+	ValidTo   *string      `json:"valid_to" tstype:"string | null"`
 }
 
 // Item is a product-master record. status = "active" IS the website publication
@@ -144,13 +144,13 @@ type Item struct {
 	ID             string                     `json:"id"`
 	SKU            string                     `json:"sku"`
 	ItemType       string                     `json:"item_type"` // finished_good | raw_material | packaging
-	Category       *string                    `json:"category"`
+	Category       *string                    `json:"category" tstype:"string | null"`
 	BaseUOM        string                     `json:"base_uom"`
-	ShelfLifeDays  *int32                     `json:"shelf_life_days"`
-	MinQty         *common.Quantity           `json:"min_qty"`
+	ShelfLifeDays  *int32                     `json:"shelf_life_days" tstype:"number | null"`
+	MinQty         *common.Quantity           `json:"min_qty" tstype:"string | null"`
 	Translations   map[string]ItemTranslation `json:"translations"`
 	PackagingUnits []PackagingUnit            `json:"packaging_units"`
-	CurrentPrice   *Price                     `json:"current_price"`
+	CurrentPrice   *Price                     `json:"current_price" tstype:"Price | null"`
 	PriceHistory   []Price                    `json:"price_history"`
 	Status         Status                     `json:"status"`
 	Version        int32                      `json:"version"`
@@ -169,11 +169,11 @@ type ItemListRow struct {
 	// and then to the SKU. A list needs one label, not a translation set.
 	Name           string   `json:"name"`
 	ItemType       string   `json:"item_type"`
-	Category       *string  `json:"category"`
+	Category       *string  `json:"category" tstype:"string | null"`
 	BaseUOM        string   `json:"base_uom"`
 	PackagingCodes []string `json:"packaging_codes"`
-	ShelfLifeDays  *int32   `json:"shelf_life_days"`
-	CurrentPrice   *Price   `json:"current_price"`
+	ShelfLifeDays  *int32   `json:"shelf_life_days" tstype:"number | null"`
+	CurrentPrice   *Price   `json:"current_price" tstype:"Price | null"`
 	Status         Status   `json:"status"`
 	Version        int32    `json:"version"`
 }

@@ -125,11 +125,11 @@ export interface User {
  */
 export interface ItemTranslation {
   name: string;
-  description?: string;
-  ingredients?: string;
-  nutrition?: string;
-  storage_conditions?: string;
-  after_opening?: string;
+  description?: string | null;
+  ingredients?: string | null;
+  nutrition?: string | null;
+  storage_conditions?: string | null;
+  after_opening?: string | null;
 }
 /**
  * PackagingUnit is a selling unit of an item. A case is a unit, not a product:
@@ -138,13 +138,13 @@ export interface ItemTranslation {
 export interface PackagingUnit {
   code: string;
   qty_in_base: string;
-  barcode?: string; // EAN-13, null pending register Q4
+  barcode?: string | null; // EAN-13, null pending register Q4
 }
 export interface Price {
   amount: string;
   currency: string;
   valid_from: string;
-  valid_to?: string;
+  valid_to?: string | null;
 }
 /**
  * Item is a product-master record. status = "active" IS the website publication
@@ -154,13 +154,13 @@ export interface Item {
   id: string;
   sku: string;
   item_type: string; // finished_good | raw_material | packaging
-  category?: string;
+  category?: string | null;
   base_uom: string;
-  shelf_life_days?: number /* int32 */;
-  min_qty?: string;
+  shelf_life_days?: number | null;
+  min_qty?: string | null;
   translations: { [key: string]: ItemTranslation};
   packaging_units: PackagingUnit[];
-  current_price?: Price;
+  current_price?: Price | null;
   price_history: Price[];
   status: Status;
   version: number /* int32 */;
@@ -182,11 +182,11 @@ export interface ItemListRow {
    */
   name: string;
   item_type: string;
-  category?: string;
+  category?: string | null;
   base_uom: string;
   packaging_codes: string[];
-  shelf_life_days?: number /* int32 */;
-  current_price?: Price;
+  shelf_life_days?: number | null;
+  current_price?: Price | null;
   status: Status;
   version: number /* int32 */;
 }
