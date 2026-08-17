@@ -74,12 +74,24 @@ no diff on re-run; a test asserts every table has `created_at`/`updated_at`/`del
 *Deferred to T11 by design:* the full Товары query set. `queries/items.sql` holds only what proves
 generation.
 
-### T04 · Test harness — `todo`
+### T04 · Test harness — `done`
 `backend/testsupport`: one `postgres:18` testcontainer per run, migrations into a template DB,
 `CREATE DATABASE … TEMPLATE` per test. The mandatory `AssertAudited` helper (I4).
 
 **Done when:** two tests mutating the same table in parallel do not see each other's rows;
 harness startup measured and recorded; `AssertAudited` fails loudly when no audit row was written.
+
+**Result:** 7 tests green. Container startup **7.4s once per binary**; 13 database clones added
+~110ms total, i.e. **~8ms per test** for full isolation.
+- Isolation proven both sequentially and across 6 concurrent workers.
+- The shopspring decimal codec is registered in `AfterConnect` and verified to round-trip
+  `18.50` and `12.345` exactly — without it every numeric read fails, and it would fail late
+  inside an unrelated module's test.
+- `AssertAudited`/`AssertNotAudited`/`CountAudit` take a `TB` interface rather than `*testing.T`,
+  so **their own failure paths are tested**: proven to fail on a missing row *and* on a duplicate.
+  A silently-passing assertion would be worse than no assertion.
+- `CREATE DATABASE … TEMPLATE` refuses to run while anything is connected to the template, so the
+  explicit close after migrating is load-bearing, not tidiness.
 
 ### T05 · Auth — `todo`
 argon2id, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, session token hashed at rest,
