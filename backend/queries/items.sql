@@ -220,3 +220,44 @@ UPDATE item_prices
 SET valid_to = sqlc.arg(new_valid_from)::date - 1
 WHERE item_id = $1 AND deleted_at IS NULL AND valid_to IS NULL
   AND valid_from < sqlc.arg(new_valid_from)::date;
+
+-- ---------------------------------------------------------------------------
+-- Batches and QR — docs/01-DECISIONS.md D11
+-- ---------------------------------------------------------------------------
+
+-- name: GetBatchByID :one
+SELECT * FROM batches WHERE id = $1 AND deleted_at IS NULL;
+
+-- name: GetBatchByNo :one
+SELECT * FROM batches WHERE batch_no = $1 AND deleted_at IS NULL;
+
+-- name: CreateBatch :one
+INSERT INTO batches (batch_no, item_id, produced_on, expires_on, created_by)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
+-- name: IssueBatchQR :one
+-- Writes the payload and stamps the issue time. Guarded on qr_payload IS NULL:
+-- a wrapper is printed against the issued code, so re-issuing a different one
+-- silently invalidates wrappers that may already be in production. Zero rows
+-- means it was already issued.
+UPDATE batches
+SET qr_payload = $2, qr_issued_at = now()
+WHERE id = $1 AND deleted_at IS NULL AND qr_payload IS NULL
+RETURNING *;
+
+-- name: ListBatchesForQRExport :many
+-- Batches whose codes go to the printer. NULL filters mean "no filter".
+SELECT sqlc.embed(b), i.sku, COALESCE(tr.name, i.sku) AS item_name
+FROM batches b
+JOIN items i ON i.id = b.item_id AND i.deleted_at IS NULL
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
+WHERE b.deleted_at IS NULL
+  AND b.qr_payload IS NOT NULL
+  AND (sqlc.narg(item_id)::uuid IS NULL OR b.item_id = sqlc.narg(item_id))
+  AND (sqlc.narg(issued_after)::timestamptz IS NULL OR b.qr_issued_at >= sqlc.narg(issued_after))
+ORDER BY b.batch_no;
+
+-- name: CountBatchesAwaitingQR :one
+SELECT count(*) FROM batches WHERE deleted_at IS NULL AND qr_payload IS NULL;

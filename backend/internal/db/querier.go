@@ -18,11 +18,13 @@ type Querier interface {
 	CloseOpenItemPrices(ctx context.Context, arg CloseOpenItemPricesParams) error
 	CountAudit(ctx context.Context, arg CountAuditParams) (int64, error)
 	CountAuditForResource(ctx context.Context, arg CountAuditForResourceParams) (int64, error)
+	CountBatchesAwaitingQR(ctx context.Context) (int64, error)
 	CountItems(ctx context.Context) (int64, error)
 	CountItemsByStatus(ctx context.Context, status string) (int64, error)
 	// Must apply exactly the same filters as ListItems, or the pagination metadata
 	// describes a different collection from the one returned.
 	CountListItems(ctx context.Context, arg CountListItemsParams) (int64, error)
+	CreateBatch(ctx context.Context, arg CreateBatchParams) (Batch, error)
 	// ---------------------------------------------------------------------------
 	// Mutations
 	// ---------------------------------------------------------------------------
@@ -32,6 +34,11 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredSessions(ctx context.Context, retain pgtype.Interval) error
+	// ---------------------------------------------------------------------------
+	// Batches and QR — docs/01-DECISIONS.md D11
+	// ---------------------------------------------------------------------------
+	GetBatchByID(ctx context.Context, id uuid.UUID) (Batch, error)
+	GetBatchByNo(ctx context.Context, batchNo string) (Batch, error)
 	GetCurrentItemPrice(ctx context.Context, itemID uuid.UUID) (ItemPrice, error)
 	// Товары и цены — the product master. docs/05-MODULES.md §4.
 	//
@@ -61,6 +68,11 @@ type Querier interface {
 	// (docs/02-SCHEMA.md:123). Every mutation in the system writes one row, inside
 	// the mutating transaction (docs/07-IMPLEMENTATION-PLAN.md I4).
 	InsertAuditEntry(ctx context.Context, arg InsertAuditEntryParams) (AuditLog, error)
+	// Writes the payload and stamps the issue time. Guarded on qr_payload IS NULL:
+	// a wrapper is printed against the issued code, so re-issuing a different one
+	// silently invalidates wrappers that may already be in production. Zero rows
+	// means it was already issued.
+	IssueBatchQR(ctx context.Context, arg IssueBatchQRParams) (Batch, error)
 	// The audit viewer (docs/04-RBAC.md §6), filterable by actor, resource and date
 	// range. NULL means "no filter" for each dimension.
 	ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLog, error)
@@ -68,6 +80,8 @@ type Querier interface {
 	ListAuditForResource(ctx context.Context, arg ListAuditForResourceParams) ([]AuditLog, error)
 	// Related records on the detail view (docs/05-MODULES.md §2).
 	ListBatchesForItem(ctx context.Context, arg ListBatchesForItemParams) ([]Batch, error)
+	// Batches whose codes go to the printer. NULL filters mean "no filter".
+	ListBatchesForQRExport(ctx context.Context, arg ListBatchesForQRExportParams) ([]ListBatchesForQRExportRow, error)
 	// The price in force today for each of the given items. DISTINCT ON keeps one
 	// row per item; the ORDER BY decides which one.
 	ListCurrentPricesForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemPrice, error)

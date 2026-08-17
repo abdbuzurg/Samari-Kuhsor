@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/qoim/samari/backend/internal/auth"
+	"github.com/qoim/samari/backend/internal/domain/batches"
 	"github.com/qoim/samari/backend/internal/domain/items"
 	samarihttp "github.com/qoim/samari/backend/internal/http"
 )
@@ -95,6 +96,9 @@ func run() error {
 	srv, err := samarihttp.NewServer(
 		auth.NewService(pool, auth.DefaultConfig()),
 		items.NewService(pool),
+		// The QR payload is printed onto wrappers months in advance, so this must
+		// be the real production address from the very first export (D11).
+		batches.NewService(pool, envOr("PUBLIC_SITE_URL", "https://samari-kuhsor.tj")),
 		samarihttp.Config{ServiceKey: os.Getenv("SERVICE_KEY")},
 	)
 	if err != nil {

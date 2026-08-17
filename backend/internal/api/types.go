@@ -227,3 +227,31 @@ type PriceWriteRequest struct {
 	ValidFrom string  `json:"valid_from"`
 	ValidTo   *string `json:"valid_to"`
 }
+
+// BatchWriteRequest creates a planned batch.
+//
+// There is no status field, deliberately: a batch starts `in_production` and only
+// quality events move it (docs/02-SCHEMA.md:197). Offering a status here would
+// let production staff mark their own output released.
+type BatchWriteRequest struct {
+	BatchNo    string  `json:"batch_no"`
+	ItemID     string  `json:"item_id"`
+	ProducedOn *string `json:"produced_on"`
+	ExpiresOn  *string `json:"expires_on"`
+}
+
+// Batch is the traceability spine.
+type Batch struct {
+	ID         string  `json:"id"`
+	BatchNo    string  `json:"batch_no"`
+	ItemID     string  `json:"item_id"`
+	ProducedOn *string `json:"produced_on" tstype:"string | null"`
+	ExpiresOn  *string `json:"expires_on" tstype:"string | null"`
+	// QRPayload is the URL printed onto the wrapper. Null until issued; once
+	// issued it never changes, because wrappers are ordered against it (D11).
+	QRPayload  *string `json:"qr_payload" tstype:"string | null"`
+	QRIssuedAt *string `json:"qr_issued_at" tstype:"string | null"`
+	Status     Status  `json:"status"`
+	Version    int32   `json:"version"`
+	CreatedAt  string  `json:"created_at"`
+}

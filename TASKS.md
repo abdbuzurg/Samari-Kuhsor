@@ -334,13 +334,41 @@ handling.
 overwriting; `уточняется` renders for null composition/nutrition/shelf-life (`02-SCHEMA.md:176`);
 screenshot drift gate; responsive pass.
 
-### T14 · QR generation and printer export — `todo`
+### T14 · QR generation and printer export — `done`
 Writes `batches.qr_payload`, generates images on demand, bulk export as ZIP of SVGs + CSV manifest
 (D11, I17).
 
 **Done when:** payload round-trips through a QR decoder in test; export produces one SVG per batch
 and a manifest whose row count matches; regenerating a payload for an already-issued batch is
 refused.
+
+**Result:** 16 domain tests + 9 integration tests. Everything here is shaped by one fact from D11 —
+**a printed wrapper cannot be corrected.**
+- **Re-issuing is refused (422), never silently overwritten.** A second payload would invalidate
+  wrappers that may already be printed and in transit. Guarded twice: a read check *and*
+  `WHERE qr_payload IS NULL` in the UPDATE, so two concurrent requests cannot both succeed.
+- Issuing is audited as **`approve`**, not `update` — it commits the company to a wrapper order,
+  and the trail should name who decided that.
+- **The payload is a URL, not encoded production data**, asserted. A wrapper printed in August
+  cannot learn the batch was recalled in October, so the code must resolve at scan time.
+- **SVG, not PNG** — the printer scales to the wrapper die, and a raster at the wrong size either
+  pixelates or costs a re-request.
+- The 4-module **quiet zone** is included and asserted: the QR spec requires it, print houses don't
+  add it, and without it scanning fails against a busy wrapper.
+- The manifest is **semicolon-delimited with a UTF-8 BOM** — the printer opens it in Excel, and a
+  comma-separated UTF-8 file renders Cyrillic as mojibake in a Russian locale.
+- Manifest row count is asserted against SVG file count: **a short export means a batch ships with
+  the wrong wrapper.** Unissued batches are asserted absent.
+- The export is **buffered, not streamed**: a mid-stream failure after the status line would hand
+  the printer a truncated ZIP that looks complete.
+
+**A real bug the tests caught:** expiry-before-production returned **500** — the CHECK constraint
+fired and was never mapped. Now validated in the domain with a field-named message, plus a
+constraint-name fallback so no constraint can surface as a 500.
+
+*Also fixed:* I wrote a test that asserted nothing (`_ = wantLevel`). Replaced with a real
+assertion, which required adding `GET /batches/{id}` — an endpoint the item detail view needs
+anyway.
 
 ### T15 · Engine extraction — `todo`
 Extract `ListView` / `DetailView` / `EditForm` and their per-module descriptors **from the working

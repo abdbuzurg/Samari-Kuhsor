@@ -244,3 +244,34 @@ export interface PriceWriteRequest {
   valid_from: string;
   valid_to?: string;
 }
+/**
+ * BatchWriteRequest creates a planned batch.
+ * There is no status field, deliberately: a batch starts `in_production` and only
+ * quality events move it (docs/02-SCHEMA.md:197). Offering a status here would
+ * let production staff mark their own output released.
+ */
+export interface BatchWriteRequest {
+  batch_no: string;
+  item_id: string;
+  produced_on?: string;
+  expires_on?: string;
+}
+/**
+ * Batch is the traceability spine.
+ */
+export interface Batch {
+  id: string;
+  batch_no: string;
+  item_id: string;
+  produced_on?: string | null;
+  expires_on?: string | null;
+  /**
+   * QRPayload is the URL printed onto the wrapper. Null until issued; once
+   * issued it never changes, because wrappers are ordered against it (D11).
+   */
+  qr_payload?: string | null;
+  qr_issued_at?: string | null;
+  status: Status;
+  version: number /* int32 */;
+  created_at: string;
+}

@@ -23,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/qoim/samari/backend/internal/auth"
+	"github.com/qoim/samari/backend/internal/domain/batches"
 	"github.com/qoim/samari/backend/internal/domain/items"
 	"github.com/qoim/samari/backend/internal/http/common"
 	"github.com/qoim/samari/backend/internal/rbac"
@@ -37,18 +38,19 @@ type Config struct {
 }
 
 type Server struct {
-	auth   *auth.Service
-	items  *items.Service
-	cfg    Config
-	router chi.Router
-	reg    *rbac.Registry
+	auth    *auth.Service
+	items   *items.Service
+	batches *batches.Service
+	cfg     Config
+	router  chi.Router
+	reg     *rbac.Registry
 }
 
 // NewServer builds the API. It returns an error rather than a Server if any route
 // was registered without declaring its permission — the process must refuse to
 // serve rather than expose an ungoverned endpoint (docs/04-RBAC.md:123).
-func NewServer(authSvc *auth.Service, itemsSvc *items.Service, cfg Config) (*Server, error) {
-	s := &Server{auth: authSvc, items: itemsSvc, cfg: cfg, reg: rbac.NewRegistry()}
+func NewServer(authSvc *auth.Service, itemsSvc *items.Service, batchesSvc *batches.Service, cfg Config) (*Server, error) {
+	s := &Server{auth: authSvc, items: itemsSvc, batches: batchesSvc, cfg: cfg, reg: rbac.NewRegistry()}
 
 	// Sort whitelists are validated at startup: a default outside its own
 	// whitelist would put an unvetted column name into an ORDER BY.
@@ -108,6 +110,19 @@ func NewServer(authSvc *auth.Service, itemsSvc *items.Service, cfg Config) (*Ser
 			rbac.Items, rbac.Manage, s.handleDeleteItem)
 		v1.Guarded(api, http.MethodPost, "/items/{id}/prices",
 			rbac.Items, rbac.Manage, s.handleAddItemPrice)
+
+		// Batches and QR issuance (D11). QR generation is needed BEFORE the plant
+		// produces anything, because wrappers are ordered in advance.
+		v1.Guarded(api, http.MethodPost, "/batches",
+			rbac.Items, rbac.Manage, s.handleCreateBatch)
+		v1.Guarded(api, http.MethodGet, "/batches/{id}",
+			rbac.Items, rbac.Read, s.handleGetBatch)
+		v1.Guarded(api, http.MethodPost, "/batches/{id}/qr",
+			rbac.Items, rbac.Manage, s.handleIssueBatchQR)
+		v1.Guarded(api, http.MethodGet, "/batches/{id}/qr.svg",
+			rbac.Items, rbac.Read, s.handleBatchQRSVG)
+		v1.Guarded(api, http.MethodGet, "/batches/qr-export",
+			rbac.Items, rbac.Read, s.handleExportQR)
 	})
 
 	if err := rbac.Verify(r, s.reg); err != nil {

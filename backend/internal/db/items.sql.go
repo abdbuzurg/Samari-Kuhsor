@@ -33,6 +33,17 @@ func (q *Queries) CloseOpenItemPrices(ctx context.Context, arg CloseOpenItemPric
 	return err
 }
 
+const countBatchesAwaitingQR = `-- name: CountBatchesAwaitingQR :one
+SELECT count(*) FROM batches WHERE deleted_at IS NULL AND qr_payload IS NULL
+`
+
+func (q *Queries) CountBatchesAwaitingQR(ctx context.Context) (int64, error) {
+	row := q.db.QueryRow(ctx, countBatchesAwaitingQR)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countItems = `-- name: CountItems :one
 SELECT count(*) FROM items WHERE deleted_at IS NULL
 `
@@ -92,6 +103,47 @@ func (q *Queries) CountListItems(ctx context.Context, arg CountListItemsParams) 
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const createBatch = `-- name: CreateBatch :one
+INSERT INTO batches (batch_no, item_id, produced_on, expires_on, created_by)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, batch_no, item_id, produced_on, expires_on, qr_payload, qr_issued_at, status, created_at, updated_at, deleted_at, version, created_by
+`
+
+type CreateBatchParams struct {
+	BatchNo    string
+	ItemID     uuid.UUID
+	ProducedOn pgtype.Date
+	ExpiresOn  pgtype.Date
+	CreatedBy  uuid.NullUUID
+}
+
+func (q *Queries) CreateBatch(ctx context.Context, arg CreateBatchParams) (Batch, error) {
+	row := q.db.QueryRow(ctx, createBatch,
+		arg.BatchNo,
+		arg.ItemID,
+		arg.ProducedOn,
+		arg.ExpiresOn,
+		arg.CreatedBy,
+	)
+	var i Batch
+	err := row.Scan(
+		&i.ID,
+		&i.BatchNo,
+		&i.ItemID,
+		&i.ProducedOn,
+		&i.ExpiresOn,
+		&i.QrPayload,
+		&i.QrIssuedAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
 }
 
 const createItem = `-- name: CreateItem :one
@@ -225,6 +277,60 @@ func (q *Queries) CreatePackagingUnit(ctx context.Context, arg CreatePackagingUn
 	return i, err
 }
 
+const getBatchByID = `-- name: GetBatchByID :one
+
+SELECT id, batch_no, item_id, produced_on, expires_on, qr_payload, qr_issued_at, status, created_at, updated_at, deleted_at, version, created_by FROM batches WHERE id = $1 AND deleted_at IS NULL
+`
+
+// ---------------------------------------------------------------------------
+// Batches and QR — docs/01-DECISIONS.md D11
+// ---------------------------------------------------------------------------
+func (q *Queries) GetBatchByID(ctx context.Context, id uuid.UUID) (Batch, error) {
+	row := q.db.QueryRow(ctx, getBatchByID, id)
+	var i Batch
+	err := row.Scan(
+		&i.ID,
+		&i.BatchNo,
+		&i.ItemID,
+		&i.ProducedOn,
+		&i.ExpiresOn,
+		&i.QrPayload,
+		&i.QrIssuedAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const getBatchByNo = `-- name: GetBatchByNo :one
+SELECT id, batch_no, item_id, produced_on, expires_on, qr_payload, qr_issued_at, status, created_at, updated_at, deleted_at, version, created_by FROM batches WHERE batch_no = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetBatchByNo(ctx context.Context, batchNo string) (Batch, error) {
+	row := q.db.QueryRow(ctx, getBatchByNo, batchNo)
+	var i Batch
+	err := row.Scan(
+		&i.ID,
+		&i.BatchNo,
+		&i.ItemID,
+		&i.ProducedOn,
+		&i.ExpiresOn,
+		&i.QrPayload,
+		&i.QrIssuedAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
 const getCurrentItemPrice = `-- name: GetCurrentItemPrice :one
 SELECT id, item_id, currency, amount, valid_from, valid_to, created_at, updated_at, deleted_at, version, created_by FROM item_prices
 WHERE item_id = $1 AND deleted_at IS NULL
@@ -314,6 +420,43 @@ func (q *Queries) GetItemBySKU(ctx context.Context, sku string) (Item, error) {
 	return i, err
 }
 
+const issueBatchQR = `-- name: IssueBatchQR :one
+UPDATE batches
+SET qr_payload = $2, qr_issued_at = now()
+WHERE id = $1 AND deleted_at IS NULL AND qr_payload IS NULL
+RETURNING id, batch_no, item_id, produced_on, expires_on, qr_payload, qr_issued_at, status, created_at, updated_at, deleted_at, version, created_by
+`
+
+type IssueBatchQRParams struct {
+	ID        uuid.UUID
+	QrPayload *string
+}
+
+// Writes the payload and stamps the issue time. Guarded on qr_payload IS NULL:
+// a wrapper is printed against the issued code, so re-issuing a different one
+// silently invalidates wrappers that may already be in production. Zero rows
+// means it was already issued.
+func (q *Queries) IssueBatchQR(ctx context.Context, arg IssueBatchQRParams) (Batch, error) {
+	row := q.db.QueryRow(ctx, issueBatchQR, arg.ID, arg.QrPayload)
+	var i Batch
+	err := row.Scan(
+		&i.ID,
+		&i.BatchNo,
+		&i.ItemID,
+		&i.ProducedOn,
+		&i.ExpiresOn,
+		&i.QrPayload,
+		&i.QrIssuedAt,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
 const listBatchesForItem = `-- name: ListBatchesForItem :many
 SELECT id, batch_no, item_id, produced_on, expires_on, qr_payload, qr_issued_at, status, created_at, updated_at, deleted_at, version, created_by FROM batches
 WHERE item_id = $1 AND deleted_at IS NULL
@@ -350,6 +493,67 @@ func (q *Queries) ListBatchesForItem(ctx context.Context, arg ListBatchesForItem
 			&i.DeletedAt,
 			&i.Version,
 			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBatchesForQRExport = `-- name: ListBatchesForQRExport :many
+SELECT b.id, b.batch_no, b.item_id, b.produced_on, b.expires_on, b.qr_payload, b.qr_issued_at, b.status, b.created_at, b.updated_at, b.deleted_at, b.version, b.created_by, i.sku, COALESCE(tr.name, i.sku) AS item_name
+FROM batches b
+JOIN items i ON i.id = b.item_id AND i.deleted_at IS NULL
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
+WHERE b.deleted_at IS NULL
+  AND b.qr_payload IS NOT NULL
+  AND ($1::uuid IS NULL OR b.item_id = $1)
+  AND ($2::timestamptz IS NULL OR b.qr_issued_at >= $2)
+ORDER BY b.batch_no
+`
+
+type ListBatchesForQRExportParams struct {
+	ItemID      uuid.NullUUID
+	IssuedAfter pgtype.Timestamptz
+}
+
+type ListBatchesForQRExportRow struct {
+	Batch    Batch
+	Sku      string
+	ItemName string
+}
+
+// Batches whose codes go to the printer. NULL filters mean "no filter".
+func (q *Queries) ListBatchesForQRExport(ctx context.Context, arg ListBatchesForQRExportParams) ([]ListBatchesForQRExportRow, error) {
+	rows, err := q.db.Query(ctx, listBatchesForQRExport, arg.ItemID, arg.IssuedAfter)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBatchesForQRExportRow{}
+	for rows.Next() {
+		var i ListBatchesForQRExportRow
+		if err := rows.Scan(
+			&i.Batch.ID,
+			&i.Batch.BatchNo,
+			&i.Batch.ItemID,
+			&i.Batch.ProducedOn,
+			&i.Batch.ExpiresOn,
+			&i.Batch.QrPayload,
+			&i.Batch.QrIssuedAt,
+			&i.Batch.Status,
+			&i.Batch.CreatedAt,
+			&i.Batch.UpdatedAt,
+			&i.Batch.DeletedAt,
+			&i.Batch.Version,
+			&i.Batch.CreatedBy,
+			&i.Sku,
+			&i.ItemName,
 		); err != nil {
 			return nil, err
 		}
