@@ -120,7 +120,7 @@ response envelope and error mapping, so they are wired in T07 alongside the RBAC
 sleeping — argon2 is deliberately slow, so a lockout short enough to wait for is shorter than the
 failed attempts that trigger it, and such a test passes or fails on machine speed.
 
-### T06 · RBAC — `todo`
+### T06 · RBAC — `done`
 `rbac.Require(resource, action)`, permission resolution as the union across roles, `manage` implies
 `read`, `approve` does **not** imply `manage`. Startup check failing if any registered route lacks
 a permission declaration (`04-RBAC.md:123`).
@@ -128,6 +128,21 @@ a permission declaration (`04-RBAC.md:123`).
 **Done when:** unit tests for union, implication and no-roles-no-access; a test registers a route
 without `rbac.Require` and asserts the server refuses to start; per-endpoint 200/403/401 matrix
 helper exists and is used by T05.
+
+**Result:** 22 tests green.
+- The startup check is a **declaring router**, not middleware introspection: routes mount through
+  `Registry.Guarded` or `Registry.Public`, and `Verify` walks the real chi tree and fails on
+  anything registered outside it. Proven by mounting a `/secret-backdoor` route directly on chi.
+- **`Public` requires a written reason.** That turns "this endpoint is unauthenticated" from
+  something you get by forgetting a middleware into a decision someone had to justify.
+- Startup panics rather than runtime 403s for: unknown resource, unknown action, duplicate
+  declaration, and `approve` on a resource where `04-RBAC.md §3` does not define it.
+- `ParsePermission` bug found by its own test: `":approve"` parsed cleanly because the *action*
+  was valid, yielding an empty-resource permission that stores fine and matches nothing — it looks
+  granted while granting nothing. Now rejected.
+- Unknown *resources* are deliberately **not** rejected at parse time: an older binary meeting a
+  resource key from a newer migration must not silently drop a user's other permissions. They are
+  rejected where they are declared, at startup.
 
 ### T07 · Shared HTTP machinery — `todo`
 `internal/http/common`: response envelope, error mapping to the eight stable codes, pagination,
