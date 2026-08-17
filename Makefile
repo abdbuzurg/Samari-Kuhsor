@@ -52,7 +52,11 @@ migrate-status: ## Show migration status
 ## Code generation
 ## ----------------------------------------------------------------------------
 
-gen: sqlc tygo ## Run all code generation
+gen: extract sqlc tygo ## Run all code generation
+
+extract: ## Re-extract assets, translations and design tokens from design/
+	@node tools/extract-website.mjs
+	@node tools/extract-crm.mjs
 
 sqlc: ## Regenerate database access code from queries/
 	@if [ -f backend/sqlc.yaml ]; then cd backend && sqlc generate; else echo "sqlc: not wired yet (T03)"; fi
@@ -93,11 +97,21 @@ check: ## THE GATE — everything that must be green before the next task opens
 	@set -e; \
 	echo "==> go vet";        cd backend && go vet ./... && cd ..; \
 	echo "==> go test";       $(MAKE) --no-print-directory test-go; \
+	echo "==> extraction";    $(MAKE) --no-print-directory _check-extraction; \
 	echo "==> sqlc staleness"; $(MAKE) --no-print-directory _check-sqlc; \
 	echo "==> tygo staleness"; $(MAKE) --no-print-directory _check-tygo; \
 	echo "==> web tests";     $(MAKE) --no-print-directory test-web; \
 	echo "==> next build";    $(MAKE) --no-print-directory build; \
 	echo; echo "check: GREEN"
+
+# Everything derived from design/ must match design/. The extractors assert the
+# semantic invariants (locale shape, no `tj` key, the CLAUDE.md §5 design contract)
+# and exit non-zero on violation; git diff then catches silent drift in the output.
+_check-extraction:
+	@node tools/extract-website.mjs >/dev/null
+	@node tools/extract-crm.mjs >/dev/null
+	@if ! git diff --quiet -- apps/crm/messages apps/crm/app/styles/theme.css apps/web/public/assets apps/web/.reference; then \
+		echo "extraction: output differs from design/ — run 'make extract' and review the diff"; exit 1; fi
 
 # Generated code must be committed and current. A drift here is the silent bug
 # docs/03-API-CONTRACT.md:265 singles out as the most likely in this architecture.

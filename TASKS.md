@@ -19,7 +19,7 @@ npm workspaces, Go module, `packages/types` placeholder.
 **Done when:** `make up` starts Postgres 18 and `make db-version` reports `18.x`; `make down`
 removes it cleanly; `make check` runs end to end and is green; `git log` has an initial commit.
 
-### T02 · Extraction from the approved prototypes — `todo`
+### T02 · Extraction from the approved prototypes — `done`
 Pull from `design/` (read-only, never edited):
 - 4 images + Golos Text woff2 from the website bundle → `apps/web/public/`
 - Recovered website source (markup, 282-line script, 13.7 KB CSS) → `apps/web/.reference/`
@@ -31,6 +31,20 @@ Pull from `design/` (read-only, never edited):
 contain no `tj` key (C2); token file contains every `--color-*`, `--space-*`, `--radius-*`,
 `--shadow-*`, `--sk-*` custom property found in the prototype, values unchanged; a script asserts
 the count matches.
+
+**Result:** `tools/extract-website.mjs` + `tools/extract-crm.mjs`, both idempotent, both in
+`make check` via `_check-extraction`.
+- 5 assets recovered; `map-full.jpg` is byte-identical (md5) to the client's original `map.jpg`.
+- Website source recovered to `apps/web/.reference/`: 1,073 lines markup · 17 KB logic · 5.8 KB CSS.
+- **The prototype already contains all three languages, Tajik included** — 63 strings each,
+  structurally identical. The CRM chrome does not need translating; only newly added strings do.
+  This shrinks the D10 translation dependency to the website copy plus new UI.
+- 79 token declarations across 4 layers → 59 effective (20 overridden by the green palette layer,
+  including layer ①'s red `#ec3013` → `#1f7a3d`).
+- Exactly **two declared overrides**, both C1 (`--font-heading`, `--font-body`); everything else
+  verbatim. Overrides are printed on every run and annotated in the generated CSS.
+- The extractor fails the build if any `CLAUDE.md §5` contract value drifts — verified by
+  deliberately breaking `--sk-danger` and confirming a non-zero exit.
 
 ### T03 · Base migration and sqlc — `todo`
 Migration 001: universal conventions (`02-SCHEMA.md §1`), `users`, `sessions`, `roles`,

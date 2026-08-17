@@ -1,0 +1,82 @@
+{
+  "brandSub": "CRM / ERP platform",
+  "search": "Search: orders, customers, batches…",
+  "create": "Create",
+  "export": "Export",
+  "filters": "Filters",
+  "refresh": "Refresh",
+  "notifs": "Notifications",
+  "markAll": "Mark all read",
+  "profile": "Profile",
+  "settings": "Settings",
+  "logout": "Sign out",
+  "role": "Administrator",
+  "user": "A. Rahimov",
+  "online": "System · production",
+  "newRecord": "New record",
+  "cancel": "Cancel",
+  "save": "Save",
+  "dlgHint": "Quick record creation. In the live system fields depend on the module.",
+  "ftName": "Name",
+  "ftOwner": "Owner",
+  "ftType": "Type",
+  "ftAmount": "Amount",
+  "period": {
+    "day": "Today",
+    "week": "Week",
+    "month": "Month",
+    "quarter": "Quarter"
+  },
+  "group": {
+    "overview": "Overview",
+    "sales": "Sales",
+    "ops": "Operations",
+    "admin": "Management"
+  },
+  "mod": {
+    "dashboard": "Dashboard",
+    "crm": "CRM & Sales",
+    "website": "Website integration",
+    "products": "Products & Pricing",
+    "inventory": "Inventory & Warehousing",
+    "procurement": "Procurement & Suppliers",
+    "production": "Production",
+    "quality": "Quality & Food Safety",
+    "logistics": "Logistics",
+    "finance": "Finance & Budget",
+    "hr": "HR",
+    "equipment": "Equipment & Maintenance",
+    "documents": "Documents"
+  },
+  "dash": {
+    "rev": "Revenue & orders",
+    "pipe": "Sales pipeline",
+    "stock": "Stock: levels & expiry",
+    "prod": "Production today",
+    "feed": "Activity feed",
+    "orders": "Recent orders",
+    "revLeg": "Revenue, k somoni",
+    "ordLeg": "Orders",
+    "all": "All",
+    "shift": "Shift",
+    "plan": "plan",
+    "fact": "actual"
+  },
+  "kpi": {
+    "rev": "Revenue",
+    "revsub": "this",
+    "orders": "Open orders",
+    "recv": "Receivables",
+    "stockv": "Stock value",
+    "qc": "Batches quarantined",
+    "late": "Overdue deliveries"
+  },
+  "ocol": [
+    "Order",
+    "Customer",
+    "Products",
+    "Amount",
+    "Status",
+    "Date"
+  ]
+}
