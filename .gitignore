@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Production builds
+build/
+dist/
+/backend/bin/
+
+# Environment — never commit
+.env
+.env.*
+!.env.example
+
+# Test output
+coverage/
+*.out
+/playwright-report/
+/test-results/
+/blob-report/
+.playwright/
+
+# Local data (docker named volumes live outside the tree, this is belt-and-braces)
+/var/
+/uploads/
+/backups/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# Go
+*.test
+vendor/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*

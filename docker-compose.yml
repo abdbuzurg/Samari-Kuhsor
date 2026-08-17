@@ -1,0 +1,41 @@
+# Development stack.
+#
+# Only Postgres runs here for now; api / crm / web are added as they are built.
+# Production topology lives in docker-compose.prod.yml (I18) — there, only `caddy`
+# publishes ports and `api` is unreachable from outside the compose network.
+#
+# Host port 5433, not 5432: the workstation already runs a Postgres 17 on 5432 and
+# this stack must never be confused with it.
+
+name: samari-dev
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: samari-dev-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: samari
+      POSTGRES_PASSWORD: samari_dev_only
+      POSTGRES_DB: samari
+      # Deterministic collation so ORDER BY and unaccented search behave the same
+      # here as in production and in the test containers.
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=und-x-icu --encoding=UTF8"
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      # Postgres 18+ images store data in a major-version subdirectory and require
+      # the mount at /var/lib/postgresql, NOT /var/lib/postgresql/data. Mounting the
+      # old path makes the container refuse to start. This applies to the production
+      # compose file too (docs/07-IMPLEMENTATION-PLAN.md I18).
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U samari -d samari"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+
+volumes:
+  pgdata:
+    name: samari-dev-pgdata

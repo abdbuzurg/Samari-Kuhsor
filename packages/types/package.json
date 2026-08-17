@@ -1,0 +1,8 @@
+{
+  "name": "@samari/types",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Generated from Go DTOs by tygo (T08). Never hand-edited.",
+  "types": "index.d.ts",
+  "main": "index.js"
+}

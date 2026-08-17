@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Samari Kuhsor · CRM/ERP</title>
+<style>
+/* Modernist — design-system tokens and component classes. This file is the source of truth for the system's look; retune it here and see readme.md. */
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;800&display=swap');
+
+:root {
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201e1d;
+  --color-accent: #ec3013;
+  --color-accent-2: #e15b47;
+  --color-divider: color-mix(in srgb, #201e1d 40%, transparent);
+
+  /* Tonal ramps — generated in OKLCH on one shared lightness scale, so the
+     same step of any role matches the others in visual value. */
+  --color-neutral-100: #f8f4f4;
+  --color-neutral-200: #eae7e7;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
+
+  --color-accent-100: #fff2ef;
+  --color-accent-200: #ffe0d9;
+  --color-accent-300: #ffc4b8;
+  --color-accent-400: #ff9783;
+  --color-accent-500: #ff563c;
+  --color-accent-600: #dd2b0f;
+  --color-accent-700: #ae1800;
+  --color-accent-800: #7c1405;
+  --color-accent-900: #4d170e;
+
+  --color-accent-2-100: #fff2ef;
+  --color-accent-2-200: #ffe0da;
+  --color-accent-2-300: #ffc4b9;
+  --color-accent-2-400: #ff9784;
+  --color-accent-2-500: #ef6853;
+  --color-accent-2-600: #c94b39;
+  --color-accent-2-700: #9e3526;
+  --color-accent-2-800: #71261b;
+  --color-accent-2-900: #471d16;
+
+  --font-heading: "Archivo", system-ui, sans-serif;
+  --font-heading-weight: 800;
+  --font-body: "Archivo", system-ui, sans-serif;
+
+  --space-1: 4.0px;
+  --space-2: 8.0px;
+  --space-3: 12.0px;
+  --space-4: 16.0px;
+  --space-6: 24.0px;
+  --space-8: 32.0px;
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+
+  /* Elevation — derived from the ground: soft ink-tinted shadows on a
+     light theme, a hairline edge + ambient darkness on a dark one. */
+  --shadow-sm: 0 1px 2px color-mix(in srgb, #2d2b2b 14%, transparent);
+  --shadow-md: 0 3px 10px color-mix(in srgb, #2d2b2b 16%, transparent);
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+}
+h1, h2, h3, h4 { font-family: var(--font-heading); font-weight: var(--font-heading-weight); }
+
+.grayscale{filter:grayscale(1) contrast(1.08)}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   Components — built with the tokens above. Plain CSS
+   on plain HTML: no JavaScript, no build step. Each class is documented in
+   readme.md and demonstrated in foundations/ and components/.
+   ══════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400; }
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  line-height: 1.12; letter-spacing: -0.015em; margin: 0 0 var(--space-2);
+}
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+h5 { font-size: 16px; }
+h6 { font-size: 13px; }
+h6 { letter-spacing: 0.08em; text-transform: uppercase; }
+p { margin: 0 0 var(--space-3); }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+img { display: block; max-width: 100%; }
+figure { margin: 0; }
+figcaption {
+  font-size: 11px; margin-top: var(--space-1);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.text-muted { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+/* — rules — */
+.hr {
+  height: 2px; border: 0; margin: var(--space-4) 0;
+  background: var(--color-divider);
+}
+
+/* — buttons — */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; line-height: 1.2; color: var(--color-text); /* matches the .input's 14px —
+     the pair sits side by side in sign-up rows */
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  border-radius: var(--radius-md);
+}
+.btn svg { display: block; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { background: var(--color-accent); color: var(--color-bg); }
+.btn-primary:hover { background: var(--color-accent-600); }
+.btn-primary:active { background: var(--color-accent-700); }
+.btn-secondary { border-color: var(--color-divider); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.btn-secondary:active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+.btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.btn-ghost:hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+.btn-ghost:active { background: color-mix(in srgb, var(--color-accent) 18%, transparent); }
+.btn-icon { width: 36px; height: 36px; padding: 0; }
+.btn-block { width: 100%; margin-top: var(--space-2); justify-content: flex-start; text-align: left; }
+
+/* — forms — */
+.field > label {
+  display: block; font-size: 12px; margin-bottom: 5px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit;
+  font-size: 14px; color: var(--color-text); caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+.radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+.radio input, .seg-opt input {
+  position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.radio .dot {
+  width: 16px; height: 16px; flex: none; border-radius: 50%;
+  border: 1.5px solid var(--color-divider);
+}
+.radio:hover .dot { border-color: var(--color-accent); }
+.radio input:checked + .dot {
+  border-color: var(--color-accent); background: var(--color-accent);
+  box-shadow: inset 0 0 0 4px var(--color-bg);
+}
+.radio input:focus-visible + .dot { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+.seg {
+  display: inline-flex; overflow: hidden;
+  border: 1px solid var(--color-divider); border-radius: var(--radius-md);
+}
+.seg-opt {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 12px; font-size: 13px; cursor: pointer;
+}
+.seg-opt + .seg-opt { border-left: 1px solid var(--color-divider); }
+.seg-opt:has(input:checked) { background: var(--color-accent); color: var(--color-bg); }
+.seg-opt:not(:has(input:checked)):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.seg-opt:has(input:focus-visible) { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+/* — cards — */
+.card {
+  display: flex; flex-direction: column; gap: var(--space-2);
+  padding: var(--space-3); border-radius: var(--radius-md); background: var(--color-surface);
+}
+.card-kicker { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-accent); }
+.card-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 17px; line-height: 1.2;
+}
+.card-body { margin: 0; font-size: 13px; opacity: 0.8; flex: 1; }
+.card-meta {
+  display: flex; align-items: center; gap: 6px; font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.elev-sm { box-shadow: var(--shadow-sm); }
+.elev-md { box-shadow: var(--shadow-md); }
+.elev-lg { box-shadow: var(--shadow-lg); }
+
+/* — tags — */
+.tag {
+  display: inline-flex; align-items: center; font-size: 11px;
+  letter-spacing: 0.02em; padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+}
+.tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.tag-accent-2 { background: var(--color-accent-2-100); color: var(--color-accent-2-800); }
+.tag-neutral { background: var(--color-neutral-100); color: var(--color-neutral-800); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* — navigation — */
+.nav {
+  display: flex; align-items: center; gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 2px solid var(--color-divider);
+}
+.nav-brand {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 18px; margin-right: auto;
+}
+.nav a { color: inherit; text-decoration: none; font-size: 14px; }
+.nav a:hover, .nav a[aria-current='page'] { color: var(--color-accent); }
+
+/* — tables — */
+.table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.table th {
+  text-align: left; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+  padding: var(--space-2); border-bottom: 2px solid var(--color-divider);
+}
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-divider);
+}
+.table tbody tr:hover { background: color-mix(in srgb, var(--color-text) 4%, transparent); }
+
+/* — dialog — */
+.dialog-backdrop {
+  position: fixed; inset: 0; display: grid; place-items: center;
+  padding: var(--space-4);
+  background: color-mix(in srgb, var(--color-neutral-900) 50%, transparent);
+}
+.dialog {
+  width: min(440px, 100%); display: flex; flex-direction: column; gap: var(--space-3);
+  padding: var(--space-4); border-radius: var(--radius-lg);
+  background: var(--color-surface); box-shadow: var(--shadow-lg);
+}
+.dialog-title {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 20px;
+}
+.dialog-body { font-size: 14px; opacity: 0.85; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+
+
+</style>
+<style>
+:root{
+  --color-accent: #1f7a3d;
+  --color-accent-2: #3d8a55;
+  --color-accent-100: #eff8f1;
+  --color-accent-200: #d6ecdc;
+  --color-accent-300: #b0dcbd;
+  --color-accent-400: #75c191;
+  --color-accent-500: #35a35f;
+  --color-accent-600: #1f7a3d;
+  --color-accent-700: #175c2e;
+  --color-accent-800: #124524;
+  --color-accent-900: #10301b;
+  --color-accent-2-100: #f0f7f2;
+  --color-accent-2-200: #d9ebde;
+  --color-accent-2-300: #b6dcc1;
+  --color-accent-2-400: #82c397;
+  --color-accent-2-500: #4ea56d;
+  --color-accent-2-600: #3d8a55;
+  --color-accent-2-700: #2e6a41;
+  --color-accent-2-800: #245031;
+  --color-accent-2-900: #1a3623;
+}
+
+</style>
+<style>
+
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--color-bg);color:var(--color-text);font-family:var(--font-body);font-size:14px;-webkit-font-smoothing:antialiased}
+  .muted{color:color-mix(in srgb,var(--color-text) 55%,transparent)}
+  .sk-ic{display:inline-flex;align-items:center;justify-content:center;line-height:0;color:currentColor}
+  .sk-ic svg{width:1em;height:1em;display:block}
+  .sk-ic .ph{font-size:inherit}
+  .sk-app{display:grid;grid-template-columns:252px 1fr;height:100vh;overflow:hidden}
+
+  /* Sidebar */
+  .sk-side{display:flex;flex-direction:column;min-height:0;background:var(--color-surface);border-right:1px solid var(--color-divider)}
+  .sk-brand{display:flex;align-items:center;gap:var(--space-3);height:64px;flex:none;padding:0 var(--space-4);border-bottom:1px solid var(--color-divider)}
+  .sk-brand-mark{width:40px;height:40px;flex:none;display:grid;place-items:center;background:var(--color-accent);color:var(--color-bg);font-family:var(--font-heading);font-weight:var(--font-heading-weight);border-radius:var(--radius-sm);font-size:15px}
+  .sk-brand-name{font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:15px;line-height:1.15}
+  .sk-brand-sub{font-size:11px;margin-top:1px}
+  .sk-nav{flex:1;min-height:0;overflow-y:auto;padding:var(--space-1) var(--space-2) var(--space-2);display:flex;flex-direction:column;gap:1px}
+  .sk-navgroup{font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:var(--space-3) var(--space-2) var(--space-1)}
+  .sk-navitem{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);border-radius:var(--radius-sm);cursor:pointer;font-size:13.5px;color:var(--color-text);text-decoration:none;border-left:3px solid transparent;transition:background .12s}
+  .sk-navitem .sk-ic{font-size:17px;color:color-mix(in srgb,var(--color-text) 62%,transparent)}
+  .sk-navitem:hover{background:color-mix(in srgb,var(--color-text) 7%,transparent)}
+  .sk-navitem.active{background:color-mix(in srgb,var(--color-accent) 13%,transparent);border-left-color:var(--color-accent);font-weight:600}
+  .sk-navitem.active .sk-ic{color:var(--color-accent)}
+  .sk-navcount{margin-left:auto;font-size:10.5px;padding:1px 7px;border-radius:999px;background:color-mix(in srgb,var(--color-text) 10%,transparent);font-feature-settings:'tnum'}
+  .sk-navitem.active .sk-navcount{background:var(--color-accent);color:var(--color-bg)}
+  .sk-side-foot{padding:var(--space-3) var(--space-4);border-top:1px solid var(--color-divider);font-size:11px;display:flex;align-items:center;gap:var(--space-2)}
+  .sk-dot{width:7px;height:7px;border-radius:999px;background:var(--color-accent-2);flex:none}
+
+  /* Main */
+  .sk-main{display:flex;flex-direction:column;min-width:0;min-height:0}
+  .sk-top{display:flex;align-items:center;gap:var(--space-3);height:64px;flex:none;padding:0 var(--space-4);border-bottom:1px solid var(--color-divider);background:var(--color-bg);position:relative;z-index:20}
+  .sk-search{flex:1;max-width:440px;position:relative}
+  .sk-search .sk-ic{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;font-size:16px;color:color-mix(in srgb,var(--color-text) 45%,transparent);pointer-events:none}
+  .sk-search .input{padding-left:38px}
+  .sk-top-actions{margin-left:auto;display:flex;align-items:center;gap:var(--space-2)}
+  .sk-langseg .seg-opt{padding:6px 10px;font-size:12px}
+  .sk-user{display:flex;align-items:center;gap:var(--space-2);padding:4px 6px 4px 4px;border:1px solid var(--color-divider);border-radius:999px;cursor:pointer;background:transparent}
+  .sk-user:hover{background:color-mix(in srgb,var(--color-text) 6%,transparent)}
+  .sk-ava{width:30px;height:30px;border-radius:999px;flex:none;display:grid;place-items:center;background:var(--color-accent);color:var(--color-bg);font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:12px}
+  .sk-user-name{font-size:12.5px;line-height:1.1;font-weight:600}
+  .sk-user-role{font-size:10.5px}
+  .sk-iconwrap{position:relative}
+  .sk-badge{position:absolute;top:-3px;right:-3px;min-width:16px;height:16px;padding:0 4px;border-radius:999px;background:var(--color-accent);color:var(--color-bg);font-size:10px;display:grid;place-items:center;font-feature-settings:'tnum';border:2px solid var(--color-bg)}
+  .sk-content{flex:1;min-height:0;overflow-y:auto;padding:var(--space-4)}
+
+  /* Popovers */
+  .sk-pop{position:absolute;top:calc(100% + 8px);right:0;width:320px;background:var(--color-surface);border:1px solid var(--color-divider);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);z-index:40;overflow:hidden}
+  .sk-pop.sk-menu{width:200px}
+  .sk-pop-hd{display:flex;align-items:center;justify-content:space-between;padding:var(--space-3);border-bottom:1px solid var(--color-divider)}
+  .sk-pop-hd b{font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:14px}
+  .sk-menu-item{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3);font-size:13px;cursor:pointer}
+  .sk-menu-item:hover{background:color-mix(in srgb,var(--color-text) 7%,transparent)}
+  .sk-menu-item + .sk-menu-item{border-top:1px solid var(--color-divider)}
+  .sk-notif{max-height:360px;overflow-y:auto}
+  .sk-notif-item{display:flex;gap:var(--space-3);padding:var(--space-3);border-bottom:1px solid var(--color-divider);cursor:pointer}
+  .sk-notif-item:hover{background:color-mix(in srgb,var(--color-text) 5%,transparent)}
+  .sk-notif-ic{width:30px;height:30px;flex:none;border-radius:var(--radius-sm);display:grid;place-items:center;font-size:15px;background:color-mix(in srgb,var(--color-accent) 14%,transparent);color:var(--color-accent)}
+  .sk-notif-ic.ok{background:color-mix(in srgb,var(--color-accent-2) 16%,transparent);color:var(--color-accent-2-700)}
+  .sk-notif-t{font-size:12.5px;line-height:1.35}
+  .sk-notif-s{font-size:11px;margin-top:2px}
+
+  /* Page */
+  .sk-pagehd{display:flex;align-items:flex-end;gap:var(--space-4);margin-bottom:var(--space-4);flex-wrap:wrap}
+  .sk-pagehd > div:first-child{flex:1 1 auto;min-width:0}
+  .sk-kicker{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--color-accent)}
+  .sk-title{font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:27px;line-height:1.05;margin:3px 0 0;letter-spacing:-.01em}
+  .sk-pagehd-actions{margin-left:auto;display:flex;gap:var(--space-2);align-items:center;flex-wrap:wrap}
+
+  .sk-kpis{display:grid;gap:var(--space-3);margin-bottom:var(--space-4)}
+  .sk-kpi{gap:6px}
+  .sk-kpi-label{font-size:11px;line-height:1.3}
+  .sk-kpi-value{font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:24px;line-height:1;font-feature-settings:'tnum'}
+  .sk-kpi-delta{font-size:11px;display:flex;align-items:center;gap:4px}
+  .sk-kpi-delta .sk-ic{font-size:13px}
+  .up{color:var(--color-accent-2-700)} .down{color:var(--color-accent)}
+
+  .sk-grid2{display:grid;grid-template-columns:1.55fr 1fr;gap:var(--space-3);margin-bottom:var(--space-4)}
+  .sk-grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);margin-bottom:var(--space-4)}
+  .sk-cardhd{display:flex;align-items:center;justify-content:space-between;gap:var(--space-2);margin-bottom:var(--space-3)}
+  .sk-cardtitle{font-family:var(--font-heading);font-weight:var(--font-heading-weight);font-size:15px}
+
+  /* Chart */
+  .sk-chart{display:flex;align-items:stretch;gap:var(--space-2);height:196px}
+  .sk-barcol{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:7px}
+  .sk-bars{display:flex;align-items:flex-end;gap:4px;height:158px}
+  .sk-bar{width:13px;border-radius:var(--radius-sm) var(--radius-sm) 0 0;transition:height .4s cubic-bezier(.2,.7,.3,1)}
+  .sk-bar.rev{background:var(--color-accent)}
+  .sk-bar.ord{background:color-mix(in srgb,var(--color-accent-2) 62%,var(--color-surface))}
+  .sk-barlbl{font-size:10.5px}
+  .sk-legend{display:flex;gap:var(--space-3);font-size:11px}
+  .sk-legend span{display:inline-flex;align-items:center;gap:6px}
+  .sk-swatch{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+  /* Pipeline */
+  .sk-pipe{display:flex;flex-direction:column;gap:13px}
+  .sk-piperow{display:grid;grid-template-columns:118px 1fr 34px;align-items:center;gap:var(--space-2);font-size:12.5px}
+  .sk-pipetrack{height:11px;border-radius:999px;overflow:hidden;background:color-mix(in srgb,var(--color-text) 9%,transparent)}
+  .sk-pipefill{height:100%;background:var(--color-accent);border-radius:999px;transition:width .5s}
+  .sk-pipeval{text-align:right;font-feature-settings:'tnum';font-weight:600}
+
+  /* Lists */
+  .sk-list{display:flex;flex-direction:column}
+  .sk-li{display:flex;align-items:center;gap:var(--space-3);padding:9px 0;border-bottom:1px solid var(--color-divider)}
+  .sk-li:last-child{border-bottom:0}
+  .sk-li-main{flex:1;min-width:0}
+  .sk-li-t{font-size:12.5px;line-height:1.3}
+  .sk-li-s{font-size:11px;margin-top:1px}
+  .sk-prodbar{height:9px;border-radius:999px;background:color-mix(in srgb,var(--color-text) 9%,transparent);overflow:hidden;margin:8px 0 4px}
+  .sk-prodbar > div{height:100%;background:var(--color-accent);border-radius:999px}
+
+  .sk-tablewrap{overflow-x:auto}
+  .sk-toolbar{display:flex;align-items:center;gap:var(--space-2);margin-bottom:var(--space-3);flex-wrap:wrap}
+  .sk-toolbar .sk-search{max-width:300px;flex:0 1 300px}
+
+  .sk-toast-wrap{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:60}
+  .sk-toast{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4);background:var(--color-surface);border:1px solid var(--color-divider);border-left:3px solid var(--color-accent);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);font-size:13px;animation:skin .25s ease}
+  @keyframes skin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .sk-empty{padding:var(--space-8);text-align:center;font-size:13px}
+
+  .dialog-backdrop{z-index:80}
+  .sk-formrow{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-3)}
+  .sk-hide{display:none!important}
+
+  /* Per-direction deltas */
+  body[data-ds="organic"] .btn,body[data-ds="organic"] .input,body[data-ds="organic"] .seg,body[data-ds="organic"] .sk-navitem{border-radius:999px}
+  body[data-ds="organic"] .sk-brand-mark{border-radius:50%}
+  body[data-ds="organic"] .sk-bar{border-radius:999px 999px 0 0}
+  body[data-ds="modernist"] .sk-side{border-right-width:2px}
+  body[data-ds="modernist"] .sk-top{border-bottom-width:2px}
+  body[data-ds="modernist"] .sk-title{letter-spacing:-.02em}
+  body[data-ds="nocturne"] .sk-navitem.active{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--color-accent) 30%,transparent)}
+  body[data-ds="nocturne"] .sk-brand-mark{box-shadow:0 0 0 1px color-mix(in srgb,var(--color-accent) 40%,transparent),0 0 18px color-mix(in srgb,var(--color-accent) 30%,transparent)}
+
+</style>
+<style>
+
+/* ===== green chrome + semantic status palette ===== */
+:root{
+  --sk-chrome:#124524;
+  --sk-chrome-line:rgba(255,255,255,.15);
+  --sk-chrome-mark:#b0dcbd;
+  --sk-ok:#1f7a3d;   --sk-ok-t:#175c2e;
+  --sk-warn:#b8791a; --sk-warn-t:#8a5510;
+  --sk-danger:#c0341c; --sk-danger-t:#9a2814;
+  --sk-info:#5c6b60; --sk-info-t:#415046;
+}
+/* sidebar */
+.sk-side{background:var(--sk-chrome);color:#fff;border-right:0}
+.sk-side .muted{color:rgba(255,255,255,.62)}
+.sk-brand{border-bottom:1px solid var(--sk-chrome-line)}
+.sk-brand-mark{background:#fff;color:var(--sk-chrome)}
+.sk-navgroup{color:rgba(255,255,255,.5)}
+.sk-navitem{color:rgba(255,255,255,.88)}
+.sk-navitem .sk-ic{color:rgba(255,255,255,.58)}
+.sk-navitem:hover{background:rgba(255,255,255,.09)}
+.sk-navitem.active{background:rgba(255,255,255,.14);border-left-color:var(--sk-chrome-mark);color:#fff}
+.sk-navitem.active .sk-ic{color:var(--sk-chrome-mark)}
+.sk-navcount{background:rgba(255,255,255,.16);color:#fff}
+.sk-navitem.active .sk-navcount{background:var(--sk-chrome-mark);color:var(--sk-chrome)}
+.sk-side-foot{border-top:1px solid var(--sk-chrome-line)}
+.sk-dot{background:var(--sk-chrome-mark)}
+/* top bar */
+.sk-top{background:var(--sk-chrome);border-bottom:0;color:#fff}
+.sk-top .muted{color:rgba(255,255,255,.65)}
+.sk-top .input{background:rgba(255,255,255,.12);border-color:rgba(255,255,255,.24);color:#fff}
+.sk-top .input::placeholder{color:rgba(255,255,255,.55)}
+.sk-top .input:focus{background:rgba(255,255,255,.18);border-color:#fff}
+.sk-top .sk-search .sk-ic{color:rgba(255,255,255,.6)}
+.sk-top .btn-secondary{background:transparent;border-color:rgba(255,255,255,.3);color:#fff}
+.sk-top .btn-secondary:hover{background:rgba(255,255,255,.13);border-color:rgba(255,255,255,.5)}
+.sk-top .seg{border-color:rgba(255,255,255,.26);background:transparent}
+.sk-top .seg-opt{color:rgba(255,255,255,.8)}
+.sk-top .seg-opt:hover{background:rgba(255,255,255,.1)}
+.sk-top .seg-opt:has(input:checked){background:#fff;color:var(--sk-chrome)}
+.sk-user{border-color:rgba(255,255,255,.3);color:#fff}
+.sk-user:hover{background:rgba(255,255,255,.12)}
+.sk-ava{background:#fff;color:var(--sk-chrome)}
+.sk-badge{background:#f0c14b;color:#3a2a06;border-color:var(--sk-chrome)}
+/* popovers revert to light surfaces */
+.sk-top .sk-pop{color:var(--color-text)}
+.sk-top .sk-pop .muted{color:color-mix(in srgb,var(--color-text) 55%,transparent)}
+.sk-top .sk-pop .btn-ghost{color:var(--color-text)}
+/* semantic status tags */
+.tag-ok{background:color-mix(in srgb,var(--sk-ok) 15%,transparent);color:var(--sk-ok-t);border:1px solid color-mix(in srgb,var(--sk-ok) 32%,transparent)}
+.tag-warn{background:color-mix(in srgb,var(--sk-warn) 17%,transparent);color:var(--sk-warn-t);border:1px solid color-mix(in srgb,var(--sk-warn) 34%,transparent)}
+.tag-danger{background:color-mix(in srgb,var(--sk-danger) 14%,transparent);color:var(--sk-danger-t);border:1px solid color-mix(in srgb,var(--sk-danger) 32%,transparent)}
+.tag-info{background:color-mix(in srgb,var(--color-text) 7%,transparent);color:color-mix(in srgb,var(--color-text) 78%,transparent);border:1px solid color-mix(in srgb,var(--color-text) 18%,transparent)}
+/* deltas */
+.sk-kpi-delta.up{color:var(--sk-ok-t)}
+.sk-kpi-delta.warn{color:var(--sk-warn-t)}
+.sk-kpi-delta.danger,.sk-kpi-delta.down{color:var(--sk-danger-t)}
+/* notification severity */
+.sk-notif-ic.sev-ok{background:color-mix(in srgb,var(--sk-ok) 15%,transparent);color:var(--sk-ok-t)}
+.sk-notif-ic.sev-warn{background:color-mix(in srgb,var(--sk-warn) 17%,transparent);color:var(--sk-warn-t)}
+.sk-notif-ic.sev-danger{background:color-mix(in srgb,var(--sk-danger) 14%,transparent);color:var(--sk-danger-t)}
+.sk-notif-ic.sev-info{background:color-mix(in srgb,var(--color-text) 8%,transparent);color:color-mix(in srgb,var(--color-text) 70%,transparent)}
+
+</style>
+<script>
+window.__DS={key:'modernist',cfg:{icons:'lucide'}};
+window.__dsReady=true;
+(function(){var s=document.createElement('script');s.src='https://unpkg.com/lucide@latest';document.head.appendChild(s);})();
+</script>
+</head>
+<body>
+<div id="app"></div>
+<div class="sk-toast-wrap" id="toasts"></div>
+<script>
+
+(function(){
+  var DSKEY=window.__DS.key, CFG=window.__DS.cfg;
+  document.body.dataset.ds=DSKEY;
+
+  /* ---------- icons ---------- */
+  var IC={
+    gauge:{l:'layout-dashboard',p:'gauge'}, users:{l:'users',p:'users'}, globe:{l:'globe',p:'globe'},
+    package:{l:'package',p:'package'}, warehouse:{l:'warehouse',p:'warehouse'}, cart:{l:'shopping-cart',p:'shopping-cart'},
+    factory:{l:'factory',p:'factory'}, shield:{l:'shield-check',p:'shield-check'}, truck:{l:'truck',p:'truck'},
+    wallet:{l:'wallet',p:'wallet'}, hr:{l:'contact',p:'identification-card'}, wrench:{l:'wrench',p:'wrench'},
+    file:{l:'file-text',p:'file-text'}, search:{l:'search',p:'magnifying-glass'}, bell:{l:'bell',p:'bell'},
+    gear:{l:'settings',p:'gear'}, caret:{l:'chevron-down',p:'caret-down'}, plus:{l:'plus',p:'plus'},
+    download:{l:'download',p:'download-simple'}, up:{l:'trending-up',p:'trend-up'}, down:{l:'trending-down',p:'trend-down'},
+    warn:{l:'triangle-alert',p:'warning'}, check:{l:'circle-check',p:'check-circle'}, clock:{l:'clock',p:'clock'},
+    filter:{l:'sliders-horizontal',p:'sliders-horizontal'}, logout:{l:'log-out',p:'sign-out'}, user:{l:'user',p:'user'},
+    bolt:{l:'zap',p:'lightning'}, cal:{l:'calendar',p:'calendar-blank'}, x:{l:'x',p:'x'}, refresh:{l:'refresh-cw',p:'arrows-clockwise'}
+  };
+  function icon(name,size){var m=IC[name]||IC.package;var s=size||16;var inner=CFG.icons==='lucide'?'<i data-lucide="'+m.l+'"></i>':'<i class="ph ph-'+m.p+'"></i>';return '<span class="sk-ic" style="font-size:'+s+'px">'+inner+'</span>';}
+  function paintIcons(){ if(CFG.icons==='lucide' && window.lucide){window.lucide.createIcons({attrs:{'stroke-width':DSKEY==='organic'?2.6:2}});} }
+
+  /* ---------- i18n (chrome) ---------- */
+  var T={
+    ru:{brandSub:'CRM / ERP платформа',search:'Поиск: заказы, клиенты, партии…',create:'Создать',export:'Экспорт',filters:'Фильтры',refresh:'Обновить',
+      notifs:'Уведомления',markAll:'Прочитать всё',profile:'Профиль',settings:'Настройки',logout:'Выйти',role:'Администратор',user:'А. Раҳимов',online:'Система · рабочая среда',
+      newRecord:'Новая запись',cancel:'Отмена',save:'Сохранить',dlgHint:'Быстрое создание записи. В рабочей системе поля зависят от модуля.',ftName:'Название',ftOwner:'Ответственный',ftType:'Тип',ftAmount:'Сумма',
+      period:{day:'Сегодня',week:'Неделя',month:'Месяц',quarter:'Квартал'},
+      group:{overview:'Обзор',sales:'Продажи',ops:'Операции',admin:'Управление'},
+      mod:{dashboard:'Панель управления',crm:'CRM и продажи',website:'Интеграция с сайтом',products:'Товары и цены',inventory:'Склад и запасы',procurement:'Закупки и поставщики',production:'Производство',quality:'Качество и безопасность',logistics:'Логистика',finance:'Финансы и бюджет',hr:'Персонал',equipment:'Оборудование и ТО',documents:'Документы'},
+      dash:{rev:'Выручка и заказы',pipe:'Воронка продаж',stock:'Запасы: остатки и сроки',prod:'Производство сегодня',feed:'Лента событий',orders:'Последние заказы',revLeg:'Выручка, тыс. сомони',ordLeg:'Заказы',all:'Все',shift:'Смена',plan:'план',fact:'факт'},
+      kpi:{rev:'Выручка',revsub:'за',orders:'Заказы в работе',recv:'Дебиторка',stockv:'Стоимость запасов',qc:'Партии на карантине',late:'Просроч. поставки'},
+      ocol:['Заказ','Клиент','Продукция','Сумма','Статус','Дата']},
+    tj:{brandSub:'Платформаи CRM / ERP',search:'Ҷустуҷӯ: фармоишҳо, мизоҷон, партияҳо…',create:'Эҷод',export:'Содирот',filters:'Полоиш',refresh:'Навсозӣ',
+      notifs:'Огоҳиномаҳо',markAll:'Ҳамаро хондашуда',profile:'Профил',settings:'Танзимот',logout:'Баромад',role:'Маъмур',user:'А. Раҳимов',online:'Система · муҳити корӣ',
+      newRecord:'Сабти нав',cancel:'Бекор',save:'Нигоҳ доштан',dlgHint:'Эҷоди зуди сабт. Дар системаи корӣ майдонҳо аз модул вобастаанд.',ftName:'Ном',ftOwner:'Масъул',ftType:'Навъ',ftAmount:'Маблағ',
+      period:{day:'Имрӯз',week:'Ҳафта',month:'Моҳ',quarter:'Чоряк'},
+      group:{overview:'Шарҳи умумӣ',sales:'Фурӯш',ops:'Амалиёт',admin:'Идоракунӣ'},
+      mod:{dashboard:'Лавҳаи идора',crm:'CRM ва фурӯш',website:'Ҳамгироӣ бо сайт',products:'Маҳсулот ва нархҳо',inventory:'Анбор ва захира',procurement:'Харид ва таъминкунандагон',production:'Истеҳсолот',quality:'Сифат ва бехатарӣ',logistics:'Логистика',finance:'Молия ва буҷет',hr:'Кадрҳо',equipment:'Таҷҳизот ва хизматрасонӣ',documents:'Ҳуҷҷатҳо'},
+      dash:{rev:'Даромад ва фармоишҳо',pipe:'Раванди фурӯш',stock:'Анбор: боқимонда ва мӯҳлат',prod:'Истеҳсолот имрӯз',feed:'Лентаи рӯйдодҳо',orders:'Фармоишҳои охирин',revLeg:'Даромад, ҳазор сомонӣ',ordLeg:'Фармоишҳо',all:'Ҳама',shift:'Баст',plan:'нақша',fact:'воқеӣ'},
+      kpi:{rev:'Даромад',revsub:'барои',orders:'Фармоишҳои фаъол',recv:'Қарзи мизоҷон',stockv:'Арзиши захира',qc:'Партияҳо дар карантин',late:'Таъхири таъминот'},
+      ocol:['Фармоиш','Мизоҷ','Маҳсулот','Маблағ','Ҳолат','Сана']},
+    en:{brandSub:'CRM / ERP platform',search:'Search: orders, customers, batches…',create:'Create',export:'Export',filters:'Filters',refresh:'Refresh',
+      notifs:'Notifications',markAll:'Mark all read',profile:'Profile',settings:'Settings',logout:'Sign out',role:'Administrator',user:'A. Rahimov',online:'System · production',
+      newRecord:'New record',cancel:'Cancel',save:'Save',dlgHint:'Quick record creation. In the live system fields depend on the module.',ftName:'Name',ftOwner:'Owner',ftType:'Type',ftAmount:'Amount',
+      period:{day:'Today',week:'Week',month:'Month',quarter:'Quarter'},
+      group:{overview:'Overview',sales:'Sales',ops:'Operations',admin:'Management'},
+      mod:{dashboard:'Dashboard',crm:'CRM & Sales',website:'Website integration',products:'Products & Pricing',inventory:'Inventory & Warehousing',procurement:'Procurement & Suppliers',production:'Production',quality:'Quality & Food Safety',logistics:'Logistics',finance:'Finance & Budget',hr:'HR',equipment:'Equipment & Maintenance',documents:'Documents'},
+      dash:{rev:'Revenue & orders',pipe:'Sales pipeline',stock:'Stock: levels & expiry',prod:'Production today',feed:'Activity feed',orders:'Recent orders',revLeg:'Revenue, k somoni',ordLeg:'Orders',all:'All',shift:'Shift',plan:'plan',fact:'actual'},
+      kpi:{rev:'Revenue',revsub:'this',orders:'Open orders',recv:'Receivables',stockv:'Stock value',qc:'Batches quarantined',late:'Overdue deliveries'},
+      ocol:['Order','Customer','Products','Amount','Status','Date']}
+  };
+
+  /* ---------- structure ---------- */
+  var GROUPS=[
+    {key:'overview',items:['dashboard']},
+    {key:'sales',items:['crm','website','products']},
+    {key:'ops',items:['inventory','procurement','production','quality','logistics']},
+    {key:'admin',items:['finance','hr','equipment','documents']}
+  ];
+  var MODICON={dashboard:'gauge',crm:'users',website:'globe',products:'package',inventory:'warehouse',procurement:'cart',production:'factory',quality:'shield',logistics:'truck',finance:'wallet',hr:'hr',equipment:'wrench',documents:'file'};
+  var NAVCOUNT={crm:34,website:12,inventory:7,procurement:6,production:5,quality:3,logistics:8,finance:5};
+
+  function tag(o){return '<span class="tag tag-'+o.v+'">'+o.t+'</span>';}
+
+  /* ---------- module data ---------- */
+  var MODULES={
+    crm:{kpis:[{l:'Новые лиды',v:'34',d:{t:'+6 за неделю',dir:'up'}},{l:'Открытые сделки',v:'47'},{l:'Конверсия',v:'22%',d:{t:'+3 пп',dir:'up'}},{l:'Просроч. задачи',v:'5',d:{t:'внимание',dir:'down'}}],
+      cols:['Клиент','Тип','Регион','Статус','Сумма','Менеджер'],
+      rows:[['Ориён Маркет',{t:'Дистрибьютор',v:'neutral'},'Душанбе',{t:'Выиграно',v:'ok'},'420 000 c.','Н. Салимова'],
+        ['Baraka Wholesale',{t:'Опт',v:'neutral'},'Худжанд',{t:'Переговоры',v:'info'},'310 500 c.','Ф. Каримов'],
+        ['Помир Маркет',{t:'Ритейл',v:'neutral'},'Хорог',{t:'КП отправлено',v:'info'},'96 000 c.','Н. Салимова'],
+        ['Ҷаҳон Трейд',{t:'Дистрибьютор',v:'neutral'},'Бохтар',{t:'Новый лид',v:'info'},'—','Д. Мирзоев'],
+        ['Сугд Фудс',{t:'Опт',v:'neutral'},'Худжанд',{t:'Переговоры',v:'info'},'188 000 c.','Ф. Каримов'],
+        ['Душанбе Ритейл',{t:'Сеть',v:'neutral'},'Душанбе',{t:'Выиграно',v:'ok'},'540 000 c.','Д. Мирзоев']]},
+    website:{kpis:[{l:'Заявки сегодня',v:'12',d:{t:'+4',dir:'up'}},{l:'Оптовые запросы',v:'4'},{l:'Жалобы',v:'1',d:{t:'требует ответа',dir:'down'}},{l:'Отклики (вакансии)',v:'2'}],
+      cols:['№','Тип обращения','Имя / компания','Контакт','Дата','Статус'],
+      rows:[['WR-3391',{t:'Оптовый запрос',v:'neutral'},'Сугд Фудс','+992 92 700 11 08','20.07 09:42',{t:'Создан лид',v:'ok'}],
+        ['CF-8842',{t:'Контакт',v:'neutral'},'М. Одинаев','m.odinaev@mail.tj','20.07 09:15',{t:'Новое',v:'info'}],
+        ['DA-1180',{t:'Дистрибьютор',v:'neutral'},'Ҷаҳон Трейд','info@jahon.tj','20.07 08:50',{t:'Создан лид',v:'ok'}],
+        ['CP-0455',{t:'Жалоба',v:'neutral'},'А. Шарипова','+992 93 455 20 71','19.07 18:20',{t:'В работе',v:'info'}],
+        ['JB-0231',{t:'Вакансия',v:'neutral'},'Резюме · оператор','hr@qoim.tj','19.07 16:04',{t:'Новое',v:'info'}]]},
+    products:{kpis:[{l:'Всего SKU',v:'38'},{l:'Активных',v:'34'},{l:'Языки каталога',v:'3'},{l:'Средняя цена',v:'42 c.'}],
+      cols:['SKU','Наименование','Категория','Упаковка','Цена','Срок годн.','Статус'],
+      rows:[['JUS-APL-100',{t:'Сок',v:'neutral'},'Сок яблочный','1.0 л','18 c.','12 мес',{t:'Активен',v:'ok'}],
+        ['JUS-POM-100',{t:'Сок',v:'neutral'},'Сок гранатовый','1.0 л','26 c.','12 мес',{t:'Активен',v:'ok'}],
+        ['JAM-APR-035',{t:'Джем',v:'neutral'},'Джем абрикосовый','0.35 кг','22 c.','18 мес',{t:'Активен',v:'ok'}],
+        ['PST-TOM-050',{t:'Паста',v:'neutral'},'Томатная паста','0.5 кг','30 c.','24 мес',{t:'Активен',v:'ok'}],
+        ['WAT-050-24',{t:'Вода',v:'neutral'},'Вода питьевая','0.5 л ×24','48 c.','9 мес',{t:'Активен',v:'ok'}],
+        ['JUS-APR-100',{t:'Сок',v:'neutral'},'Сок абрикосовый','1.0 л','24 c.','12 мес',{t:'Черновик',v:'neutral'}]]},
+    inventory:{kpis:[{l:'Позиций на складе',v:'212'},{l:'Низкий остаток',v:'7',d:{t:'ниже мин.',dir:'down'}},{l:'Скоро истекает',v:'4',d:{t:'≤30 дней',dir:'down'}},{l:'Стоимость запасов',v:'1.24 млн c.'}],
+      cols:['Артикул','Товар','Партия','Остаток','Срок годн.','Локация','Статус'],
+      rows:[['JUS-POM-100','Сок гранатовый 1.0 л','B-2588','120 шт','04.2027','Склад ГП · A-12',{t:'Низкий остаток',v:'danger'}],
+        ['JAM-APR-035','Джем абрикосовый 0.35','B-2412','980 шт','08.2026','Склад ГП · B-03',{t:'Истекает 24 дн',v:'warn'}],
+        ['PKG-CAP-82','Крышка твист 82 мм','—','4 500 шт','—','Матер. · C-07',{t:'Ниже мин.',v:'danger'}],
+        ['WAT-050-24','Вода 0.5 л ×24','B-2601','3 200 уп','03.2027','Склад ГП · A-04',{t:'В норме',v:'ok'}],
+        ['PST-TOM-050','Томатная паста 0.5','B-2570','640 шт','06.2028','Склад ГП · B-11',{t:'В норме',v:'ok'}],
+        ['RAW-SUG-50','Сахар (сырьё) 50 кг','B-1180','18 меш','—','Сырьё · D-01',{t:'Низкий остаток',v:'danger'}]]},
+    procurement:{kpis:[{l:'Заявки на закупку',v:'9'},{l:'Открытые PO',v:'6'},{l:'Ожидают приёмки',v:'3'},{l:'Поставщики',v:'24'}],
+      cols:['PO №','Поставщик','Позиции','Сумма','Ожидается','Статус'],
+      rows:[['PO-1042','Стеклотара Согд','Бутылка 1.0 л ×20 000','96 000 c.','22.07',{t:'Подтверждён',v:'ok'}],
+        ['PO-1041','АгроФрукт','Абрикос свежий ×8 т','168 000 c.','21.07',{t:'В пути',v:'info'}],
+        ['PO-1040','ПакСервис','Этикетка ×50 000','34 000 c.','20.07',{t:'Приёмка',v:'warn'}],
+        ['PO-1039','Сахар Импорт','Сахар ×12 т','210 000 c.','25.07',{t:'Согласование',v:'warn'}],
+        ['PO-1038','ТаджикХим','Моющие средства','18 500 c.','24.07',{t:'Черновик',v:'neutral'}]]},
+    production:{kpis:[{l:'План на смену',v:'12 000 ед'},{l:'Факт',v:'8 640 ед',d:{t:'72% плана',dir:'up'}},{l:'Выход (yield)',v:'96.4%'},{l:'Простой',v:'34 мин',d:{t:'линия №2',dir:'down'}}],
+      cols:['Заказ','Продукт','Партия','План','Факт','Брак','Статус'],
+      rows:[['MO-0617','Сок яблочный 1.0 л','B-2617','4 000','3 120','0.6%',{t:'В работе',v:'info'}],
+        ['MO-0616','Джем клубничный 0.35','B-2616','2 000','2 000','1.1%',{t:'На контроле QC',v:'warn'}],
+        ['MO-0615','Вода 1.5 л','B-2615','5 000','5 000','0.2%',{t:'Готово',v:'ok'}],
+        ['MO-0614','Томатная паста 0.5','B-2614','1 800','1 520','0.9%',{t:'В работе',v:'info'}],
+        ['MO-0613','Сок гранатовый 1.0','B-2613','2 400','2 400','0.7%',{t:'Готово',v:'ok'}]]},
+    quality:{kpis:[{l:'Проверок за день',v:'18'},{l:'На карантине',v:'3',d:{t:'ожидают',dir:'down'}},{l:'Несоответствия',v:'2'},{l:'Выпущено',v:'15',d:{t:'сегодня',dir:'up'}}],
+      cols:['Партия','Продукт','Тест','Результат','Инспектор','Статус'],
+      rows:[['B-2610','Сок гранатовый 1.0','Кислотность (pH)','вне нормы','Л. Назарова',{t:'Карантин',v:'danger'}],
+        ['B-2615','Вода 1.5 л','Микробиология','норма','Л. Назарова',{t:'Выпущено',v:'ok'}],
+        ['B-2616','Джем клубничный','Брикс / вязкость','норма','С. Юсупов',{t:'Выпущено',v:'ok'}],
+        ['B-2611','Томатная паста 0.5','Металлодетектор','обнаружено','С. Юсупов',{t:'Отклонено',v:'danger'}],
+        ['B-2617','Сок яблочный 1.0','Органолептика','ожидает','Л. Назарова',{t:'Карантин',v:'danger'}]]},
+    logistics:{kpis:[{l:'Рейсов сегодня',v:'8'},{l:'В пути',v:'5'},{l:'Задержки',v:'1',d:{t:'Хорог',dir:'down'}},{l:'Транс. расходы (мес)',v:'96 400 c.'}],
+      cols:['Рейс','Маршрут','Водитель','Машина','Груз','Статус'],
+      rows:[['TR-0908','Душанбе → Худжанд','Р. Холов','01 A 7788','Сок, вода',{t:'В пути',v:'info'}],
+        ['TR-0907','Душанбе → Бохтар','И. Сафаров','02 B 1290','Джемы',{t:'Доставлено',v:'ok'}],
+        ['TR-0906','Худжанд → Хорог','Ш. Раҷабов','03 C 5540','Паста',{t:'Задержка',v:'danger'}],
+        ['TR-0905','Душанбе → Куляб','Р. Холов','01 A 7788','Ассорти',{t:'Погрузка',v:'info'}],
+        ['TR-0904','Склад → Душанбе','А. Гуломов','04 D 3311','Возврат тары',{t:'Доставлено',v:'ok'}]]},
+    finance:{kpis:[{l:'Бюджет (месяц)',v:'3.10 млн c.'},{l:'Исполнено',v:'2.42 млн c.',d:{t:'78%',dir:'up'}},{l:'Дебиторка',v:'318 500 c.'},{l:'Кредиторка',v:'204 000 c.'}],
+      cols:['Документ','Отдел','Назначение','Сумма','Статус','Дата'],
+      rows:[['ER-2207','Производство','Ремонт линии розлива','42 000 c.',{t:'На согласовании',v:'warn'},'20.07'],
+        ['INV-1043','Продажи','Счёт: Ориён Маркет','420 000 c.',{t:'Оплачено',v:'ok'},'18.07'],
+        ['ER-2206','Закупки','Предоплата: АгроФрукт','84 000 c.',{t:'Одобрено',v:'ok'},'19.07'],
+        ['INV-1042','Продажи','Счёт: Baraka (просрочен)','96 000 c.',{t:'Просрочен',v:'danger'},'05.07'],
+        ['ER-2205','HR','Обучение персонала','12 000 c.',{t:'Оплачено',v:'ok'},'17.07']]},
+    hr:{kpis:[{l:'Сотрудников',v:'148'},{l:'На смене',v:'96'},{l:'В отпуске',v:'7'},{l:'Истекают договоры',v:'3',d:{t:'≤30 дней',dir:'down'}}],
+      cols:['ФИО','Отдел','Должность','Смена','Статус','Договор до'],
+      rows:[['Раҳимов А.','Управление','Директор','—',{t:'Активен',v:'ok'},'—'],
+        ['Салимова Н.','Продажи','Менеджер','Дневная',{t:'Активен',v:'ok'},'12.2026'],
+        ['Холов Р.','Логистика','Водитель','Сменная',{t:'В рейсе',v:'info'},'09.2026'],
+        ['Назарова Л.','Качество','Лаборант','Дневная',{t:'Активен',v:'ok'},'08.2026'],
+        ['Одинаев М.','Производство','Оператор','Ночная',{t:'Отпуск',v:'neutral'},'11.2026'],
+        ['Каримов Ф.','Продажи','Менеджер','Дневная',{t:'Активен',v:'ok'},'08.2026']]},
+    equipment:{kpis:[{l:'Активов',v:'64'},{l:'В работе',v:'58'},{l:'ТО скоро',v:'5',d:{t:'≤7 дней',dir:'down'}},{l:'Поломки',v:'1'}],
+      cols:['Актив','Тип','Линия','След. ТО','Гарантия до','Статус'],
+      rows:[['EQ-011','Линия розлива №1','Розлив','28.07','2027',{t:'В работе',v:'info'}],
+        ['EQ-012','Линия розлива №2','Розлив','23.07','2027',{t:'Требует ТО',v:'danger'}],
+        ['EQ-020','Пастеризатор','Сок','02.08','2026',{t:'В работе',v:'info'}],
+        ['EQ-031','Этикетировщик','Упаковка','—','2025',{t:'Поломка',v:'danger'}],
+        ['EQ-045','Холодильная камера','Склад','30.07','2028',{t:'В работе',v:'info'}]]},
+    documents:{kpis:[{l:'Документов',v:'320'},{l:'Действующих',v:'298'},{l:'Истекают',v:'6',d:{t:'≤60 дней',dir:'down'}},{l:'На согласовании',v:'4'}],
+      cols:['Документ','Тип','Владелец','Версия','Действует до','Статус'],
+      rows:[['Сертификат ISO 22000',{t:'Сертификат',v:'neutral'},'Качество','v3','03.2027',{t:'Действует',v:'ok'}],
+        ['СОП: санитарная обработка',{t:'SOP',v:'neutral'},'Качество','v5','—',{t:'Действует',v:'ok'}],
+        ['Договор: АгроФрукт',{t:'Договор',v:'neutral'},'Закупки','v2','09.2026',{t:'Истекает',v:'warn'}],
+        ['Разрешение (санэпид)',{t:'Разрешение',v:'neutral'},'Управление','v1','12.2026',{t:'Действует',v:'ok'}],
+        ['Инструкция оператора',{t:'Manual',v:'neutral'},'Производство','v4','—',{t:'Черновик',v:'neutral'}]]}
+  };
+
+  var NOTIFS=[
+    {ic:'globe',sev:'info',t:'Новая заявка с сайта: оптовый запрос, Худжанд',s:'5 мин назад · создан лид'},
+    {ic:'warn',sev:'danger',t:'Партия B-2610 не прошла тест (кислотность)',s:'22 мин назад · карантин'},
+    {ic:'wallet',sev:'danger',t:'Счёт №1042 просрочен — Baraka Wholesale',s:'1 ч назад · 96 000 c.'},
+    {ic:'wrench',sev:'warn',t:'ТО линии розлива №2 — через 3 дня',s:'2 ч назад'},
+    {ic:'check',sev:'ok',t:'Заказ SO-0908 отгружен',s:'3 ч назад',ok:true}
+  ];
+
+  var CHART={
+    month:{lab:['Дек','Янв','Фев','Мар','Апр','Май','Июн','Июл'],rev:[1720,1810,1650,1920,2050,2180,2310,2480],ord:[28,31,26,34,38,41,44,47]},
+    quarter:{lab:['Q3·25','Q4·25','Q1·26','Q2·26'],rev:[4900,5300,5580,6710],ord:[82,95,101,132]},
+    week:{lab:['Пн','Вт','Ср','Чт','Пт','Сб','Вс'],rev:[78,92,85,110,124,60,40],ord:[6,7,6,9,10,4,3]},
+    day:{lab:['09','11','13','15','17','19'],rev:[12,20,26,22,30,18],ord:[1,2,3,2,3,1]}
+  };
+  var PIPE=[{t:'Заявки с сайта',v:64},{t:'Лиды',v:38},{t:'КП',v:24},{t:'Заказы',v:15},{t:'Оплачено',v:11}];
+  var STOCK=[
+    {t:'Сок гранатовый 1.0 л',s:'Остаток 120 шт · A-12',g:{t:'Низкий остаток',v:'danger'}},
+    {t:'Джем абрикосовый 0.35',s:'Партия B-2412',g:{t:'Истекает 24 дн',v:'warn'}},
+    {t:'Крышка твист 82 мм',s:'4 500 шт · ниже мин.',g:{t:'Заказать',v:'danger'}},
+    {t:'Вода 0.5 л ×24',s:'Партия B-2601',g:{t:'В норме',v:'ok'}},
+    {t:'Сахар (сырьё)',s:'18 мешков',g:{t:'Низкий остаток',v:'danger'}}
+  ];
+  var BATCH=[{t:'B-2617 · Сок яблочный 1.0 л',s:'Линия №1',g:{t:'В работе',v:'info'}},{t:'B-2616 · Джем клубничный',s:'Партия готова',g:{t:'Контроль QC',v:'warn'}},{t:'B-2615 · Вода 1.5 л',s:'Передано на склад',g:{t:'Готово',v:'ok'}}];
+  var ORDERS=[
+    ['SO-0912','Ориён Маркет','Сок яблочный 1 л ×240','26 400 c.',{t:'Оплачено',v:'ok'},'18.07'],
+    ['SO-0911','Baraka Wholesale','Вода 0.5 л ×1200','14 400 c.',{t:'Отгружен',v:'info'},'18.07'],
+    ['SO-0910','Душанбе Ритейл','Джем ассорти ×360','21 600 c.',{t:'В производстве',v:'info'},'17.07'],
+    ['SO-0909','Хуҷанд Опт','Томатная паста ×480','33 600 c.',{t:'Новый',v:'info'},'17.07'],
+    ['SO-0908','Помир Маркет','Сок гранатовый ×180','27 000 c.',{t:'Оплачено',v:'ok'},'16.07']
+  ];
+
+  /* ---------- state ---------- */
+  var st={mod:'dashboard',lang:'ru',period:'month',notif:false,menu:false,notifCount:5,query:''};
+  var app=document.getElementById('app');
+  function L(){return T[st.lang];}
+
+  /* ---------- shell ---------- */
+  function navHTML(){
+    var t=L();var h='';
+    GROUPS.forEach(function(g){
+      h+='<div class="sk-navgroup muted">'+t.group[g.key]+'</div>';
+      g.items.forEach(function(id){
+        var c=NAVCOUNT[id];
+        h+='<a class="sk-navitem'+(st.mod===id?' active':'')+'" data-act="nav" data-mod="'+id+'">'+icon(MODICON[id],17)+'<span>'+t.mod[id]+'</span>'+(c?'<span class="sk-navcount">'+c+'</span>':'')+'</a>';
+      });
+    });
+    return h;
+  }
+  function topHTML(){
+    var t=L();
+    return '<div class="sk-search">'+icon('search',16)+'<input class="input" id="sk-search" placeholder="'+t.search+'" value="'+st.query.replace(/"/g,'&quot;')+'"></div>'+
+      '<div class="sk-top-actions">'+
+      '<div class="seg sk-langseg">'+['tj','ru','en'].map(function(lg){return '<label class="seg-opt"><input type="radio" name="lang" data-act="lang" data-lang="'+lg+'"'+(st.lang===lg?' checked':'')+'>'+({tj:'ТҶ',ru:'РУ',en:'EN'}[lg])+'</label>';}).join('')+'</div>'+
+      '<div class="sk-iconwrap"><button class="btn btn-secondary btn-icon" data-act="notif" aria-label="'+t.notifs+'">'+icon('bell',18)+(st.notifCount?'<span class="sk-badge">'+st.notifCount+'</span>':'')+'</button>'+(st.notif?notifPop():'')+'</div>'+
+      '<button class="btn btn-secondary btn-icon" data-act="toast-settings" aria-label="'+t.settings+'">'+icon('gear',18)+'</button>'+
+      '<div class="sk-iconwrap"><button class="sk-user" data-act="menu">'+'<span class="sk-ava">АР</span><span style="text-align:left"><span class="sk-user-name" style="display:block">'+t.user+'</span><span class="sk-user-role muted" style="display:block">'+t.role+'</span></span>'+icon('caret',15)+'</button>'+(st.menu?menuPop():'')+'</div>'+
+      '</div>';
+  }
+  function notifPop(){var t=L();return '<div class="sk-pop"><div class="sk-pop-hd"><b>'+t.notifs+'</b><button class="btn btn-ghost" data-act="markall" style="font-size:12px">'+t.markAll+'</button></div><div class="sk-notif">'+NOTIFS.map(function(n){return '<div class="sk-notif-item" data-act="notif-go"><div class="sk-notif-ic'+(n.ok?' ok':'')+'">'+icon(n.ic,15)+'</div><div><div class="sk-notif-t">'+n.t+'</div><div class="sk-notif-s muted">'+n.s+'</div></div></div>';}).join('')+'</div></div>';}
+  function menuPop(){var t=L();return '<div class="sk-pop sk-menu"><div class="sk-menu-item" data-act="toast-profile">'+icon('user',16)+t.profile+'</div><div class="sk-menu-item" data-act="toast-settings">'+icon('gear',16)+t.settings+'</div><div class="sk-menu-item" data-act="toast-logout">'+icon('logout',16)+t.logout+'</div></div>';}
+
+  function shell(main){
+    var t=L();
+    return '<div class="sk-app">'+
+      '<aside class="sk-side">'+
+        '<div class="sk-brand"><div class="sk-brand-mark">СК</div><div><div class="sk-brand-name">Самари Кӯҳсор</div><div class="sk-brand-sub muted">'+t.brandSub+'</div></div></div>'+
+        '<nav class="sk-nav">'+navHTML()+'</nav>'+
+        '<div class="sk-side-foot muted"><span class="sk-dot"></span>'+t.online+'</div>'+
+      '</aside>'+
+      '<div class="sk-main">'+
+        '<header class="sk-top">'+topHTML()+'</header>'+
+        '<div class="sk-content" id="sk-content">'+main+'</div>'+
+      '</div>'+
+    '</div>'+dialogHTML();
+  }
+
+  /* ---------- pages ---------- */
+  function pagehd(kicker,title,actions){
+    return '<div class="sk-pagehd"><div><div class="sk-kicker">'+kicker+'</div><h1 class="sk-title">'+title+'</h1></div><div class="sk-pagehd-actions">'+actions+'</div></div>';
+  }
+  function actbtns(withPeriod){
+    var t=L();var h='';
+    if(withPeriod){h+='<div class="seg">'+['day','week','month','quarter'].map(function(p){return '<label class="seg-opt"><input type="radio" name="period" data-act="period" data-period="'+p+'"'+(st.period===p?' checked':'')+'>'+t.period[p]+'</label>';}).join('')+'</div>';}
+    h+='<button class="btn btn-secondary" data-act="export">'+icon('download',16)+t.export+'</button>';
+    h+='<button class="btn btn-primary" data-act="create">'+icon('plus',16)+t.create+'</button>';
+    return h;
+  }
+
+  function kpiCards(list){
+    return '<div class="sk-kpis" style="grid-template-columns:repeat('+list.length+',1fr)">'+list.map(function(k){
+      var d=k.d?'<div class="sk-kpi-delta '+k.d.dir+'">'+icon(k.d.dir==='up'?'up':'down',13)+k.d.t+'</div>':'<div class="sk-kpi-delta muted">&nbsp;</div>';
+      return '<div class="card sk-kpi"><div class="sk-kpi-label muted">'+k.l+'</div><div class="sk-kpi-value">'+k.v+'</div>'+d+'</div>';
+    }).join('')+'</div>';
+  }
+
+  function dashboard(){
+    var t=L(),d=t.dash;
+    var kp=[
+      {l:t.kpi.rev+' ('+t.period[st.period]+')',v:'2 480 000 c.',d:{t:'+12.4%',dir:'up'}},
+      {l:t.kpi.orders,v:'47',d:{t:'+6',dir:'up'}},
+      {l:t.kpi.recv,v:'318 500 c.',d:{t:'5 счетов',dir:'warn'}},
+      {l:t.kpi.stockv,v:'1.24 млн c.',d:{t:'-2.1%',dir:'down'}},
+      {l:t.kpi.qc,v:'3',d:{t:'контроль',dir:'warn'}},
+      {l:t.kpi.late,v:'2',d:{t:'логистика',dir:'danger'}}
+    ];
+    var c=CHART[st.period],max=Math.max.apply(null,c.rev),omax=Math.max.apply(null,c.ord);
+    var bars='<div class="sk-chart">'+c.lab.map(function(lb,i){
+      var rh=Math.round(c.rev[i]/max*150)+8, oh=Math.round(c.ord[i]/omax*150)+8;
+      return '<div class="sk-barcol"><div class="sk-bars"><div class="sk-bar rev" style="height:'+rh+'px"></div><div class="sk-bar ord" style="height:'+oh+'px"></div></div><div class="sk-barlbl muted">'+lb+'</div></div>';
+    }).join('')+'</div>';
+    var pmax=PIPE[0].v;
+    var pipe='<div class="sk-pipe">'+PIPE.map(function(p){return '<div class="sk-piperow"><span>'+p.t+'</span><div class="sk-pipetrack"><div class="sk-pipefill" style="width:'+Math.round(p.v/pmax*100)+'%"></div></div><span class="sk-pipeval">'+p.v+'</span></div>';}).join('')+'</div>';
+
+    var main=pagehd(t.group.overview+' · Июль 2026',t.mod.dashboard,actbtns(true));
+    main+=kpiCards(kp);
+    main+='<div class="sk-grid2">'+
+      '<div class="card"><div class="sk-cardhd"><span class="sk-cardtitle">'+d.rev+'</span><div class="sk-legend muted"><span><span class="sk-swatch" style="background:var(--color-accent)"></span>'+d.revLeg+'</span><span><span class="sk-swatch" style="background:color-mix(in srgb,var(--color-accent-2) 62%,var(--color-surface))"></span>'+d.ordLeg+'</span></div></div>'+bars+'</div>'+
+      '<div class="card"><div class="sk-cardhd"><span class="sk-cardtitle">'+d.pipe+'</span><span class="tag tag-neutral">'+d.all+'</span></div>'+pipe+'</div>'+
+    '</div>';
+    main+='<div class="sk-grid3">'+
+      '<div class="card"><div class="sk-cardhd"><span class="sk-cardtitle">'+d.stock+'</span>'+icon('warehouse',18)+'</div><div class="sk-list">'+STOCK.map(liRow).join('')+'</div></div>'+
+      '<div class="card"><div class="sk-cardhd"><span class="sk-cardtitle">'+d.prod+'</span><span class="tag tag-accent">72%</span></div><div class="muted" style="font-size:12px">'+d.shift+': 12 000 '+d.plan+' · 8 640 '+d.fact+'</div><div class="sk-prodbar"><div style="width:72%"></div></div><div class="sk-list">'+BATCH.map(liRow).join('')+'</div></div>'+
+      '<div class="card"><div class="sk-cardhd"><span class="sk-cardtitle">'+d.feed+'</span>'+icon('bolt',18)+'</div><div class="sk-list">'+NOTIFS.slice(0,4).map(function(n){return '<div class="sk-li"><div class="sk-notif-ic'+(n.ok?' ok':'')+'" style="width:26px;height:26px;font-size:13px">'+icon(n.ic,13)+'</div><div class="sk-li-main"><div class="sk-li-t">'+n.t+'</div><div class="sk-li-s muted">'+n.s+'</div></div></div>';}).join('')+'</div></div>'+
+    '</div>';
+    main+='<div class="card"><div class="sk-cardhd"><span class="sk-cardtitle">'+d.orders+'</span><button class="btn btn-ghost" data-act="nav" data-mod="crm">'+t.dash.all+' →</button></div>'+table(t.ocol,ORDERS)+'</div>';
+    return main;
+  }
+  function liRow(o){return '<div class="sk-li"><div class="sk-li-main"><div class="sk-li-t">'+o.t+'</div><div class="sk-li-s muted">'+o.s+'</div></div>'+tag(o.g)+'</div>';}
+
+  function table(cols,rows){
+    var q=st.query.trim().toLowerCase();
+    var fr=rows.filter(function(r){if(!q)return true;return r.some(function(c){var v=(c&&c.t)?c.t:c;return String(v).toLowerCase().indexOf(q)>-1;});});
+    var body=fr.length?fr.map(function(r){return '<tr>'+r.map(function(c){var v=(c&&typeof c==='object')?tag(c):c;return '<td>'+v+'</td>';}).join('')+'</tr>';}).join(''):'<tr><td colspan="'+cols.length+'" class="sk-empty muted">Ничего не найдено по запросу «'+st.query+'»</td></tr>';
+    return '<div class="sk-tablewrap"><table class="table"><thead><tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr></thead><tbody>'+body+'</tbody></table></div>';
+  }
+
+  function moduleView(id){
+    var t=L(),m=MODULES[id];
+    var main=pagehd(t.group[groupOf(id)],t.mod[id],actbtns(false));
+    main+=kpiCards(m.kpis);
+    main+='<div class="card"><div class="sk-toolbar"><div class="sk-search">'+icon('search',15)+'<input class="input" id="sk-search2" placeholder="'+t.search+'" value="'+st.query.replace(/"/g,'&quot;')+'"></div><button class="btn btn-secondary" data-act="toast-filter">'+icon('filter',15)+t.filters+'</button><span class="muted" style="margin-left:auto;font-size:12px">'+m.rows.length+' записей</span></div>'+table(m.cols,m.rows)+'</div>';
+    return main;
+  }
+  function groupOf(id){var r='ops';GROUPS.forEach(function(g){if(g.items.indexOf(id)>-1)r=g.key;});return r;}
+
+  function dialogHTML(){
+    var t=L();
+    return '<div class="dialog-backdrop sk-hide" id="sk-dialog"><div class="dialog"><div class="dialog-title">'+t.newRecord+'</div><div class="dialog-body"><p class="muted" style="margin-top:0">'+t.dlgHint+'</p><div class="sk-formrow"><div class="field"><label>'+t.ftName+'</label><input class="input" placeholder="—"></div><div class="field"><label>'+t.ftOwner+'</label><input class="input" value="'+t.user+'"></div></div><div class="sk-formrow" style="margin-top:12px"><div class="field"><label>'+t.ftType+'</label><input class="input" placeholder="—"></div><div class="field"><label>'+t.ftAmount+'</label><input class="input" placeholder="0 c."></div></div></div><div class="dialog-actions"><button class="btn btn-secondary" data-act="dlg-close">'+t.cancel+'</button><button class="btn btn-primary" data-act="dlg-save">'+t.save+'</button></div></div></div>';
+  }
+
+  /* ---------- render ---------- */
+  function render(){
+    var main=st.mod==='dashboard'?dashboard():moduleView(st.mod);
+    app.innerHTML=shell(main);
+    paintIcons();
+  }
+  function rerenderContent(){
+    document.getElementById('sk-content').innerHTML=st.mod==='dashboard'?dashboard():moduleView(st.mod);
+    paintIcons();
+  }
+  function rerenderTop(){document.querySelector('.sk-top').innerHTML=topHTML();paintIcons();}
+
+  function toast(msg){
+    var w=document.getElementById('toasts');
+    var el=document.createElement('div');el.className='sk-toast';el.innerHTML=icon('check',16)+'<span>'+msg+'</span>';
+    w.appendChild(el);paintIcons();
+    setTimeout(function(){el.style.transition='opacity .3s';el.style.opacity='0';setTimeout(function(){el.remove();},300);},2400);
+  }
+
+  /* ---------- events ---------- */
+  document.addEventListener('click',function(e){
+    var el=e.target.closest('[data-act]'); 
+    var t=L();
+    // close popovers when clicking outside
+    if(!e.target.closest('.sk-iconwrap')&&(st.notif||st.menu)){st.notif=false;st.menu=false;rerenderTop();}
+    if(!el)return;
+    var a=el.dataset.act;
+    if(a==='nav'){st.mod=el.dataset.mod;st.query='';st.notif=false;st.menu=false;render();return;}
+    if(a==='lang'){st.lang=el.dataset.lang;render();return;}
+    if(a==='period'){st.period=el.dataset.period;rerenderContent();return;}
+    if(a==='notif'){st.notif=!st.notif;st.menu=false;rerenderTop();return;}
+    if(a==='menu'){st.menu=!st.menu;st.notif=false;rerenderTop();return;}
+    if(a==='markall'){st.notifCount=0;st.notif=false;rerenderTop();toast('Все уведомления отмечены прочитанными');return;}
+    if(a==='notif-go'){st.notif=false;st.mod='website';render();return;}
+    if(a==='create'){document.getElementById('sk-dialog').classList.remove('sk-hide');return;}
+    if(a==='dlg-close'){document.getElementById('sk-dialog').classList.add('sk-hide');return;}
+    if(a==='dlg-save'){document.getElementById('sk-dialog').classList.add('sk-hide');toast('Запись сохранена');return;}
+    if(a==='export'){toast('Экспорт в Excel подготовлен');return;}
+    if(a==='toast-filter'){toast('Панель фильтров');return;}
+    if(a==='toast-settings'){toast('Настройки системы');return;}
+    if(a==='toast-profile'){st.menu=false;rerenderTop();toast('Профиль пользователя');return;}
+    if(a==='toast-logout'){st.menu=false;rerenderTop();toast('Выход из системы…');return;}
+  });
+  document.addEventListener('input',function(e){
+    if(e.target.id==='sk-search'||e.target.id==='sk-search2'){st.query=e.target.value;
+      // update only the table/content without losing focus if possible: re-render content then refocus
+      var id=e.target.id, pos=e.target.selectionStart;
+      rerenderContent();
+      var n=document.getElementById(id); if(n){n.focus();try{n.setSelectionRange(pos,pos);}catch(_){}}
+    }
+  });
+
+  function boot(){render();}
+  var t0=Date.now();
+  (function w(){
+    var cssReady=(window.__dsLink&&window.__dsLink.sheet)||window.__dsReady||(Date.now()-t0>1600);
+    var icReady=(CFG.icons!=='lucide')||window.lucide||(Date.now()-t0>1600);
+    if(cssReady&&icReady){boot();}else{setTimeout(w,30);}
+  })();
+})();
+
+</script>
+</body>
+</html>

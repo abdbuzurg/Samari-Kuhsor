@@ -1,0 +1,280 @@
+# TASKS — Samari Kuhsor platform
+
+Dependency-ordered. **One task at a time. A task is not done until its "Done when" gate passes in
+full. The next task does not open with a red suite.**
+
+Governing docs: `CLAUDE.md` → `docs/01-DECISIONS.md` → `docs/07-IMPLEMENTATION-PLAN.md` → the
+`docs/` file for the slice in hand.
+
+Status: `todo` · `wip` · `done`
+
+---
+
+## Stage A — Foundations
+
+### T01 · Repo scaffold and toolchain — `done`
+Monorepo skeleton, git, Makefile, `.gitignore`, dev `docker-compose.yml` on `postgres:18`,
+npm workspaces, Go module, `packages/types` placeholder.
+
+**Done when:** `make up` starts Postgres 18 and `make db-version` reports `18.x`; `make down`
+removes it cleanly; `make check` runs end to end and is green; `git log` has an initial commit.
+
+### T02 · Extraction from the approved prototypes — `todo`
+Pull from `design/` (read-only, never edited):
+- 4 images + Golos Text woff2 from the website bundle → `apps/web/public/`
+- Recovered website source (markup, 282-line script, 13.7 KB CSS) → `apps/web/.reference/`
+- CRM chrome strings (`T` object) → `apps/crm/messages/ru.json`
+- Website RU copy → `apps/web/messages/ru.json`
+- CRM `:root` tokens (layers ①②④) → `apps/crm/app/styles/theme.css` as Tailwind `@theme`
+
+**Done when:** every asset byte-identical to the bundle source; both `ru.json` files parse and
+contain no `tj` key (C2); token file contains every `--color-*`, `--space-*`, `--radius-*`,
+`--shadow-*`, `--sk-*` custom property found in the prototype, values unchanged; a script asserts
+the count matches.
+
+### T03 · Base migration and sqlc — `todo`
+Migration 001: universal conventions (`02-SCHEMA.md §1`), `users`, `sessions`, `roles`,
+`role_permissions`, `user_roles`, `audit_log`, `items`, `item_translations`, `packaging_units`,
+`item_prices`, `batches`. `uuidv7()` defaults (I7). Partial unique indexes for tombstones.
+
+**Done when:** `goose up` then `goose down` round-trips cleanly; `sqlc generate` produces code with
+no diff on re-run; a test asserts every table has `created_at`/`updated_at`/`deleted_at`/`version`/
+`created_by`; a test asserts no column named `quantity_on_hand` or similar balance column exists.
+
+### T04 · Test harness — `todo`
+`backend/testsupport`: one `postgres:18` testcontainer per run, migrations into a template DB,
+`CREATE DATABASE … TEMPLATE` per test. The mandatory `AssertAudited` helper (I4).
+
+**Done when:** two tests mutating the same table in parallel do not see each other's rows;
+harness startup measured and recorded; `AssertAudited` fails loudly when no audit row was written.
+
+### T05 · Auth — `todo`
+argon2id, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, session token hashed at rest,
+`failed_attempts`/`locked_until` lockout, idle timeout, absolute expiry, logout-everywhere on
+password change.
+
+**Done when:** integration tests cover — valid login issues a session; wrong password increments
+`failed_attempts`; N failures lock the account; locked account rejects a *correct* password;
+expired session rejected; revoked session rejected; `/auth/me` returns the flat permission list;
+login and logout both write `audit_log`; the raw token never appears in the database.
+
+### T06 · RBAC — `todo`
+`rbac.Require(resource, action)`, permission resolution as the union across roles, `manage` implies
+`read`, `approve` does **not** imply `manage`. Startup check failing if any registered route lacks
+a permission declaration (`04-RBAC.md:123`).
+
+**Done when:** unit tests for union, implication and no-roles-no-access; a test registers a route
+without `rbac.Require` and asserts the server refuses to start; per-endpoint 200/403/401 matrix
+helper exists and is used by T05.
+
+### T07 · Shared HTTP machinery — `todo`
+`internal/http/common`: response envelope, error mapping to the eight stable codes, pagination,
+sort whitelisting, `q` search, `version` guard → 409 `version_conflict`. `internal/audit`.
+`internal/alerts` skeleton (I15).
+
+**Done when:** unit tests for every error code → status mapping; `per_page` clamped at 200;
+unknown sort field rejected rather than interpolated; stale `version` returns 409; money and
+quantity serialise as **strings** (`03-API-CONTRACT.md:147`), asserted by test.
+
+### T08 · Type generation — `todo`
+`tygo` wired, `packages/types` generated from Go DTOs, staleness gate in `make check`.
+
+**Done when:** `make gen` is idempotent; mutating a Go DTO without regenerating makes `make check`
+fail with a clear message.
+
+### T09 · `seed:reference` — `todo`
+Five products with packaging units and translations, seed roles with the exact permission matrix
+from `04-RBAC.md §4`, locations, one admin user, content page skeletons. Idempotent.
+
+**Done when:** running twice produces no duplicates and no error; a test asserts the seeded
+permission matrix equals `04-RBAC.md §4` cell for cell; a test asserts exactly five finished goods
+exist and none of the prototype's filler SKUs (D8).
+
+### T10 · CRM shell — `todo`
+Next 16 + React 19 + Tailwind v4 + next-intl (cookie mode) + TanStack Query. Sidebar 252px, top bar
+64px, permission-driven nav, global search, ТҶ/РУ/EN switcher, notification bell, user menu. BFF
+auth route handlers and the httpOnly cookie flow.
+
+**Done when:** login works browser → BFF → Go → Postgres and back; nav hides modules the user
+cannot `read`; language switch changes all chrome strings; **screenshot drift gate** (I13) run
+against the prototype at 1440px; responsive verified at tablet and mobile (I27); component tests
+for loading/empty/error/populated.
+
+---
+
+## Stage B — Reference slice
+
+### T11 · Товары — backend — `todo`
+`queries/items.sql`, domain logic, handlers with `rbac.Require`, audit on every mutation.
+
+**Done when:** integration tests for happy path, validation failure, 403, 401, audit row asserted;
+duplicate SKU on a non-deleted row rejected with `already_exists`; tombstoned SKU may be reused.
+
+### T12 · Товары — BFF and types — `todo`
+**Done when:** no backend hostname, port or service key appears in any client bundle — asserted by
+a test grepping the built output; `packages/types` current.
+
+### T13 · Товары — UI — `todo`
+List (KPIs, columns, live search), detail per `05-MODULES.md §2`, edit form with `version_conflict`
+handling.
+
+**Done when:** component tests for four states; a stale-version save surfaces a conflict rather than
+overwriting; `уточняется` renders for null composition/nutrition/shelf-life (`02-SCHEMA.md:176`);
+screenshot drift gate; responsive pass.
+
+### T14 · QR generation and printer export — `todo`
+Writes `batches.qr_payload`, generates images on demand, bulk export as ZIP of SVGs + CSV manifest
+(D11, I17).
+
+**Done when:** payload round-trips through a QR decoder in test; export produces one SVG per batch
+and a manifest whose row count matches; regenerating a payload for an already-issued batch is
+refused.
+
+### T15 · Engine extraction — `todo`
+Extract `ListView` / `DetailView` / `EditForm` and their per-module descriptors **from the working
+Товары code** (I2). Товары is refactored onto the engine as consumer zero.
+
+**Done when:** Товары's tests and its screenshot drift gate still pass unchanged after refactor.
+
+---
+
+## Stage C — The operational chain
+
+### T16 · Склад и запасы — `todo`
+`locations`, `stock_movements`, `stock_balances` **plain view** (I5). Advisory-lock negative
+posting with `adjustment` exempt (I6). Приёмка / перемещение / списание / корректировка.
+
+**Done when:** exhaustive ledger tests — balance equals sum of deltas; transfer posts two rows
+sharing `ref_id` and nets to zero; correction is a compensating entry and the original row is
+untouched; concurrent negative postings cannot drive stock negative; `adjustment` *can*; no endpoint
+anywhere accepts an absolute quantity.
+
+### T17 · Производство — `todo`
+`manufacturing_orders`, `production_entries` (append-only). Completion posts `production_output`
+into a quarantine location and moves the batch to `quarantine`.
+
+**Done when:** yield/output/downtime are computed sums, never columns — asserted; completing an
+order does **not** make the batch sellable; MO↔batch is 1:1.
+
+### T18 · Качество и безопасность — `todo`
+`quality_tests`, `batch_status_events`. Transition rules from `02-SCHEMA.md §7`.
+**Reviewed line by line.**
+
+**Done when:** the full from/to transition matrix is tested — every legal pair, every illegal pair,
+with and without `quality:approve`; recall (`released → rejected`) requires a reason; release writes
+an immutable event plus an audit row naming the deciding user; a sales order and a shipment line
+both reject a non-`released` batch, enforced in the domain and proven by test.
+
+### T19 · Закупки и поставщики — `todo`
+Suppliers, POs, lines, goods receipts. `procurement:approve` gates exit from `approval`.
+
+**Done when:** goods receipt posts `goods_receipt` movements matching received quantities; approval
+without the permission is 403; receiving against a closed PO is refused.
+
+### T20 · Интеграция с сайтом — `todo`
+`inquiries`, reference-number generation per prefix, convert-to-lead.
+
+**Done when:** each type produces its correct prefix; reference numbers are unique under concurrent
+submission; a `CP-` complaint must link to a batch; conversion carries the reference number across.
+
+---
+
+## Stage D — Remaining modules
+
+### T21 · Логистика — `todo`
+**Done when:** loading a shipment line with a non-`released` batch is refused server-side.
+
+### T22 · Документы — `todo`
+**Done when:** superseded versions are retained; `documents:approve` gates `approval → active`;
+document files are unreachable by any static path and require `documents:read` (I17).
+
+### T23 · Персонал — `todo`
+**Done when:** personal data is unreachable through every public endpoint, asserted by test;
+contract expiry warns at 30 days.
+
+### T24 · Оборудование и ТО — `todo`
+
+### T25 · CRM и продажи — `todo`
+Customers, contacts, leads, deals with `deal_stage_events`, sales orders, tasks (I16).
+
+**Done when:** confirming a sales order posts `sale` movements and refuses non-`released` batches.
+
+### T26 · Role management UI and audit log viewer — `todo`
+`04-RBAC.md §6`. Behind `admin:manage` and `audit:read`.
+
+**Done when:** the last holder of `admin:manage` cannot be deactivated or stripped of it, enforced
+server-side and tested; permission changes take effect on the affected user's next request;
+audit rows are not editable or deletable through any route.
+
+### T27 · Notifications — `todo`
+Derive 7 standing conditions, persist 3 discrete events (I15). Sidebar count pills from the same
+service.
+
+**Done when:** a resolved condition disappears from the feed with no retraction logic; users never
+see a notification for a resource they cannot `read`.
+
+---
+
+## Stage E — Website
+
+### T28 · CMS — `todo`
+`content_pages`, `content_blocks`, translations, `news_posts`, `media`, `content_workflow_events`.
+Ladder: draft → technical_review → language_review → approved → published.
+
+**Done when:** every illegal transition is refused; `approved`/`published` require `cms:approve`;
+the public API returns only `published`; the CRM can preview any state.
+
+### T29 · Website port — `todo`
+1:1 translation of the recovered source (I19). CSS verbatim. Content from CMS/`items`.
+
+**Done when:** side-by-side screenshot comparison against the prototype at desktop, tablet and
+mobile; belt roll-in, batch paging, map three-stage draw, marquee and replay-on-return all behave
+as `PROJECT-CONTEXT-WEBSITE.md §7` describes; `prefers-reduced-motion` degrades to static placement
+plus fades; the assembly line stays horizontal and swipeable on mobile.
+
+### T30 · Public endpoints and inquiry submission — `todo`
+**Done when:** submission returns a reference number; rate limiting by IP proven; the inquiry
+appears in the CRM as `new`; no session is ever required; the public surface cannot reach any
+CRM endpoint.
+
+### T31 · next-intl routed locales, hreflang, legal pages — `todo`
+**Done when:** `/ru`, `/tg`, `/en` all render; `hreflang` present and correct; missing locale rows
+fall back to `ru`.
+
+### T32 · Matomo, consent banner, retention — `todo`
+**Done when:** no analytics request fires before consent is given, asserted in a browser test.
+
+### T33 · Панель управления — `todo`
+Built last (`05-MODULES.md:60`).
+
+**Done when:** Дебиторка card hidden; Выручка sourced from confirmed sales orders only; empty
+states render rather than zeros or sample data (`05-MODULES.md:70`); period switch re-plots the
+chart and the revenue KPI only.
+
+---
+
+## Stage F — Verification and delivery
+
+### T34 · Full internal test pass — `todo`
+**Done when:** `go test ./...`, `sqlc diff`, `tygo` staleness, `vitest` ×2, `next build` ×2 and
+**Playwright E2E across the five ToR workflows** (I26) are all green; the production cookie
+assertion under `TLS_MODE=auto` passes (I25); responsive pass complete across all modules.
+
+### T35 · Staging rehearsal — `todo`
+**Done when:** clean-box deploy from the compose file succeeds; `seed:reference` runs; **restore
+test restores both `pg_dump` and the `uploads` tar** and a document opens afterwards (I18).
+
+### T36 · Server deploy for client testing — `todo`
+`TLS_MODE=off`, two ports, plain HTTP, IP access (I25).
+
+**Done when:** both systems reachable; login works; `seed:demo` refuses to run.
+
+### T37 · Client feedback — `todo`
+Absorbed as ordinary slices.
+
+### T38 · DNS, TLS, launch — `todo`
+`TLS_MODE=auto`, host-based routing, Let's Encrypt.
+
+**Done when:** both subdomains serve valid certificates; no application code changed to get there;
+staff accounts created; Russian training materials delivered; the D7 offline limitation is recorded
+to QOIM in writing.
