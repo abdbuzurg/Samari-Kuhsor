@@ -179,6 +179,8 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 		// Качество. The transition endpoint is `manage`, not `approve`: some moves
 		// need approve and some do not, and the matrix decides which. Guarding the
 		// whole route on approve would block the automatic move into quarantine.
+		v1.Guarded(api, http.MethodGet, "/quality/batches",
+			rbac.Quality, rbac.Read, s.handleListBatches)
 		v1.Guarded(api, http.MethodGet, "/batches/{id}/detail",
 			rbac.Quality, rbac.Read, s.handleBatchDetail)
 		v1.Guarded(api, http.MethodPost, "/batches/{id}/tests",

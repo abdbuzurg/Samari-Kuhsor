@@ -189,16 +189,14 @@ func (s *Server) handleGetPurchaseOrder(w http.ResponseWriter, r *http.Request) 
 			LineTotal:   lineTotal.StringFixed(2),
 		})
 	}
-	out.PurchaseOrderRow = api.PurchaseOrderRow{
-		ID:         po.ID.String(),
-		PONo:       po.PoNo,
-		SupplierID: po.SupplierID.String(),
-		ExpectedAt: common.Date(po.ExpectedAt),
-		Total:      total.StringFixed(2),
-		Status:     poStatus(po.Status),
-		Version:    po.Version,
-		CreatedAt:  common.Timestamp(po.CreatedAt),
-	}
+	out.ID = po.ID.String()
+	out.PONo = po.PoNo
+	out.SupplierID = po.SupplierID.String()
+	out.ExpectedAt = common.Date(po.ExpectedAt)
+	out.Total = total.StringFixed(2)
+	out.Status = poStatus(po.Status)
+	out.Version = po.Version
+	out.CreatedAt = common.Timestamp(po.CreatedAt)
 	out.AllowedTransitions = procurement.AllowedFrom(po.Status,
 		rbac.NewSet(ident.Permissions).Can(rbac.Procurement, rbac.Approve))
 	common.JSON(w, http.StatusOK, map[string]any{"data": out})
@@ -412,12 +410,14 @@ func (s *Server) handleGetSalesOrder(w http.ResponseWriter, r *http.Request) {
 		}
 		out.Lines = append(out.Lines, line)
 	}
-	out.SalesOrderRow = api.SalesOrderRow{
-		ID: so.ID.String(), SONo: so.SoNo, CustomerID: so.CustomerID.String(),
-		OrderedOn: common.Date(so.OrderedOn), Total: total.StringFixed(2),
-		Status: soStatus(so.Status), Version: so.Version,
-		CreatedAt: common.Timestamp(so.CreatedAt),
-	}
+	out.ID = so.ID.String()
+	out.SONo = so.SoNo
+	out.CustomerID = so.CustomerID.String()
+	out.OrderedOn = common.Date(so.OrderedOn)
+	out.Total = total.StringFixed(2)
+	out.Status = soStatus(so.Status)
+	out.Version = so.Version
+	out.CreatedAt = common.Timestamp(so.CreatedAt)
 	common.JSON(w, http.StatusOK, map[string]any{"data": out})
 }
 

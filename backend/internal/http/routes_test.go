@@ -62,6 +62,7 @@ var everyGuardedRoute = []routeCase{
 	{"GET", "/api/v1/manufacturing-orders/" + zeroUUID, "production:read", ""},
 	{"POST", "/api/v1/manufacturing-orders/" + zeroUUID + "/entries", "production:manage", `{"good_qty":"1"}`},
 	{"POST", "/api/v1/manufacturing-orders/" + zeroUUID + "/complete", "production:manage", ""},
+	{"GET", "/api/v1/quality/batches", "quality:read", ""},
 	{"GET", "/api/v1/batches/" + zeroUUID + "/detail", "quality:read", ""},
 	{"POST", "/api/v1/batches/" + zeroUUID + "/tests", "quality:manage", `{"test_type":"ph"}`},
 	{"POST", "/api/v1/batches/" + zeroUUID + "/transition", "quality:manage", `{"to":"quarantine"}`},

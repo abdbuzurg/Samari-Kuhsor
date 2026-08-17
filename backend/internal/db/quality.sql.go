@@ -23,6 +23,31 @@ func (q *Queries) CountBatchesByStatus(ctx context.Context, status string) (int3
 	return column_1, err
 }
 
+const countBatchesForQuality = `-- name: CountBatchesForQuality :one
+SELECT count(*) FROM batches b
+JOIN items i ON i.id=b.item_id
+LEFT JOIN item_translations tr
+  ON tr.item_id=i.id AND tr.locale='ru' AND tr.deleted_at IS NULL
+WHERE b.deleted_at IS NULL
+  AND ($1::text IS NULL OR b.status=$1)
+  AND ($2::text IS NULL
+       OR unaccent(lower(b.batch_no)) LIKE '%'||unaccent(lower($2))||'%'
+       OR unaccent(lower(i.sku)) LIKE '%'||unaccent(lower($2))||'%'
+       OR unaccent(lower(COALESCE(tr.name,''))) LIKE '%'||unaccent(lower($2))||'%')
+`
+
+type CountBatchesForQualityParams struct {
+	Status *string
+	Q      *string
+}
+
+func (q *Queries) CountBatchesForQuality(ctx context.Context, arg CountBatchesForQualityParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countBatchesForQuality, arg.Status, arg.Q)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const countFailedTests = `-- name: CountFailedTests :one
 SELECT count(*)::int FROM quality_tests WHERE passed = false AND deleted_at IS NULL
 `
@@ -221,6 +246,89 @@ func (q *Queries) ListBatchStatusEvents(ctx context.Context, batchID uuid.UUID) 
 			&i.OccurredAt,
 			&i.CreatedAt,
 			&i.DecidedByName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listBatchesForQuality = `-- name: ListBatchesForQuality :many
+SELECT b.id, b.batch_no, b.item_id, b.produced_on, b.expires_on, b.qr_payload, b.qr_issued_at, b.status, b.created_at, b.updated_at, b.deleted_at, b.version, b.created_by, i.sku, COALESCE(tr.name, i.sku) AS item_name,
+  (SELECT count(*) FROM quality_tests t
+    WHERE t.batch_id=b.id AND t.deleted_at IS NULL)::int AS test_count,
+  (SELECT count(*) FROM quality_tests t
+    WHERE t.batch_id=b.id AND t.deleted_at IS NULL AND t.passed IS FALSE)::int AS failed_count
+FROM batches b
+JOIN items i ON i.id=b.item_id
+LEFT JOIN item_translations tr
+  ON tr.item_id=i.id AND tr.locale='ru' AND tr.deleted_at IS NULL
+WHERE b.deleted_at IS NULL
+  AND ($3::text IS NULL OR b.status=$3)
+  AND ($4::text IS NULL
+       OR unaccent(lower(b.batch_no)) LIKE '%'||unaccent(lower($4))||'%'
+       OR unaccent(lower(i.sku)) LIKE '%'||unaccent(lower($4))||'%'
+       OR unaccent(lower(COALESCE(tr.name,''))) LIKE '%'||unaccent(lower($4))||'%')
+ORDER BY
+  -- Quarantine first: it is the only status that is waiting on a human.
+  CASE b.status WHEN 'quarantine' THEN 0 WHEN 'in_production' THEN 1 ELSE 2 END,
+  b.produced_on DESC NULLS LAST, b.batch_no DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListBatchesForQualityParams struct {
+	Limit  int32
+	Offset int32
+	Status *string
+	Q      *string
+}
+
+type ListBatchesForQualityRow struct {
+	Batch       Batch
+	Sku         string
+	ItemName    string
+	TestCount   int32
+	FailedCount int32
+}
+
+// Качество list view. Ordered so the batches that need a decision come first:
+// quarantine before released, newest before oldest.
+func (q *Queries) ListBatchesForQuality(ctx context.Context, arg ListBatchesForQualityParams) ([]ListBatchesForQualityRow, error) {
+	rows, err := q.db.Query(ctx, listBatchesForQuality,
+		arg.Limit,
+		arg.Offset,
+		arg.Status,
+		arg.Q,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListBatchesForQualityRow{}
+	for rows.Next() {
+		var i ListBatchesForQualityRow
+		if err := rows.Scan(
+			&i.Batch.ID,
+			&i.Batch.BatchNo,
+			&i.Batch.ItemID,
+			&i.Batch.ProducedOn,
+			&i.Batch.ExpiresOn,
+			&i.Batch.QrPayload,
+			&i.Batch.QrIssuedAt,
+			&i.Batch.Status,
+			&i.Batch.CreatedAt,
+			&i.Batch.UpdatedAt,
+			&i.Batch.DeletedAt,
+			&i.Batch.Version,
+			&i.Batch.CreatedBy,
+			&i.Sku,
+			&i.ItemName,
+			&i.TestCount,
+			&i.FailedCount,
 		); err != nil {
 			return nil, err
 		}

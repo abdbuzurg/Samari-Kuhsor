@@ -125,7 +125,7 @@ export function ListView<Row>({
           data-testid="kpi-strip"
         >
           {kpis.map((k) => (
-            <div key={k.label} className="card p-4">
+            <div key={k.label} className="card p-4" data-testid="kpi">
               <div className="text-[12px] muted">{k.label}</div>
               <div
                 className="text-[24px] leading-none mt-1.5"
@@ -182,7 +182,12 @@ export function ListView<Row>({
                   module gets them without re-implementing. */}
               {isLoading && (
                 <tr>
-                  <td colSpan={columns.length} className="muted text-center py-10" role="status">
+                  <td
+                    colSpan={columns.length}
+                    className="muted text-center py-10"
+                    role="status"
+                    data-testid="list-loading"
+                  >
                     Загрузка…
                   </td>
                 </tr>
@@ -190,7 +195,12 @@ export function ListView<Row>({
 
               {!isLoading && error && (
                 <tr>
-                  <td colSpan={columns.length} className="text-center py-10" role="alert">
+                  <td
+                    colSpan={columns.length}
+                    className="text-center py-10"
+                    role="alert"
+                    data-testid="list-error"
+                  >
                     {error.message}
                   </td>
                 </tr>
@@ -198,7 +208,16 @@ export function ListView<Row>({
 
               {!isLoading && !error && rows.length === 0 && (
                 <tr>
-                  <td colSpan={columns.length} className="text-center py-12">
+                  {/* The testids distinguish the two states for tests. They are
+                      genuinely different situations — see the comment below —
+                      and a test that cannot tell them apart would pass while the
+                      user is told to create their first record because they
+                      mistyped a search term. */}
+                  <td
+                    colSpan={columns.length}
+                    className="text-center py-12"
+                    data-testid={filtered ? 'list-no-match' : 'list-empty'}
+                  >
                     {/* An empty collection and a filtered-to-nothing one are
                         different situations and get different text: "create your
                         first product" is unhelpful when the answer is "clear the

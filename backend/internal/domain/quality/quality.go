@@ -112,9 +112,21 @@ type Service struct{ pool *pgxpool.Pool }
 
 func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }
 
-var SortSpec = common.SortSpec{
+// TestSortSpec governs the tests attached to one batch.
+var TestSortSpec = common.SortSpec{
 	Allowed:     []string{"tested_at", "test_type"},
 	Default:     "tested_at",
+	DefaultDesc: true,
+}
+
+// SortSpec governs the Качество batch list.
+//
+// The list's natural order puts quarantined batches first, because those are the
+// only ones waiting on a human — that ordering is in the query itself. This
+// whitelist governs only what an explicit ?sort= may override it with.
+var SortSpec = common.SortSpec{
+	Allowed:     []string{"batch_no", "produced_on", "expires_on", "status"},
+	Default:     "produced_on",
 	DefaultDesc: true,
 }
 
@@ -406,4 +418,29 @@ func (s *Service) BatchWithItem(ctx context.Context, id uuid.UUID) (db.GetBatchW
 		return db.GetBatchWithItemRow{}, fmt.Errorf("quality: batch: %w", err)
 	}
 	return row, nil
+}
+
+// List returns batches for the Качество module.
+func (s *Service) List(ctx context.Context, p common.Params, status *string) ([]db.ListBatchesForQualityRow, int64, error) {
+	q := db.New(s.pool)
+	rows, err := q.ListBatchesForQuality(ctx, db.ListBatchesForQualityParams{
+		Status: status, Q: nilIfEmpty(p.Query), Limit: p.Limit(), Offset: p.Offset(),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("quality: list: %w", err)
+	}
+	total, err := q.CountBatchesForQuality(ctx, db.CountBatchesForQualityParams{
+		Status: status, Q: nilIfEmpty(p.Query),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("quality: count: %w", err)
+	}
+	return rows, total, nil
+}
+
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

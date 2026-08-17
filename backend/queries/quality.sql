@@ -75,3 +75,39 @@ JOIN items i ON i.id = b.item_id
 LEFT JOIN item_translations tr
   ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
 WHERE b.id = $1 AND b.deleted_at IS NULL;
+
+-- name: ListBatchesForQuality :many
+-- Качество list view. Ordered so the batches that need a decision come first:
+-- quarantine before released, newest before oldest.
+SELECT sqlc.embed(b), i.sku, COALESCE(tr.name, i.sku) AS item_name,
+  (SELECT count(*) FROM quality_tests t
+    WHERE t.batch_id=b.id AND t.deleted_at IS NULL)::int AS test_count,
+  (SELECT count(*) FROM quality_tests t
+    WHERE t.batch_id=b.id AND t.deleted_at IS NULL AND t.passed IS FALSE)::int AS failed_count
+FROM batches b
+JOIN items i ON i.id=b.item_id
+LEFT JOIN item_translations tr
+  ON tr.item_id=i.id AND tr.locale='ru' AND tr.deleted_at IS NULL
+WHERE b.deleted_at IS NULL
+  AND (sqlc.narg(status)::text IS NULL OR b.status=sqlc.narg(status))
+  AND (sqlc.narg(q)::text IS NULL
+       OR unaccent(lower(b.batch_no)) LIKE '%'||unaccent(lower(sqlc.narg(q)))||'%'
+       OR unaccent(lower(i.sku)) LIKE '%'||unaccent(lower(sqlc.narg(q)))||'%'
+       OR unaccent(lower(COALESCE(tr.name,''))) LIKE '%'||unaccent(lower(sqlc.narg(q)))||'%')
+ORDER BY
+  -- Quarantine first: it is the only status that is waiting on a human.
+  CASE b.status WHEN 'quarantine' THEN 0 WHEN 'in_production' THEN 1 ELSE 2 END,
+  b.produced_on DESC NULLS LAST, b.batch_no DESC
+LIMIT $1 OFFSET $2;
+
+-- name: CountBatchesForQuality :one
+SELECT count(*) FROM batches b
+JOIN items i ON i.id=b.item_id
+LEFT JOIN item_translations tr
+  ON tr.item_id=i.id AND tr.locale='ru' AND tr.deleted_at IS NULL
+WHERE b.deleted_at IS NULL
+  AND (sqlc.narg(status)::text IS NULL OR b.status=sqlc.narg(status))
+  AND (sqlc.narg(q)::text IS NULL
+       OR unaccent(lower(b.batch_no)) LIKE '%'||unaccent(lower(sqlc.narg(q)))||'%'
+       OR unaccent(lower(i.sku)) LIKE '%'||unaccent(lower(sqlc.narg(q)))||'%'
+       OR unaccent(lower(COALESCE(tr.name,''))) LIKE '%'||unaccent(lower(sqlc.narg(q)))||'%');

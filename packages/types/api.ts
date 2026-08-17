@@ -42,8 +42,20 @@ export interface PurchaseOrderRow {
   version: number /* int32 */;
   created_at: string;
 }
+/**
+ * PurchaseOrder is the detail payload. Fields repeated rather than embedded —
+ * see the note on ManufacturingOrder.
+ */
 export interface PurchaseOrder {
-  PurchaseOrderRow: PurchaseOrderRow;
+  id: string;
+  po_no: string;
+  supplier_id: string;
+  supplier_name: string;
+  expected_at?: string | null;
+  total: string;
+  status: Status;
+  version: number /* int32 */;
+  created_at: string;
   lines: PurchaseOrderLine[];
   /**
    * AllowedTransitions is what this actor may move the order to next, given the
@@ -105,8 +117,20 @@ export interface SalesOrderRow {
   version: number /* int32 */;
   created_at: string;
 }
+/**
+ * SalesOrder is the detail payload. Fields repeated rather than embedded — see
+ * the note on ManufacturingOrder.
+ */
 export interface SalesOrder {
-  SalesOrderRow: SalesOrderRow;
+  id: string;
+  so_no: string;
+  customer_id: string;
+  customer_name: string;
+  ordered_on?: string | null;
+  total: string;
+  status: Status;
+  version: number /* int32 */;
+  created_at: string;
   lines: SalesOrderLine[];
 }
 export interface SalesOrderLine {
@@ -373,8 +397,29 @@ export interface ManufacturingOrderRow {
   version: number /* int32 */;
   created_at: string;
 }
+/**
+ * ManufacturingOrder is the detail payload.
+ * The list row's fields are repeated rather than embedded. Go's encoding/json
+ * FLATTENS an embedded struct, but tygo emits it as a nested field — so an
+ * embedded row would generate TypeScript describing a shape the API never sends,
+ * which is exactly the silent Go/TS drift the generated types exist to prevent.
+ */
 export interface ManufacturingOrder {
-  ManufacturingOrderRow: ManufacturingOrderRow;
+  id: string;
+  mo_no: string;
+  item_id: string;
+  sku: string;
+  item_name: string;
+  batch_id?: string | null;
+  batch_no?: string | null;
+  line?: string | null;
+  scheduled_for?: string | null;
+  planned_qty: string;
+  good_qty: string;
+  scrap_qty: string;
+  status: Status;
+  version: number /* int32 */;
+  created_at: string;
   /**
    * Progress is good ÷ planned as a whole percentage, capped at 100 for display.
    * Computed here so the two frontends cannot disagree about rounding.
@@ -427,6 +472,25 @@ export interface QualityTestWriteRequest {
   result_value?: string;
   passed?: boolean;
   notes?: string;
+}
+/**
+ * BatchListRow is one row of the Качество list.
+ * TestCount and FailedCount are carried so the list can show at a glance which
+ * batches have been examined and which failed — the two facts a QC lead scans
+ * for before opening anything.
+ */
+export interface BatchListRow {
+  id: string;
+  batch_no: string;
+  item_id: string;
+  sku: string;
+  item_name: string;
+  produced_on?: string | null;
+  expires_on?: string | null;
+  test_count: number /* int32 */;
+  failed_count: number /* int32 */;
+  status: Status;
+  version: number /* int32 */;
 }
 /**
  * BatchStatusEvent is immutable evidence: who decided, when, and why. It has no

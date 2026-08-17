@@ -119,22 +119,20 @@ func (s *Server) handleGetManufacturingOrder(w http.ResponseWriter, r *http.Requ
 	}
 
 	detail := api.ManufacturingOrder{
-		ManufacturingOrderRow: api.ManufacturingOrderRow{
-			ID:           mo.ID.String(),
-			MONo:         mo.MoNo,
-			ItemID:       mo.ItemID.String(),
-			Line:         mo.Line,
-			ScheduledFor: common.Date(mo.ScheduledFor),
-			PlannedQty:   mo.PlannedQty.String(),
-			GoodQty:      totals.GoodQty.String(),
-			ScrapQty:     totals.ScrapQty.String(),
-			Status:       moStatus(mo.Status),
-			Version:      mo.Version,
-			CreatedAt:    common.Timestamp(mo.CreatedAt),
-		},
-		Progress:    moProgress(totals.GoodQty, mo.PlannedQty),
-		DowntimeMin: totals.DowntimeMin,
-		Entries:     make([]api.ProductionEntry, 0, len(entries)),
+		ID:           mo.ID.String(),
+		MONo:         mo.MoNo,
+		ItemID:       mo.ItemID.String(),
+		Line:         mo.Line,
+		ScheduledFor: common.Date(mo.ScheduledFor),
+		PlannedQty:   mo.PlannedQty.String(),
+		GoodQty:      totals.GoodQty.String(),
+		ScrapQty:     totals.ScrapQty.String(),
+		Status:       moStatus(mo.Status),
+		Version:      mo.Version,
+		CreatedAt:    common.Timestamp(mo.CreatedAt),
+		Progress:     moProgress(totals.GoodQty, mo.PlannedQty),
+		DowntimeMin:  totals.DowntimeMin,
+		Entries:      make([]api.ProductionEntry, 0, len(entries)),
 	}
 	if mo.BatchID.Valid {
 		id := mo.BatchID.UUID.String()

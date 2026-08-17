@@ -94,8 +94,29 @@ type ManufacturingOrderRow struct {
 	CreatedAt    string  `json:"created_at"`
 }
 
+// ManufacturingOrder is the detail payload.
+//
+// The list row's fields are repeated rather than embedded. Go's encoding/json
+// FLATTENS an embedded struct, but tygo emits it as a nested field — so an
+// embedded row would generate TypeScript describing a shape the API never sends,
+// which is exactly the silent Go/TS drift the generated types exist to prevent.
 type ManufacturingOrder struct {
-	ManufacturingOrderRow
+	ID           string  `json:"id"`
+	MONo         string  `json:"mo_no"`
+	ItemID       string  `json:"item_id"`
+	SKU          string  `json:"sku"`
+	ItemName     string  `json:"item_name"`
+	BatchID      *string `json:"batch_id" tstype:"string | null"`
+	BatchNo      *string `json:"batch_no" tstype:"string | null"`
+	Line         *string `json:"line" tstype:"string | null"`
+	ScheduledFor *string `json:"scheduled_for" tstype:"string | null"`
+	PlannedQty   string  `json:"planned_qty"`
+	GoodQty      string  `json:"good_qty"`
+	ScrapQty     string  `json:"scrap_qty"`
+	Status       Status  `json:"status"`
+	Version      int32   `json:"version"`
+	CreatedAt    string  `json:"created_at"`
+
 	// Progress is good ÷ planned as a whole percentage, capped at 100 for display.
 	// Computed here so the two frontends cannot disagree about rounding.
 	Progress int `json:"progress"`
@@ -153,6 +174,25 @@ type QualityTestWriteRequest struct {
 	ResultValue *string `json:"result_value"`
 	Passed      *bool   `json:"passed"`
 	Notes       *string `json:"notes"`
+}
+
+// BatchListRow is one row of the Качество list.
+//
+// TestCount and FailedCount are carried so the list can show at a glance which
+// batches have been examined and which failed — the two facts a QC lead scans
+// for before opening anything.
+type BatchListRow struct {
+	ID          string  `json:"id"`
+	BatchNo     string  `json:"batch_no"`
+	ItemID      string  `json:"item_id"`
+	SKU         string  `json:"sku"`
+	ItemName    string  `json:"item_name"`
+	ProducedOn  *string `json:"produced_on" tstype:"string | null"`
+	ExpiresOn   *string `json:"expires_on" tstype:"string | null"`
+	TestCount   int32   `json:"test_count"`
+	FailedCount int32   `json:"failed_count"`
+	Status      Status  `json:"status"`
+	Version     int32   `json:"version"`
 }
 
 // BatchStatusEvent is immutable evidence: who decided, when, and why. It has no

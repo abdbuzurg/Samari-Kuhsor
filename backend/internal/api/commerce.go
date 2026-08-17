@@ -37,8 +37,19 @@ type PurchaseOrderRow struct {
 	CreatedAt    string  `json:"created_at"`
 }
 
+// PurchaseOrder is the detail payload. Fields repeated rather than embedded —
+// see the note on ManufacturingOrder.
 type PurchaseOrder struct {
-	PurchaseOrderRow
+	ID           string  `json:"id"`
+	PONo         string  `json:"po_no"`
+	SupplierID   string  `json:"supplier_id"`
+	SupplierName string  `json:"supplier_name"`
+	ExpectedAt   *string `json:"expected_at" tstype:"string | null"`
+	Total        string  `json:"total"`
+	Status       Status  `json:"status"`
+	Version      int32   `json:"version"`
+	CreatedAt    string  `json:"created_at"`
+
 	Lines []PurchaseOrderLine `json:"lines"`
 	// AllowedTransitions is what this actor may move the order to next, given the
 	// current status and their procurement:approve grant.
@@ -109,9 +120,19 @@ type SalesOrderRow struct {
 	CreatedAt    string  `json:"created_at"`
 }
 
+// SalesOrder is the detail payload. Fields repeated rather than embedded — see
+// the note on ManufacturingOrder.
 type SalesOrder struct {
-	SalesOrderRow
-	Lines []SalesOrderLine `json:"lines"`
+	ID           string           `json:"id"`
+	SONo         string           `json:"so_no"`
+	CustomerID   string           `json:"customer_id"`
+	CustomerName string           `json:"customer_name"`
+	OrderedOn    *string          `json:"ordered_on" tstype:"string | null"`
+	Total        string           `json:"total"`
+	Status       Status           `json:"status"`
+	Version      int32            `json:"version"`
+	CreatedAt    string           `json:"created_at"`
+	Lines        []SalesOrderLine `json:"lines"`
 }
 
 type SalesOrderLine struct {

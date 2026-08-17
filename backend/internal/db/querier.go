@@ -25,6 +25,7 @@ type Querier interface {
 	CountBatchesAwaitingQR(ctx context.Context) (int64, error)
 	CountBatchesByStatus(ctx context.Context, status string) (int32, error)
 	CountBatchesExpiringWithin(ctx context.Context, days int32) (int32, error)
+	CountBatchesForQuality(ctx context.Context, arg CountBatchesForQualityParams) (int64, error)
 	CountContractsExpiringWithin(ctx context.Context, days int32) (int32, error)
 	// ---------------------------------------------------------------------------
 	// Derived standing conditions — the other seven (docs/07 I15)
@@ -193,6 +194,9 @@ type Querier interface {
 	ListBatchesForItem(ctx context.Context, arg ListBatchesForItemParams) ([]Batch, error)
 	// Batches whose codes go to the printer. NULL filters mean "no filter".
 	ListBatchesForQRExport(ctx context.Context, arg ListBatchesForQRExportParams) ([]ListBatchesForQRExportRow, error)
+	// Качество list view. Ordered so the batches that need a decision come first:
+	// quarantine before released, newest before oldest.
+	ListBatchesForQuality(ctx context.Context, arg ListBatchesForQualityParams) ([]ListBatchesForQualityRow, error)
 	// The price in force today for each of the given items. DISTINCT ON keeps one
 	// row per item; the ORDER BY decides which one.
 	ListCurrentPricesForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemPrice, error)

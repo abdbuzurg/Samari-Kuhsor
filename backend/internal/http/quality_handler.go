@@ -66,6 +66,36 @@ func statusEventResponse(e db.ListBatchStatusEventsRow) api.BatchStatusEvent {
 	return out
 }
 
+func (s *Server) handleListBatches(w http.ResponseWriter, r *http.Request) {
+	params, err := common.ParseParams(r, quality.SortSpec)
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	rows, total, err := s.svc.Quality.List(r.Context(), params, optionalQuery(r, "status"))
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	out := make([]api.BatchListRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, api.BatchListRow{
+			ID:          row.Batch.ID.String(),
+			BatchNo:     row.Batch.BatchNo,
+			ItemID:      row.Batch.ItemID.String(),
+			SKU:         row.Sku,
+			ItemName:    row.ItemName,
+			ProducedOn:  common.Date(row.Batch.ProducedOn),
+			ExpiresOn:   common.Date(row.Batch.ExpiresOn),
+			TestCount:   row.TestCount,
+			FailedCount: row.FailedCount,
+			Status:      batchStatus(row.Batch.Status),
+			Version:     row.Batch.Version,
+		})
+	}
+	common.List(w, out, common.NewPageMeta(params, total))
+}
+
 // handleBatchDetail is the traceability view.
 func (s *Server) handleBatchDetail(w http.ResponseWriter, r *http.Request) {
 	ident, ok := identityFrom(r)
