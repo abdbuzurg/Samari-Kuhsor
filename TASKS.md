@@ -144,7 +144,7 @@ helper exists and is used by T05.
   resource key from a newer migration must not silently drop a user's other permissions. They are
   rejected where they are declared, at startup.
 
-### T07 · Shared HTTP machinery — `todo`
+### T07 · Shared HTTP machinery — `done`
 `internal/http/common`: response envelope, error mapping to the eight stable codes, pagination,
 sort whitelisting, `q` search, `version` guard → 409 `version_conflict`. `internal/audit`.
 `internal/alerts` skeleton (I15).
@@ -152,6 +152,29 @@ sort whitelisting, `q` search, `version` guard → 409 `version_conflict`. `inte
 **Done when:** unit tests for every error code → status mapping; `per_page` clamped at 200;
 unknown sort field rejected rather than interpolated; stale `version` returns 409; money and
 quantity serialise as **strings** (`03-API-CONTRACT.md:147`), asserted by test.
+
+**Result:** `internal/http/common` (33 tests) + `internal/http` + `internal/alerts`. Full backend
+suite green. Beyond the gate:
+- **Contract gap filled:** `03-API-CONTRACT.md:123` reserves **422** for business-rule violations
+  but the code list at `:120` names no code for it. Added `business_rule`.
+- Internal errors have their message *replaced* before sending, not merely omitted — an unexpected
+  error is the one most likely to carry a SQL fragment or a file path. Asserted with a realistic
+  leak.
+- `DecodeJSON` rejects unknown fields and trailing JSON. A misspelled field would otherwise make an
+  update appear to succeed while changing nothing.
+- Sort is a **whitelist**, tested against injection, subqueries, column smuggling, and against a
+  real-but-not-sortable column (`password_hash`) that would leak an ordering oracle.
+- Empty collections serialise as `[]`, never `null`.
+- Cyrillic is not `\u`-escaped on the wire.
+- **`middleware.RealIP` deliberately not used** — deprecated for IP spoofing. `clientIP()` reads
+  `X-Forwarded-For` explicitly, and only because nothing but the BFF can reach this port.
+- The API sets **no cookie**: that is the BFF's job (I8), asserted by test.
+- Login failures are byte-identical for wrong password / unknown address / deactivated account, so
+  login is not a user-enumeration oracle. Lockout reports distinctly, because by then the account's
+  existence is not a secret and the user needs to know why a correct password stopped working.
+- **The startup check found a real bug in my own router:** `chi.Walk` reports full paths while the
+  registry recorded sub-router patterns, so all four `/api/v1/*` routes read as undeclared. Fixed
+  with `Registry.Scope`. The check earning its keep on day one is the best evidence it works.
 
 ### T08 · Type generation — `todo`
 `tygo` wired, `packages/types` generated from Go DTOs, staleness gate in `make check`.

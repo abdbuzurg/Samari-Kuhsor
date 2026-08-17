@@ -45,10 +45,25 @@ func (d Declaration) String() string {
 // Registry collects declarations as routes are mounted.
 type Registry struct {
 	declared map[string]Declaration
+	// prefix is the mount path of the subrouter this view writes into. chi.Walk
+	// reports full paths, so declarations must be recorded as full paths too —
+	// otherwise every route mounted under r.Route("/api/v1", …) looks undeclared.
+	prefix string
 }
 
 func NewRegistry() *Registry {
 	return &Registry{declared: make(map[string]Declaration)}
+}
+
+// Scope returns a view that records declarations under a mount prefix, sharing
+// the same underlying map. Use it wherever chi.Route nests a subrouter:
+//
+//	r.Route("/api/v1", func(api chi.Router) {
+//	    v1 := reg.Scope("/api/v1")
+//	    v1.Guarded(api, http.MethodGet, "/items", rbac.Items, rbac.Read, h)
+//	})
+func (reg *Registry) Scope(prefix string) *Registry {
+	return &Registry{declared: reg.declared, prefix: reg.prefix + prefix}
 }
 
 func (reg *Registry) record(d Declaration) {
@@ -85,7 +100,7 @@ func (reg *Registry) Guarded(r chi.Router, method, pattern, resource string, act
 	}
 
 	p := Permission{Resource: resource, Action: action}
-	reg.record(Declaration{Method: method, Pattern: pattern, Permission: &p})
+	reg.record(Declaration{Method: method, Pattern: reg.prefix + pattern, Permission: &p})
 	r.With(Require(resource, action)).Method(method, pattern, h)
 }
 
@@ -94,7 +109,7 @@ func (reg *Registry) Public(r chi.Router, method, pattern, reason string, h http
 	if strings.TrimSpace(reason) == "" {
 		panic(fmt.Sprintf("rbac: %s %s is public but gives no reason", method, pattern))
 	}
-	reg.record(Declaration{Method: method, Pattern: pattern, PublicReason: reason})
+	reg.record(Declaration{Method: method, Pattern: reg.prefix + pattern, PublicReason: reason})
 	r.Method(method, pattern, h)
 }
 
