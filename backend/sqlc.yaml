@@ -1,0 +1,29 @@
+# sqlc reads the goose migrations directly and ignores their Down sections.
+# Generated code lives in internal/db and is NEVER hand-edited (docs/02-SCHEMA.md:453).
+version: "2"
+sql:
+  - engine: "postgresql"
+    schema: "migrations"
+    queries: "queries"
+    gen:
+      go:
+        package: "db"
+        out: "internal/db"
+        sql_package: "pgx/v5"
+        emit_interface: true
+        emit_empty_slices: true
+        emit_pointers_for_null_types: true
+        overrides:
+          - db_type: "uuid"
+            go_type: "github.com/google/uuid.UUID"
+          - db_type: "uuid"
+            nullable: true
+            go_type: "github.com/google/uuid.NullUUID"
+          # Money and quantities must never become float. shopspring/decimal is
+          # exact; pgtype.Numeric is awkward to do arithmetic on and easy to
+          # accidentally convert. CLAUDE.md §4.6 / §4.7.
+          - db_type: "pg_catalog.numeric"
+            go_type: "github.com/shopspring/decimal.Decimal"
+          - db_type: "pg_catalog.numeric"
+            nullable: true
+            go_type: "github.com/shopspring/decimal.NullDecimal"

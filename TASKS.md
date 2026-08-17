@@ -46,7 +46,7 @@ the count matches.
 - The extractor fails the build if any `CLAUDE.md §5` contract value drifts — verified by
   deliberately breaking `--sk-danger` and confirming a non-zero exit.
 
-### T03 · Base migration and sqlc — `todo`
+### T03 · Base migration and sqlc — `done`
 Migration 001: universal conventions (`02-SCHEMA.md §1`), `users`, `sessions`, `roles`,
 `role_permissions`, `user_roles`, `audit_log`, `items`, `item_translations`, `packaging_units`,
 `item_prices`, `batches`. `uuidv7()` defaults (I7). Partial unique indexes for tombstones.
@@ -54,6 +54,25 @@ Migration 001: universal conventions (`02-SCHEMA.md §1`), `users`, `sessions`, 
 **Done when:** `goose up` then `goose down` round-trips cleanly; `sqlc generate` produces code with
 no diff on re-run; a test asserts every table has `created_at`/`updated_at`/`deleted_at`/`version`/
 `created_by`; a test asserts no column named `quantity_on_hand` or similar balance column exists.
+
+**Result:** 11 tables. Verified against a live Postgres 18.6 —
+- `goose down` leaves only `goose_db_version`; `goose up` restores all 11.
+- Zero tables missing a convention column; `audit_log` correctly carries only its 9 exempt columns.
+- Zero stored-balance columns.
+- `uuidv7()` defaults produce genuine version-7 UUIDs.
+- A `touch_row()` **trigger** owns `updated_at` and `version`, rather than a convention every
+  handler must remember — a forgotten increment would silently disable optimistic concurrency on
+  that table. Verified a caller cannot forge `version`: `SET version = 999` still yielded `OLD+1`.
+- Tombstone frees the unique key: duplicate live SKU rejected, accepted after `deleted_at` is set.
+- CHECK constraints reject bad enums — including **`locale = 'tj'`**, so C2 is enforced by the
+  database, not by convention.
+- sqlc → `decimal.Decimal` for money, `decimal.NullDecimal` for quantities, `uuid.UUID` for keys.
+  Never float (CLAUDE.md §4.6/§4.7).
+- The `sqlc diff` staleness gate was verified by adding a query without regenerating and confirming
+  `make check` fails.
+
+*Deferred to T11 by design:* the full Товары query set. `queries/items.sql` holds only what proves
+generation.
 
 ### T04 · Test harness — `todo`
 `backend/testsupport`: one `postgres:18` testcontainer per run, migrations into a template DB,
