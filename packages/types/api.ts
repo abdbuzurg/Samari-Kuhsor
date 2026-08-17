@@ -161,8 +161,86 @@ export interface Item {
   translations: { [key: string]: ItemTranslation};
   packaging_units: PackagingUnit[];
   current_price?: Price;
+  price_history: Price[];
   status: Status;
   version: number /* int32 */;
   created_at: string;
   updated_at: string;
+}
+/**
+ * ItemListRow is one row of the Товары list. Deliberately narrower than Item:
+ * the columns are SKU · Наименование · Категория · Упаковка · Цена · Срок годн. ·
+ * Статус (docs/05-MODULES.md:85), and sending full translation sets and price
+ * history for 50 rows would be wasted bytes on a Khorog connection.
+ */
+export interface ItemListRow {
+  id: string;
+  sku: string;
+  /**
+   * Name is already resolved to the requested locale, falling back to Russian
+   * and then to the SKU. A list needs one label, not a translation set.
+   */
+  name: string;
+  item_type: string;
+  category?: string;
+  base_uom: string;
+  packaging_codes: string[];
+  shelf_life_days?: number /* int32 */;
+  current_price?: Price;
+  status: Status;
+  version: number /* int32 */;
+}
+/**
+ * ItemTranslationWrite is the per-locale content on create and update.
+ * Ingredients, Nutrition and the rest may be omitted: docs/02-SCHEMA.md:176
+ * requires them to stay null until the client's recipes are lab-verified, and
+ * the UI renders «уточняется». The system must not publish unverified claims.
+ */
+export interface ItemTranslationWrite {
+  name: string;
+  description?: string;
+  ingredients?: string;
+  nutrition?: string;
+  storage_conditions?: string;
+  after_opening?: string;
+}
+/**
+ * PackagingUnitWrite defines a selling unit. QtyInBase is a STRING for the same
+ * reason every quantity is (docs/03-API-CONTRACT.md:147).
+ */
+export interface PackagingUnitWrite {
+  code: string;
+  qty_in_base: string;
+  barcode?: string;
+}
+/**
+ * ItemWriteRequest is the create and update payload.
+ * SKU and ItemType are ignored on update: changing either once batches and stock
+ * movements reference the item would rewrite history other records point at.
+ */
+export interface ItemWriteRequest {
+  /**
+   * Version is required on PATCH and absent on POST
+   * (docs/03-API-CONTRACT.md §7).
+   */
+  version?: number /* int32 */;
+  sku: string;
+  item_type: string;
+  category?: string;
+  base_uom: string;
+  shelf_life_days?: number /* int32 */;
+  min_qty?: string;
+  status: string;
+  translations: { [key: string]: ItemTranslationWrite};
+  packaging_units: PackagingUnitWrite[];
+}
+/**
+ * PriceWriteRequest adds a price. Prices are never overwritten: the new one
+ * supersedes the open one and the history is kept.
+ */
+export interface PriceWriteRequest {
+  amount: string;
+  currency: string;
+  valid_from: string;
+  valid_to?: string;
 }

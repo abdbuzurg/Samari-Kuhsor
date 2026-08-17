@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 
 	"github.com/qoim/samari/backend/internal/auth"
+	"github.com/qoim/samari/backend/internal/domain/items"
 	"github.com/qoim/samari/backend/internal/http/common"
 	"github.com/qoim/samari/backend/internal/rbac"
 )
@@ -36,6 +38,7 @@ type Config struct {
 
 type Server struct {
 	auth   *auth.Service
+	items  *items.Service
 	cfg    Config
 	router chi.Router
 	reg    *rbac.Registry
@@ -44,8 +47,14 @@ type Server struct {
 // NewServer builds the API. It returns an error rather than a Server if any route
 // was registered without declaring its permission — the process must refuse to
 // serve rather than expose an ungoverned endpoint (docs/04-RBAC.md:123).
-func NewServer(authSvc *auth.Service, cfg Config) (*Server, error) {
-	s := &Server{auth: authSvc, cfg: cfg, reg: rbac.NewRegistry()}
+func NewServer(authSvc *auth.Service, itemsSvc *items.Service, cfg Config) (*Server, error) {
+	s := &Server{auth: authSvc, items: itemsSvc, cfg: cfg, reg: rbac.NewRegistry()}
+
+	// Sort whitelists are validated at startup: a default outside its own
+	// whitelist would put an unvetted column name into an ORDER BY.
+	if err := items.SortSpec.Validate(); err != nil {
+		return nil, fmt.Errorf("items sort spec: %w", err)
+	}
 
 	// rbac cannot import this package (that would be a cycle), so it is given the
 	// envelope-shaped responders here. Without this its 401/403 would be plain
@@ -84,6 +93,21 @@ func NewServer(authSvc *auth.Service, cfg Config) (*Server, error) {
 			"returns the caller's own identity and permission list", s.handleMe)
 		v1.Public(api, http.MethodGet, "/health",
 			"liveness probe; returns no data", handleHealth)
+
+		// Товары и цены. Reads need items:read; writes need items:manage, which
+		// implies read (docs/04-RBAC.md §3).
+		v1.Guarded(api, http.MethodGet, "/items",
+			rbac.Items, rbac.Read, s.handleListItems)
+		v1.Guarded(api, http.MethodGet, "/items/{id}",
+			rbac.Items, rbac.Read, s.handleGetItem)
+		v1.Guarded(api, http.MethodPost, "/items",
+			rbac.Items, rbac.Manage, s.handleCreateItem)
+		v1.Guarded(api, http.MethodPatch, "/items/{id}",
+			rbac.Items, rbac.Manage, s.handleUpdateItem)
+		v1.Guarded(api, http.MethodDelete, "/items/{id}",
+			rbac.Items, rbac.Manage, s.handleDeleteItem)
+		v1.Guarded(api, http.MethodPost, "/items/{id}/prices",
+			rbac.Items, rbac.Manage, s.handleAddItemPrice)
 	})
 
 	if err := rbac.Verify(r, s.reg); err != nil {

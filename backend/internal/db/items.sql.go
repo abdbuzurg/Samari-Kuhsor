@@ -9,7 +9,29 @@ import (
 	"context"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/shopspring/decimal"
 )
+
+const closeOpenItemPrices = `-- name: CloseOpenItemPrices :exec
+UPDATE item_prices
+SET valid_to = $2::date - 1
+WHERE item_id = $1 AND deleted_at IS NULL AND valid_to IS NULL
+  AND valid_from < $2::date
+`
+
+type CloseOpenItemPricesParams struct {
+	ItemID       uuid.UUID
+	NewValidFrom pgtype.Date
+}
+
+// A new price supersedes the open one rather than replacing it: price history is
+// evidence, and the detail view shows it. Closes the day before the new price
+// starts so the two never overlap.
+func (q *Queries) CloseOpenItemPrices(ctx context.Context, arg CloseOpenItemPricesParams) error {
+	_, err := q.db.Exec(ctx, closeOpenItemPrices, arg.ItemID, arg.NewValidFrom)
+	return err
+}
 
 const countItems = `-- name: CountItems :one
 SELECT count(*) FROM items WHERE deleted_at IS NULL
@@ -33,19 +55,217 @@ func (q *Queries) CountItemsByStatus(ctx context.Context, status string) (int64,
 	return count, err
 }
 
+const countListItems = `-- name: CountListItems :one
+SELECT count(*)
+FROM items i
+WHERE i.deleted_at IS NULL
+  AND ($1::text IS NULL OR i.item_type = $1)
+  AND ($2::text IS NULL OR i.status = $2)
+  AND ($3::text IS NULL OR i.category = $3)
+  AND (
+    $4::text IS NULL
+    OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($4)) || '%'
+    OR EXISTS (
+      SELECT 1 FROM item_translations s
+       WHERE s.item_id = i.id AND s.deleted_at IS NULL
+         AND unaccent(lower(s.name)) LIKE '%' || unaccent(lower($4)) || '%'
+    )
+  )
+`
+
+type CountListItemsParams struct {
+	ItemType *string
+	Status   *string
+	Category *string
+	Q        *string
+}
+
+// Must apply exactly the same filters as ListItems, or the pagination metadata
+// describes a different collection from the one returned.
+func (q *Queries) CountListItems(ctx context.Context, arg CountListItemsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countListItems,
+		arg.ItemType,
+		arg.Status,
+		arg.Category,
+		arg.Q,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createItem = `-- name: CreateItem :one
+
+INSERT INTO items (sku, item_type, category, base_uom, shelf_life_days, min_qty, status, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, sku, item_type, category, base_uom, shelf_life_days, min_qty, is_active, status, created_at, updated_at, deleted_at, version, created_by
+`
+
+type CreateItemParams struct {
+	Sku           string
+	ItemType      string
+	Category      *string
+	BaseUom       string
+	ShelfLifeDays *int32
+	MinQty        decimal.NullDecimal
+	Status        string
+	CreatedBy     uuid.NullUUID
+}
+
+// ---------------------------------------------------------------------------
+// Mutations
+// ---------------------------------------------------------------------------
+func (q *Queries) CreateItem(ctx context.Context, arg CreateItemParams) (Item, error) {
+	row := q.db.QueryRow(ctx, createItem,
+		arg.Sku,
+		arg.ItemType,
+		arg.Category,
+		arg.BaseUom,
+		arg.ShelfLifeDays,
+		arg.MinQty,
+		arg.Status,
+		arg.CreatedBy,
+	)
+	var i Item
+	err := row.Scan(
+		&i.ID,
+		&i.Sku,
+		&i.ItemType,
+		&i.Category,
+		&i.BaseUom,
+		&i.ShelfLifeDays,
+		&i.MinQty,
+		&i.IsActive,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const createItemPrice = `-- name: CreateItemPrice :one
+INSERT INTO item_prices (item_id, currency, amount, valid_from, valid_to, created_by)
+VALUES ($1, $2, $3, $4, $5, $6)
+RETURNING id, item_id, currency, amount, valid_from, valid_to, created_at, updated_at, deleted_at, version, created_by
+`
+
+type CreateItemPriceParams struct {
+	ItemID    uuid.UUID
+	Currency  string
+	Amount    decimal.Decimal
+	ValidFrom pgtype.Date
+	ValidTo   pgtype.Date
+	CreatedBy uuid.NullUUID
+}
+
+func (q *Queries) CreateItemPrice(ctx context.Context, arg CreateItemPriceParams) (ItemPrice, error) {
+	row := q.db.QueryRow(ctx, createItemPrice,
+		arg.ItemID,
+		arg.Currency,
+		arg.Amount,
+		arg.ValidFrom,
+		arg.ValidTo,
+		arg.CreatedBy,
+	)
+	var i ItemPrice
+	err := row.Scan(
+		&i.ID,
+		&i.ItemID,
+		&i.Currency,
+		&i.Amount,
+		&i.ValidFrom,
+		&i.ValidTo,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const createPackagingUnit = `-- name: CreatePackagingUnit :one
+INSERT INTO packaging_units (item_id, code, qty_in_base, barcode, created_by)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, item_id, code, qty_in_base, barcode, created_at, updated_at, deleted_at, version, created_by
+`
+
+type CreatePackagingUnitParams struct {
+	ItemID    uuid.UUID
+	Code      string
+	QtyInBase decimal.Decimal
+	Barcode   *string
+	CreatedBy uuid.NullUUID
+}
+
+func (q *Queries) CreatePackagingUnit(ctx context.Context, arg CreatePackagingUnitParams) (PackagingUnit, error) {
+	row := q.db.QueryRow(ctx, createPackagingUnit,
+		arg.ItemID,
+		arg.Code,
+		arg.QtyInBase,
+		arg.Barcode,
+		arg.CreatedBy,
+	)
+	var i PackagingUnit
+	err := row.Scan(
+		&i.ID,
+		&i.ItemID,
+		&i.Code,
+		&i.QtyInBase,
+		&i.Barcode,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const getCurrentItemPrice = `-- name: GetCurrentItemPrice :one
+SELECT id, item_id, currency, amount, valid_from, valid_to, created_at, updated_at, deleted_at, version, created_by FROM item_prices
+WHERE item_id = $1 AND deleted_at IS NULL
+  AND valid_from <= CURRENT_DATE
+  AND (valid_to IS NULL OR valid_to >= CURRENT_DATE)
+ORDER BY valid_from DESC, id DESC
+LIMIT 1
+`
+
+func (q *Queries) GetCurrentItemPrice(ctx context.Context, itemID uuid.UUID) (ItemPrice, error) {
+	row := q.db.QueryRow(ctx, getCurrentItemPrice, itemID)
+	var i ItemPrice
+	err := row.Scan(
+		&i.ID,
+		&i.ItemID,
+		&i.Currency,
+		&i.Amount,
+		&i.ValidFrom,
+		&i.ValidTo,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
 const getItemByID = `-- name: GetItemByID :one
 
 SELECT id, sku, item_type, category, base_uom, shelf_life_days, min_qty, is_active, status, created_at, updated_at, deleted_at, version, created_by FROM items WHERE id = $1 AND deleted_at IS NULL
 `
 
-// Product master queries.
+// Товары и цены — the product master. docs/05-MODULES.md §4.
 //
-// Minimal for now: T03 wires sqlc and proves generation. The full Товары query
-// set — list with search and filters, detail with translations, packaging units
-// and price history — arrives with T11, which is the reference slice.
+// This is the reference slice: every module after it copies these patterns, so
+// the shapes here are deliberate.
 //
-// Note there is no query here that reads or writes a stock quantity. There is no
-// such column; stock is derived from the movement ledger (CLAUDE.md §4.2, T16).
+// Note what is absent: any query that reads or writes a stock quantity. There is
+// no such column. Stock is derived from the movement ledger (CLAUDE.md §4.2), and
+// the UI must never offer "set stock to X" (docs/05-MODULES.md:112).
 func (q *Queries) GetItemByID(ctx context.Context, id uuid.UUID) (Item, error) {
 	row := q.db.QueryRow(ctx, getItemByID, id)
 	var i Item
@@ -94,6 +314,135 @@ func (q *Queries) GetItemBySKU(ctx context.Context, sku string) (Item, error) {
 	return i, err
 }
 
+const listBatchesForItem = `-- name: ListBatchesForItem :many
+SELECT id, batch_no, item_id, produced_on, expires_on, qr_payload, qr_issued_at, status, created_at, updated_at, deleted_at, version, created_by FROM batches
+WHERE item_id = $1 AND deleted_at IS NULL
+ORDER BY produced_on DESC NULLS LAST, batch_no DESC
+LIMIT $2
+`
+
+type ListBatchesForItemParams struct {
+	ItemID uuid.UUID
+	Limit  int32
+}
+
+// Related records on the detail view (docs/05-MODULES.md §2).
+func (q *Queries) ListBatchesForItem(ctx context.Context, arg ListBatchesForItemParams) ([]Batch, error) {
+	rows, err := q.db.Query(ctx, listBatchesForItem, arg.ItemID, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Batch{}
+	for rows.Next() {
+		var i Batch
+		if err := rows.Scan(
+			&i.ID,
+			&i.BatchNo,
+			&i.ItemID,
+			&i.ProducedOn,
+			&i.ExpiresOn,
+			&i.QrPayload,
+			&i.QrIssuedAt,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listCurrentPricesForItems = `-- name: ListCurrentPricesForItems :many
+SELECT DISTINCT ON (item_id) id, item_id, currency, amount, valid_from, valid_to, created_at, updated_at, deleted_at, version, created_by
+FROM item_prices
+WHERE item_id = ANY($1::uuid[]) AND deleted_at IS NULL
+  AND valid_from <= CURRENT_DATE
+  AND (valid_to IS NULL OR valid_to >= CURRENT_DATE)
+ORDER BY item_id, valid_from DESC, id DESC
+`
+
+// The price in force today for each of the given items. DISTINCT ON keeps one
+// row per item; the ORDER BY decides which one.
+func (q *Queries) ListCurrentPricesForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemPrice, error) {
+	rows, err := q.db.Query(ctx, listCurrentPricesForItems, itemIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ItemPrice{}
+	for rows.Next() {
+		var i ItemPrice
+		if err := rows.Scan(
+			&i.ID,
+			&i.ItemID,
+			&i.Currency,
+			&i.Amount,
+			&i.ValidFrom,
+			&i.ValidTo,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listItemPrices = `-- name: ListItemPrices :many
+SELECT id, item_id, currency, amount, valid_from, valid_to, created_at, updated_at, deleted_at, version, created_by FROM item_prices
+WHERE item_id = $1 AND deleted_at IS NULL
+ORDER BY valid_from DESC, id DESC
+`
+
+// Full price history, newest first — the detail view shows it (docs/05-MODULES.md:90).
+func (q *Queries) ListItemPrices(ctx context.Context, itemID uuid.UUID) ([]ItemPrice, error) {
+	rows, err := q.db.Query(ctx, listItemPrices, itemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ItemPrice{}
+	for rows.Next() {
+		var i ItemPrice
+		if err := rows.Scan(
+			&i.ID,
+			&i.ItemID,
+			&i.Currency,
+			&i.Amount,
+			&i.ValidFrom,
+			&i.ValidTo,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listItemTranslations = `-- name: ListItemTranslations :many
 SELECT id, item_id, locale, name, description, ingredients, nutrition, storage_conditions, after_opening, created_at, updated_at, deleted_at, version, created_by FROM item_translations
 WHERE item_id = $1 AND deleted_at IS NULL
@@ -133,4 +482,412 @@ func (q *Queries) ListItemTranslations(ctx context.Context, itemID uuid.UUID) ([
 		return nil, err
 	}
 	return items, nil
+}
+
+const listItems = `-- name: ListItems :many
+
+SELECT
+  i.id, i.sku, i.item_type, i.category, i.base_uom, i.shelf_life_days, i.min_qty, i.is_active, i.status, i.created_at, i.updated_at, i.deleted_at, i.version, i.created_by,
+  -- Requested locale, falling back to Russian, then to the SKU. An item with no
+  -- translation at all must not render as a blank row; its SKU is the one label
+  -- that always exists.
+  COALESCE(tr.name, tr_ru.name, i.sku) AS display_name
+FROM items i
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = $1::text AND tr.deleted_at IS NULL
+LEFT JOIN item_translations tr_ru
+  ON tr_ru.item_id = i.id AND tr_ru.locale = 'ru' AND tr_ru.deleted_at IS NULL
+WHERE i.deleted_at IS NULL
+  AND ($2::text IS NULL OR i.item_type = $2)
+  AND ($3::text IS NULL OR i.status = $3)
+  AND ($4::text IS NULL OR i.category = $4)
+  -- Case-insensitive and unaccented, per docs/03-API-CONTRACT.md:136. Searches
+  -- the SKU and EVERY locale's name, so a Tajik-speaking operator finds a product
+  -- by its Tajik name even while the list renders in Russian.
+  AND (
+    $5::text IS NULL
+    OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($5)) || '%'
+    OR EXISTS (
+      SELECT 1 FROM item_translations s
+       WHERE s.item_id = i.id AND s.deleted_at IS NULL
+         AND unaccent(lower(s.name)) LIKE '%' || unaccent(lower($5)) || '%'
+    )
+  )
+ORDER BY
+  (CASE WHEN $6::text = 'sku'        AND NOT $7::bool THEN i.sku END) ASC,
+  (CASE WHEN $6::text = 'sku'        AND     $7::bool THEN i.sku END) DESC,
+  (CASE WHEN $6::text = 'category'   AND NOT $7::bool THEN i.category END) ASC,
+  (CASE WHEN $6::text = 'category'   AND     $7::bool THEN i.category END) DESC,
+  (CASE WHEN $6::text = 'status'     AND NOT $7::bool THEN i.status END) ASC,
+  (CASE WHEN $6::text = 'status'     AND     $7::bool THEN i.status END) DESC,
+  (CASE WHEN $6::text = 'created_at' AND NOT $7::bool THEN i.created_at END) ASC,
+  (CASE WHEN $6::text = 'created_at' AND     $7::bool THEN i.created_at END) DESC,
+  -- Always a tiebreaker on id, so paging is deterministic when sort keys tie
+  -- (docs/03-API-CONTRACT.md:139). Without it a client silently sees one row
+  -- twice and misses another.
+  i.id ASC
+LIMIT $9 OFFSET $8
+`
+
+type ListItemsParams struct {
+	Locale    string
+	ItemType  *string
+	Status    *string
+	Category  *string
+	Q         *string
+	SortField string
+	SortDesc  bool
+	Off       int32
+	Lim       int32
+}
+
+type ListItemsRow struct {
+	Item        Item
+	DisplayName string
+}
+
+// ---------------------------------------------------------------------------
+// List — docs/03-API-CONTRACT.md §5
+// ---------------------------------------------------------------------------
+// Returns the item rows and one display label. Packaging codes and current
+// prices are fetched for the whole page by the two queries below rather than
+// joined here.
+//
+// A LEFT JOIN LATERAL for the price reads better but sqlc infers its columns as
+// NON-NULL, so an item with no price fails to scan at runtime — a bug that only
+// appears once someone creates a product before pricing it, which is exactly the
+// normal order of work. Three round trips per page, constant in page size, is
+// the honest trade.
+//
+// Sorting is expressed as CASE branches rather than string interpolation. The
+// field is already whitelisted in Go, but building an ORDER BY by concatenation
+// is how whitelists get bypassed later, when someone adds a field and forgets.
+func (q *Queries) ListItems(ctx context.Context, arg ListItemsParams) ([]ListItemsRow, error) {
+	rows, err := q.db.Query(ctx, listItems,
+		arg.Locale,
+		arg.ItemType,
+		arg.Status,
+		arg.Category,
+		arg.Q,
+		arg.SortField,
+		arg.SortDesc,
+		arg.Off,
+		arg.Lim,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListItemsRow{}
+	for rows.Next() {
+		var i ListItemsRow
+		if err := rows.Scan(
+			&i.Item.ID,
+			&i.Item.Sku,
+			&i.Item.ItemType,
+			&i.Item.Category,
+			&i.Item.BaseUom,
+			&i.Item.ShelfLifeDays,
+			&i.Item.MinQty,
+			&i.Item.IsActive,
+			&i.Item.Status,
+			&i.Item.CreatedAt,
+			&i.Item.UpdatedAt,
+			&i.Item.DeletedAt,
+			&i.Item.Version,
+			&i.Item.CreatedBy,
+			&i.DisplayName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPackagingUnits = `-- name: ListPackagingUnits :many
+
+SELECT id, item_id, code, qty_in_base, barcode, created_at, updated_at, deleted_at, version, created_by FROM packaging_units
+WHERE item_id = $1 AND deleted_at IS NULL
+ORDER BY qty_in_base, code
+`
+
+// ---------------------------------------------------------------------------
+// Detail
+// ---------------------------------------------------------------------------
+func (q *Queries) ListPackagingUnits(ctx context.Context, itemID uuid.UUID) ([]PackagingUnit, error) {
+	rows, err := q.db.Query(ctx, listPackagingUnits, itemID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PackagingUnit{}
+	for rows.Next() {
+		var i PackagingUnit
+		if err := rows.Scan(
+			&i.ID,
+			&i.ItemID,
+			&i.Code,
+			&i.QtyInBase,
+			&i.Barcode,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPackagingUnitsForItems = `-- name: ListPackagingUnitsForItems :many
+SELECT id, item_id, code, qty_in_base, barcode, created_at, updated_at, deleted_at, version, created_by FROM packaging_units
+WHERE item_id = ANY($1::uuid[]) AND deleted_at IS NULL
+ORDER BY item_id, qty_in_base, code
+`
+
+// One query for a whole page, not one per row.
+func (q *Queries) ListPackagingUnitsForItems(ctx context.Context, itemIds []uuid.UUID) ([]PackagingUnit, error) {
+	rows, err := q.db.Query(ctx, listPackagingUnitsForItems, itemIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []PackagingUnit{}
+	for rows.Next() {
+		var i PackagingUnit
+		if err := rows.Scan(
+			&i.ID,
+			&i.ItemID,
+			&i.Code,
+			&i.QtyInBase,
+			&i.Barcode,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTranslationsForItems = `-- name: ListTranslationsForItems :many
+SELECT id, item_id, locale, name, description, ingredients, nutrition, storage_conditions, after_opening, created_at, updated_at, deleted_at, version, created_by FROM item_translations
+WHERE item_id = ANY($1::uuid[]) AND deleted_at IS NULL
+ORDER BY item_id, locale
+`
+
+func (q *Queries) ListTranslationsForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemTranslation, error) {
+	rows, err := q.db.Query(ctx, listTranslationsForItems, itemIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ItemTranslation{}
+	for rows.Next() {
+		var i ItemTranslation
+		if err := rows.Scan(
+			&i.ID,
+			&i.ItemID,
+			&i.Locale,
+			&i.Name,
+			&i.Description,
+			&i.Ingredients,
+			&i.Nutrition,
+			&i.StorageConditions,
+			&i.AfterOpening,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const tombstoneItem = `-- name: TombstoneItem :one
+UPDATE items SET deleted_at = now()
+WHERE id = $1 AND version = $2 AND deleted_at IS NULL
+RETURNING id, sku, item_type, category, base_uom, shelf_life_days, min_qty, is_active, status, created_at, updated_at, deleted_at, version, created_by
+`
+
+type TombstoneItemParams struct {
+	ID              uuid.UUID
+	ExpectedVersion int32
+}
+
+// No hard deletes (CLAUDE.md §4.3). Also version-guarded: deleting a record
+// someone else just edited should fail the same way updating it would.
+func (q *Queries) TombstoneItem(ctx context.Context, arg TombstoneItemParams) (Item, error) {
+	row := q.db.QueryRow(ctx, tombstoneItem, arg.ID, arg.ExpectedVersion)
+	var i Item
+	err := row.Scan(
+		&i.ID,
+		&i.Sku,
+		&i.ItemType,
+		&i.Category,
+		&i.BaseUom,
+		&i.ShelfLifeDays,
+		&i.MinQty,
+		&i.IsActive,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const tombstonePackagingUnit = `-- name: TombstonePackagingUnit :exec
+UPDATE packaging_units SET deleted_at = now()
+WHERE id = $1 AND item_id = $2 AND deleted_at IS NULL
+`
+
+type TombstonePackagingUnitParams struct {
+	ID     uuid.UUID
+	ItemID uuid.UUID
+}
+
+func (q *Queries) TombstonePackagingUnit(ctx context.Context, arg TombstonePackagingUnitParams) error {
+	_, err := q.db.Exec(ctx, tombstonePackagingUnit, arg.ID, arg.ItemID)
+	return err
+}
+
+const updateItem = `-- name: UpdateItem :one
+UPDATE items SET
+  category        = $2,
+  base_uom        = $3,
+  shelf_life_days = $4,
+  min_qty         = $5,
+  status          = $6
+WHERE id = $1 AND version = $7 AND deleted_at IS NULL
+RETURNING id, sku, item_type, category, base_uom, shelf_life_days, min_qty, is_active, status, created_at, updated_at, deleted_at, version, created_by
+`
+
+type UpdateItemParams struct {
+	ID              uuid.UUID
+	Category        *string
+	BaseUom         string
+	ShelfLifeDays   *int32
+	MinQty          decimal.NullDecimal
+	Status          string
+	ExpectedVersion int32
+}
+
+// The version guard is in the WHERE clause, not a prior read: checking then
+// writing in two statements leaves a window where another request commits in
+// between. No rows returned means the version was stale.
+func (q *Queries) UpdateItem(ctx context.Context, arg UpdateItemParams) (Item, error) {
+	row := q.db.QueryRow(ctx, updateItem,
+		arg.ID,
+		arg.Category,
+		arg.BaseUom,
+		arg.ShelfLifeDays,
+		arg.MinQty,
+		arg.Status,
+		arg.ExpectedVersion,
+	)
+	var i Item
+	err := row.Scan(
+		&i.ID,
+		&i.Sku,
+		&i.ItemType,
+		&i.Category,
+		&i.BaseUom,
+		&i.ShelfLifeDays,
+		&i.MinQty,
+		&i.IsActive,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const upsertItemTranslation = `-- name: UpsertItemTranslation :one
+INSERT INTO item_translations (
+  item_id, locale, name, description, ingredients, nutrition,
+  storage_conditions, after_opening, created_by)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+ON CONFLICT (item_id, locale) WHERE deleted_at IS NULL
+DO UPDATE SET
+  name               = EXCLUDED.name,
+  description        = EXCLUDED.description,
+  ingredients        = EXCLUDED.ingredients,
+  nutrition          = EXCLUDED.nutrition,
+  storage_conditions = EXCLUDED.storage_conditions,
+  after_opening      = EXCLUDED.after_opening
+RETURNING id, item_id, locale, name, description, ingredients, nutrition, storage_conditions, after_opening, created_at, updated_at, deleted_at, version, created_by
+`
+
+type UpsertItemTranslationParams struct {
+	ItemID            uuid.UUID
+	Locale            string
+	Name              string
+	Description       *string
+	Ingredients       *string
+	Nutrition         *string
+	StorageConditions *string
+	AfterOpening      *string
+	CreatedBy         uuid.NullUUID
+}
+
+func (q *Queries) UpsertItemTranslation(ctx context.Context, arg UpsertItemTranslationParams) (ItemTranslation, error) {
+	row := q.db.QueryRow(ctx, upsertItemTranslation,
+		arg.ItemID,
+		arg.Locale,
+		arg.Name,
+		arg.Description,
+		arg.Ingredients,
+		arg.Nutrition,
+		arg.StorageConditions,
+		arg.AfterOpening,
+		arg.CreatedBy,
+	)
+	var i ItemTranslation
+	err := row.Scan(
+		&i.ID,
+		&i.ItemID,
+		&i.Locale,
+		&i.Name,
+		&i.Description,
+		&i.Ingredients,
+		&i.Nutrition,
+		&i.StorageConditions,
+		&i.AfterOpening,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
 }

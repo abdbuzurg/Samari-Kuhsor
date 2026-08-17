@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/qoim/samari/backend/internal/auth"
+	"github.com/qoim/samari/backend/internal/domain/items"
 	samarihttp "github.com/qoim/samari/backend/internal/http"
 	"github.com/qoim/samari/backend/internal/testsupport"
 )
@@ -26,6 +27,7 @@ func newServer(t *testing.T) (http.Handler, *pgxpool.Pool) {
 	pool := testsupport.NewDB(t)
 	srv, err := samarihttp.NewServer(
 		auth.NewService(pool, auth.DefaultConfig()),
+		items.NewService(pool),
 		samarihttp.Config{ServiceKey: serviceKey},
 	)
 	if err != nil {
@@ -137,7 +139,7 @@ func TestServerRefusesToBuildWithAnUndeclaredRoute(t *testing.T) {
 	// Every route the real server mounts is declared, so it builds.
 	pool := testsupport.NewDB(t)
 	if _, err := samarihttp.NewServer(auth.NewService(pool, auth.DefaultConfig()),
-		samarihttp.Config{}); err != nil {
+		items.NewService(pool), samarihttp.Config{}); err != nil {
 		t.Fatalf("the real router failed its own declaration check: %v", err)
 	}
 }
@@ -145,7 +147,8 @@ func TestServerRefusesToBuildWithAnUndeclaredRoute(t *testing.T) {
 func TestEveryRouteDeclaresItsAccess(t *testing.T) {
 	t.Parallel()
 	pool := testsupport.NewDB(t)
-	srv, err := samarihttp.NewServer(auth.NewService(pool, auth.DefaultConfig()), samarihttp.Config{})
+	srv, err := samarihttp.NewServer(auth.NewService(pool, auth.DefaultConfig()),
+		items.NewService(pool), samarihttp.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}

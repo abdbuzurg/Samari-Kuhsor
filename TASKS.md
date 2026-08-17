@@ -254,11 +254,39 @@ first module that has a table to reflow.
 
 ## Stage B — Reference slice
 
-### T11 · Товары — backend — `todo`
+### T11 · Товары — backend — `done`
 `queries/items.sql`, domain logic, handlers with `rbac.Require`, audit on every mutation.
 
 **Done when:** integration tests for happy path, validation failure, 403, 401, audit row asserted;
 duplicate SKU on a non-deleted row rejected with `already_exists`; tombstoned SKU may be reused.
+
+**Result:** 54 integration tests + 20 domain unit tests. Full suite green.
+- The **permission matrix runs as a table across all five endpoints** × three tokens
+  (`items:manage`, `items:read`, no roles) × unauthenticated. That table is what the next eleven
+  modules copy, so `read` failing to imply `manage` is proven per endpoint, not once.
+- **A rejected mutation writes no audit row** — asserted, so the trail never records work that
+  did not happen.
+- Duplicate SKU is a **400 with `already_exists`**, and the response is asserted not to leak
+  `23505`, `pq:` or the constraint name.
+- `sort` is a whitelist tested against `password_hash` — a real column whose sortability would leak
+  an ordering oracle.
+- **D8 SKU prefixes enforced**: `RAW-` and `PKG-` required; finished goods exempt because the five
+  approved codes share no prefix. All eleven cases tested.
+- Search matches **every locale**, so a Tajik-speaking operator finds a product by its Tajik name
+  while the list renders in Russian.
+- Unverified claims (composition, nutrition, shelf life) asserted **null**, not `""` — the UI needs
+  null to render «уточняется» rather than publish an unverified claim.
+- A test asserts the API **never exposes a stock quantity** under any name, so a balance column
+  appearing later fails here rather than shipping.
+
+**A design decision worth flagging for review:** the list query originally used a
+`LEFT JOIN LATERAL` for the current price. sqlc infers lateral columns as **non-null**, so an item
+created before it was priced — the normal order of work — would fail to scan at runtime. Replaced
+with three batch queries per page, constant in page size.
+
+*Two test defects found and fixed:* a substring assertion on `jsonb` (Postgres reformats it with
+spaces) and an anonymous struct missing `json` tags so `per_page` never unmarshalled. Both were my
+tests being wrong, not the product.
 
 ### T12 · Товары — BFF and types — `todo`
 **Done when:** no backend hostname, port or service key appears in any client bundle — asserted by

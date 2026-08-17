@@ -12,21 +12,35 @@ import (
 )
 
 type Querier interface {
+	// A new price supersedes the open one rather than replacing it: price history is
+	// evidence, and the detail view shows it. Closes the day before the new price
+	// starts so the two never overlap.
+	CloseOpenItemPrices(ctx context.Context, arg CloseOpenItemPricesParams) error
 	CountAudit(ctx context.Context, arg CountAuditParams) (int64, error)
 	CountAuditForResource(ctx context.Context, arg CountAuditForResourceParams) (int64, error)
 	CountItems(ctx context.Context) (int64, error)
 	CountItemsByStatus(ctx context.Context, status string) (int64, error)
+	// Must apply exactly the same filters as ListItems, or the pagination metadata
+	// describes a different collection from the one returned.
+	CountListItems(ctx context.Context, arg CountListItemsParams) (int64, error)
+	// ---------------------------------------------------------------------------
+	// Mutations
+	// ---------------------------------------------------------------------------
+	CreateItem(ctx context.Context, arg CreateItemParams) (Item, error)
+	CreateItemPrice(ctx context.Context, arg CreateItemPriceParams) (ItemPrice, error)
+	CreatePackagingUnit(ctx context.Context, arg CreatePackagingUnitParams) (PackagingUnit, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredSessions(ctx context.Context, retain pgtype.Interval) error
-	// Product master queries.
+	GetCurrentItemPrice(ctx context.Context, itemID uuid.UUID) (ItemPrice, error)
+	// Товары и цены — the product master. docs/05-MODULES.md §4.
 	//
-	// Minimal for now: T03 wires sqlc and proves generation. The full Товары query
-	// set — list with search and filters, detail with translations, packaging units
-	// and price history — arrives with T11, which is the reference slice.
+	// This is the reference slice: every module after it copies these patterns, so
+	// the shapes here are deliberate.
 	//
-	// Note there is no query here that reads or writes a stock quantity. There is no
-	// such column; stock is derived from the movement ledger (CLAUDE.md §4.2, T16).
+	// Note what is absent: any query that reads or writes a stock quantity. There is
+	// no such column. Stock is derived from the movement ledger (CLAUDE.md §4.2), and
+	// the UI must never offer "set stock to X" (docs/05-MODULES.md:112).
 	GetItemByID(ctx context.Context, id uuid.UUID) (Item, error)
 	GetItemBySKU(ctx context.Context, sku string) (Item, error)
 	// Deliberately does not filter on expiry or revocation: the domain layer
@@ -52,7 +66,38 @@ type Querier interface {
 	ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLog, error)
 	// Powers the activity panel on every detail view (docs/05-MODULES.md §2).
 	ListAuditForResource(ctx context.Context, arg ListAuditForResourceParams) ([]AuditLog, error)
+	// Related records on the detail view (docs/05-MODULES.md §2).
+	ListBatchesForItem(ctx context.Context, arg ListBatchesForItemParams) ([]Batch, error)
+	// The price in force today for each of the given items. DISTINCT ON keeps one
+	// row per item; the ORDER BY decides which one.
+	ListCurrentPricesForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemPrice, error)
+	// Full price history, newest first — the detail view shows it (docs/05-MODULES.md:90).
+	ListItemPrices(ctx context.Context, itemID uuid.UUID) ([]ItemPrice, error)
 	ListItemTranslations(ctx context.Context, itemID uuid.UUID) ([]ItemTranslation, error)
+	// ---------------------------------------------------------------------------
+	// List — docs/03-API-CONTRACT.md §5
+	// ---------------------------------------------------------------------------
+	// Returns the item rows and one display label. Packaging codes and current
+	// prices are fetched for the whole page by the two queries below rather than
+	// joined here.
+	//
+	// A LEFT JOIN LATERAL for the price reads better but sqlc infers its columns as
+	// NON-NULL, so an item with no price fails to scan at runtime — a bug that only
+	// appears once someone creates a product before pricing it, which is exactly the
+	// normal order of work. Three round trips per page, constant in page size, is
+	// the honest trade.
+	//
+	// Sorting is expressed as CASE branches rather than string interpolation. The
+	// field is already whitelisted in Go, but building an ORDER BY by concatenation
+	// is how whitelists get bypassed later, when someone adds a field and forgets.
+	ListItems(ctx context.Context, arg ListItemsParams) ([]ListItemsRow, error)
+	// ---------------------------------------------------------------------------
+	// Detail
+	// ---------------------------------------------------------------------------
+	ListPackagingUnits(ctx context.Context, itemID uuid.UUID) ([]PackagingUnit, error)
+	// One query for a whole page, not one per row.
+	ListPackagingUnitsForItems(ctx context.Context, itemIds []uuid.UUID) ([]PackagingUnit, error)
+	ListTranslationsForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemTranslation, error)
 	// Increments the counter and locks the account once the threshold is reached.
 	// Returning the row lets the caller report the resulting state without a re-read.
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (User, error)
@@ -61,8 +106,17 @@ type Querier interface {
 	RevokeAllUserSessions(ctx context.Context, userID uuid.UUID) error
 	RevokeSession(ctx context.Context, id uuid.UUID) error
 	SetPasswordHash(ctx context.Context, arg SetPasswordHashParams) error
+	// No hard deletes (CLAUDE.md §4.3). Also version-guarded: deleting a record
+	// someone else just edited should fail the same way updating it would.
+	TombstoneItem(ctx context.Context, arg TombstoneItemParams) (Item, error)
+	TombstonePackagingUnit(ctx context.Context, arg TombstonePackagingUnitParams) error
 	// Idle-timeout support: slides the expiry window on activity.
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
+	// The version guard is in the WHERE clause, not a prior read: checking then
+	// writing in two statements leaves a window where another request commits in
+	// between. No rows returned means the version was stale.
+	UpdateItem(ctx context.Context, arg UpdateItemParams) (Item, error)
+	UpsertItemTranslation(ctx context.Context, arg UpsertItemTranslationParams) (ItemTranslation, error)
 }
 
 var _ Querier = (*Queries)(nil)

@@ -21,6 +21,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/qoim/samari/backend/internal/auth"
+	"github.com/qoim/samari/backend/internal/domain/items"
 	samarihttp "github.com/qoim/samari/backend/internal/http"
 )
 
@@ -93,6 +94,7 @@ func run() error {
 
 	srv, err := samarihttp.NewServer(
 		auth.NewService(pool, auth.DefaultConfig()),
+		items.NewService(pool),
 		samarihttp.Config{ServiceKey: os.Getenv("SERVICE_KEY")},
 	)
 	if err != nil {

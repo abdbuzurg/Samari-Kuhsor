@@ -151,8 +151,79 @@ type Item struct {
 	Translations   map[string]ItemTranslation `json:"translations"`
 	PackagingUnits []PackagingUnit            `json:"packaging_units"`
 	CurrentPrice   *Price                     `json:"current_price"`
+	PriceHistory   []Price                    `json:"price_history"`
 	Status         Status                     `json:"status"`
 	Version        int32                      `json:"version"`
 	CreatedAt      string                     `json:"created_at"`
 	UpdatedAt      string                     `json:"updated_at"`
+}
+
+// ItemListRow is one row of the Товары list. Deliberately narrower than Item:
+// the columns are SKU · Наименование · Категория · Упаковка · Цена · Срок годн. ·
+// Статус (docs/05-MODULES.md:85), and sending full translation sets and price
+// history for 50 rows would be wasted bytes on a Khorog connection.
+type ItemListRow struct {
+	ID  string `json:"id"`
+	SKU string `json:"sku"`
+	// Name is already resolved to the requested locale, falling back to Russian
+	// and then to the SKU. A list needs one label, not a translation set.
+	Name           string   `json:"name"`
+	ItemType       string   `json:"item_type"`
+	Category       *string  `json:"category"`
+	BaseUOM        string   `json:"base_uom"`
+	PackagingCodes []string `json:"packaging_codes"`
+	ShelfLifeDays  *int32   `json:"shelf_life_days"`
+	CurrentPrice   *Price   `json:"current_price"`
+	Status         Status   `json:"status"`
+	Version        int32    `json:"version"`
+}
+
+// ItemTranslationWrite is the per-locale content on create and update.
+//
+// Ingredients, Nutrition and the rest may be omitted: docs/02-SCHEMA.md:176
+// requires them to stay null until the client's recipes are lab-verified, and
+// the UI renders «уточняется». The system must not publish unverified claims.
+type ItemTranslationWrite struct {
+	Name              string  `json:"name"`
+	Description       *string `json:"description"`
+	Ingredients       *string `json:"ingredients"`
+	Nutrition         *string `json:"nutrition"`
+	StorageConditions *string `json:"storage_conditions"`
+	AfterOpening      *string `json:"after_opening"`
+}
+
+// PackagingUnitWrite defines a selling unit. QtyInBase is a STRING for the same
+// reason every quantity is (docs/03-API-CONTRACT.md:147).
+type PackagingUnitWrite struct {
+	Code      string  `json:"code"`
+	QtyInBase string  `json:"qty_in_base"`
+	Barcode   *string `json:"barcode"`
+}
+
+// ItemWriteRequest is the create and update payload.
+//
+// SKU and ItemType are ignored on update: changing either once batches and stock
+// movements reference the item would rewrite history other records point at.
+type ItemWriteRequest struct {
+	// Version is required on PATCH and absent on POST
+	// (docs/03-API-CONTRACT.md §7).
+	Version        *int32                          `json:"version"`
+	SKU            string                          `json:"sku"`
+	ItemType       string                          `json:"item_type"`
+	Category       *string                         `json:"category"`
+	BaseUOM        string                          `json:"base_uom"`
+	ShelfLifeDays  *int32                          `json:"shelf_life_days"`
+	MinQty         *string                         `json:"min_qty"`
+	Status         string                          `json:"status"`
+	Translations   map[string]ItemTranslationWrite `json:"translations"`
+	PackagingUnits []PackagingUnitWrite            `json:"packaging_units"`
+}
+
+// PriceWriteRequest adds a price. Prices are never overwritten: the new one
+// supersedes the open one and the history is kept.
+type PriceWriteRequest struct {
+	Amount    string  `json:"amount"`
+	Currency  string  `json:"currency"`
+	ValidFrom string  `json:"valid_from"`
+	ValidTo   *string `json:"valid_to"`
 }
