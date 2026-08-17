@@ -370,11 +370,34 @@ constraint-name fallback so no constraint can surface as a 500.
 assertion, which required adding `GET /batches/{id}` — an endpoint the item detail view needs
 anyway.
 
-### T15 · Engine extraction — `todo`
+### T15 · Engine extraction — `done`
 Extract `ListView` / `DetailView` / `EditForm` and their per-module descriptors **from the working
 Товары code** (I2). Товары is refactored onto the engine as consumer zero.
 
 **Done when:** Товары's tests and its screenshot drift gate still pass unchanged after refactor.
+
+**Result:** `lib/resource.ts` — `createResourceHooks(resource)` returning list/one/create/update/
+remove/action. Товары refactored onto it; **its 32 tests passed with zero changes to the test
+files**, which is the gate. 13 new tests cover the engine directly, since a bug there is a bug in
+eleven modules at once.
+
+`lib/items.ts` went from ~150 lines to ~55: a resource name, two row types, and the filter mapping.
+Склад's version should be about that long.
+
+**Deliberately not abstracted:** columns, KPIs and field groups (they differ by design and come
+from the approved prototype — a config DSL would be a worse way to write JSX), validation and
+business rules (those live in Go), and anything whose only second consumer is hypothetical.
+
+The engine test that matters most: **`useUpdate` seeds the detail cache from the response.**
+Invalidating alone leaves a window where the form still holds the old version and 409s against the
+user's own previous save — which looks like the app randomly refusing to save.
+
+**A real bug the visual check caught:** the list showed "Всего SKU —" while "Активных" showed 5.
+`relay()` in the BFF was re-wrapping only `data` and **dropping `meta`** — so pagination metadata
+never reached the browser and paging was broken too. The component tests mock `/api/items` directly,
+so nothing exercised the BFF. Fixed, and `lib/api.test.ts` now covers that layer: meta passthrough,
+error-envelope preservation, 204 handling, no user identity ever sent, and an unreachable backend
+reported without leaking its address.
 
 ---
 

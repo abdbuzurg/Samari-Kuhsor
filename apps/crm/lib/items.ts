@@ -1,58 +1,22 @@
 'use client';
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { Item, ItemListRow, PageMeta } from '@samari/types';
+import type { Item, ItemListRow } from '@samari/types';
 
-import { ApiError } from '@/lib/session';
+import { createResourceHooks, type ListQuery } from '@/lib/resource';
 
 /**
- * Товары и цены data hooks.
+ * Товары и цены — the module's data layer.
  *
- * Everything goes through /api/* on this origin; the browser never learns the Go
- * API's address (CLAUDE.md §3). These hooks are what T15 generalises into the
- * shared list/detail engine, so the shape here is deliberately module-agnostic
- * apart from the types.
+ * After the T15 extraction this file is what a module actually costs: a resource
+ * name, its two row types, and whatever is genuinely specific to it. Everything
+ * else — fetching, cache keys, the version-conflict-safe update, the 204 on
+ * delete — comes from createResourceHooks (docs/07-IMPLEMENTATION-PLAN.md I2).
+ *
+ * Склад is the next consumer, and its version of this file should be about this
+ * long.
  */
 
-export interface Collection<T> {
-  data: T[];
-  meta: PageMeta;
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, {
-    ...init,
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-  });
-  if (res.status === 204) return undefined as T;
-
-  const body = await res.json().catch(() => null);
-  if (!res.ok) {
-    // Switch on the stable code, never the message (docs/03-API-CONTRACT.md:116).
-    throw new ApiError(
-      res.status,
-      body?.error?.code ?? 'internal_error',
-      body?.error?.message ?? '',
-      body?.error?.details,
-    );
-  }
-  return body?.data as T;
-}
-
-/** The collection response keeps `meta` alongside `data`, so fetch it whole. */
-async function requestCollection<T>(path: string): Promise<Collection<T>> {
-  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' } });
-  const body = await res.json().catch(() => null);
-  if (!res.ok) {
-    throw new ApiError(
-      res.status,
-      body?.error?.code ?? 'internal_error',
-      body?.error?.message ?? '',
-      body?.error?.details,
-    );
-  }
-  return { data: body?.data ?? [], meta: body?.meta };
-}
+const items = createResourceHooks<ItemListRow, Item>('items');
 
 export interface ItemQuery {
   q?: string;
@@ -63,100 +27,32 @@ export interface ItemQuery {
   locale?: string;
 }
 
-function toSearch(query: ItemQuery): string {
-  const params = new URLSearchParams();
-  if (query.q) params.set('q', query.q);
-  if (query.status) params.set('status', query.status);
-  if (query.itemType) params.set('item_type', query.itemType);
-  if (query.page && query.page > 1) params.set('page', String(query.page));
-  if (query.sort) params.set('sort', query.sort);
-  if (query.locale) params.set('locale', query.locale);
-  const s = params.toString();
-  return s ? `?${s}` : '';
+/** Maps the module's own filter names onto the generic query shape. */
+function toListQuery(query: ItemQuery): ListQuery {
+  return {
+    q: query.q,
+    page: query.page,
+    sort: query.sort,
+    locale: query.locale,
+    filters: { status: query.status, item_type: query.itemType },
+  };
 }
 
 export function useItems(query: ItemQuery) {
-  return useQuery<Collection<ItemListRow>>({
-    // The query key includes every parameter, so typing in the search box
-    // refetches rather than serving the previous term's results.
-    queryKey: ['items', query],
-    queryFn: () => requestCollection<ItemListRow>(`/api/items${toSearch(query)}`),
-    // Keeps the previous page visible while the next loads, so the table does
-    // not flash empty on every keystroke.
-    placeholderData: (previous) => previous,
-  });
+  return items.useList(toListQuery(query));
 }
 
-export function useItem(id: string | undefined) {
-  return useQuery<Item>({
-    queryKey: ['item', id],
-    queryFn: () => request<Item>(`/api/items/${id}`),
-    enabled: !!id,
-  });
-}
+export const useItem = items.useOne;
+export const useCreateItem = items.useCreate;
+export const useUpdateItem = items.useUpdate;
+export const useDeleteItem = items.useRemove;
 
-export function useCreateItem() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: unknown) =>
-      request<Item>('/api/items', { method: 'POST', body: JSON.stringify(body) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['items'] }),
-  });
-}
-
-export function useUpdateItem(id: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: unknown) =>
-      request<Item>(`/api/items/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
-    onSuccess: (updated) => {
-      // Seed the detail cache from the response so the version the next edit
-      // sends is the one the server just wrote. Invalidating alone would leave a
-      // window where the form still holds the stale version and 409s.
-      qc.setQueryData(['item', id], updated);
-      qc.invalidateQueries({ queryKey: ['items'] });
-    },
-  });
-}
-
-export function useDeleteItem(id: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (version: number) =>
-      request<void>(`/api/items/${id}`, {
-        method: 'DELETE',
-        body: JSON.stringify({ version }),
-      }),
-    onSuccess: () => {
-      qc.removeQueries({ queryKey: ['item', id] });
-      qc.invalidateQueries({ queryKey: ['items'] });
-    },
-  });
-}
-
+/** Prices are a sub-resource: a new price supersedes the open one rather than
+ *  replacing it, because the history records what a product cost when an order
+ *  was placed. */
 export function useAddPrice(id: string) {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (body: unknown) =>
-      request(`/api/items/${id}/prices`, { method: 'POST', body: JSON.stringify(body) }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['item', id] });
-      qc.invalidateQueries({ queryKey: ['items'] });
-    },
-  });
+  return items.useAction(id, 'prices');
 }
 
-/**
- * The placeholder for a value the client has not yet verified.
- *
- * docs/02-SCHEMA.md:176 — compositions, nutritional values, shelf life and water
- * classification stay null until the recipes are approved and lab-tested. The
- * client set that rule explicitly: the system must not publish unverified claims.
- * Rendering an empty cell would read as "no preservatives" rather than "unknown".
- */
-export const TBC = 'уточняется';
-
-/** Renders a value or the «уточняется» placeholder. */
-export function orTBC(value: string | null | undefined): string {
-  return value === null || value === undefined || value === '' ? TBC : value;
-}
+export { TBC, orTBC } from '@/lib/resource';
+export type { Collection } from '@/lib/resource';

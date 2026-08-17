@@ -24,7 +24,7 @@ const SERVICE_KEY = process.env.SERVICE_KEY ?? '';
 export const SESSION_COOKIE = 'samari_session';
 
 export type ApiResult<T> =
-  | { ok: true; status: number; data: T }
+  | { ok: true; status: number; data: T; meta?: unknown }
   | { ok: false; status: number; error: ApiErrorBody };
 
 export interface ApiErrorBody {
@@ -88,7 +88,7 @@ export async function callApi<T>(path: string, opts: CallOptions = {}): Promise<
   }
 
   const payload = (await res.json().catch(() => null)) as
-    | { data?: T; error?: ApiErrorBody }
+    | { data?: T; meta?: unknown; error?: ApiErrorBody }
     | null;
 
   if (!res.ok) {
@@ -102,7 +102,10 @@ export async function callApi<T>(path: string, opts: CallOptions = {}): Promise<
     };
   }
 
-  return { ok: true, status: res.status, data: payload?.data as T };
+  // `meta` is carried through, not dropped: a collection response is
+  // {data, meta} (docs/03-API-CONTRACT.md §4), and losing meta breaks paging and
+  // every total the UI shows.
+  return { ok: true, status: res.status, data: payload?.data as T, meta: payload?.meta };
 }
 
 /**
@@ -113,7 +116,11 @@ export async function callApi<T>(path: string, opts: CallOptions = {}): Promise<
  * break every consumer for no gain.
  */
 export function relay<T>(result: ApiResult<T>): Response {
-  const body = result.ok ? { data: result.data } : { error: result.error };
+  const body = result.ok
+    ? result.meta === undefined
+      ? { data: result.data }
+      : { data: result.data, meta: result.meta }
+    : { error: result.error };
   return Response.json(body, {
     status: result.status,
     headers: { 'Cache-Control': 'no-store' },

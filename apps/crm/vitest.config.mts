@@ -15,6 +15,10 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, '.'),
       '@samari/types': path.resolve(__dirname, '../../packages/types/api.ts'),
+      // `server-only` is a Next build-time guard with no runtime module Vite can
+      // resolve. Stubbing it here lets the BFF be tested; the guard still fails
+      // the real build if a client component imports lib/api.ts.
+      'server-only': path.resolve(__dirname, 'test/server-only-stub.ts'),
     },
   },
 });
