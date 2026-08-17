@@ -323,7 +323,10 @@ func TestMeReturnsIdentityAndLogoutRevokesIt(t *testing.T) {
 		Data struct {
 			Email       string   `json:"email"`
 			Permissions []string `json:"permissions"`
-			Roles       []string `json:"roles"`
+			Roles       []struct {
+				Key    string `json:"key"`
+				NameRU string `json:"name_ru"`
+			} `json:"roles"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
@@ -333,7 +336,12 @@ func TestMeReturnsIdentityAndLogoutRevokesIt(t *testing.T) {
 		t.Errorf("me returned %+v", resp.Data)
 	}
 	if len(resp.Data.Roles) != 1 {
-		t.Errorf("roles = %v", resp.Data.Roles)
+		t.Fatalf("roles = %v", resp.Data.Roles)
+	}
+	// Role names are content, not chrome (CLAUDE.md §6): the payload carries the
+	// display name so the UI never has to show a raw key like "warehouse".
+	if resp.Data.Roles[0].NameRU == "" {
+		t.Errorf("role %s has no Russian display name", resp.Data.Roles[0].Key)
 	}
 
 	if rec := do(t, h, http.MethodPost, "/api/v1/auth/logout", token, nil); rec.Code != http.StatusNoContent {

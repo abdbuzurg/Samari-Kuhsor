@@ -77,8 +77,15 @@ test-go: ## Go unit + integration tests (spins its own Postgres 18 testcontainer
 	@cd backend && go test ./...
 
 test-web: ## Frontend unit/component tests
-	@if [ -d apps/crm/node_modules ] || [ -d node_modules ]; then npm run test --workspaces --if-present; \
-	else echo "web tests: workspaces not installed yet"; fi
+	@if [ -d node_modules ]; then npm run test --workspaces --if-present; \
+	else echo "web tests: run 'npm install' first"; fi
+
+typecheck: ## TypeScript across both apps
+	@if [ -d node_modules ]; then \
+		for app in apps/*/; do \
+			if [ -f "$$app/tsconfig.json" ]; then echo "  $$app"; (cd $$app && npx tsc --noEmit) || exit 1; fi; \
+		done; \
+	else echo "typecheck: run 'npm install' first"; fi
 
 build: ## Build both Next.js apps
 	@if [ -d node_modules ]; then npm run build --workspaces --if-present; else echo "build: workspaces not installed yet"; fi
@@ -100,9 +107,18 @@ check: ## THE GATE — everything that must be green before the next task opens
 	echo "==> extraction";    $(MAKE) --no-print-directory _check-extraction; \
 	echo "==> sqlc staleness"; $(MAKE) --no-print-directory _check-sqlc; \
 	echo "==> tygo staleness"; $(MAKE) --no-print-directory _check-tygo; \
+	echo "==> typecheck";     $(MAKE) --no-print-directory typecheck; \
 	echo "==> web tests";     $(MAKE) --no-print-directory test-web; \
 	echo "==> next build";    $(MAKE) --no-print-directory build; \
+	echo "==> bundle safety"; $(MAKE) --no-print-directory _check-bundle; \
 	echo; echo "check: GREEN"
+
+# CLAUDE.md §3: no backend URL, token or service credential may appear in
+# client-side code. Checked on the built output, because this is exactly the rule
+# that breaks silently the first time a server helper is imported by a component.
+_check-bundle:
+	@if [ -d apps/crm/.next/static ]; then node tools/check-bundle.mjs apps/crm; \
+	else echo "   (no build output yet)"; fi
 
 # Everything derived from design/ must match design/. The extractors assert the
 # semantic invariants (locale shape, no `tj` key, the CLAUDE.md §5 design contract)
@@ -110,7 +126,7 @@ check: ## THE GATE — everything that must be green before the next task opens
 _check-extraction:
 	@node tools/extract-website.mjs >/dev/null
 	@node tools/extract-crm.mjs >/dev/null
-	@if ! git diff --quiet -- apps/crm/messages apps/crm/app/styles/theme.css apps/web/public/assets apps/web/.reference; then \
+	@if ! git diff --quiet -- apps/crm/messages apps/crm/app/styles apps/web/public/assets apps/web/.reference; then \
 		echo "extraction: output differs from design/ — run 'make extract' and review the diff"; exit 1; fi
 
 # Generated code must be committed and current. A drift here is the silent bug

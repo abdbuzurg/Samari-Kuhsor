@@ -215,7 +215,7 @@ run: all zeros. Verified against the live dev database *and* end to end through 
 
 *Deferred:* `locations` (needs T16) and content page skeletons (need T28).
 
-### T10 · CRM shell — `todo`
+### T10 · CRM shell — `done`
 Next 16 + React 19 + Tailwind v4 + next-intl (cookie mode) + TanStack Query. Sidebar 252px, top bar
 64px, permission-driven nav, global search, ТҶ/РУ/EN switcher, notification bell, user menu. BFF
 auth route handlers and the httpOnly cookie flow.
@@ -224,6 +224,31 @@ auth route handlers and the httpOnly cookie flow.
 cannot `read`; language switch changes all chrome strings; **screenshot drift gate** (I13) run
 against the prototype at 1440px; responsive verified at tablet and mobile (I27); component tests
 for loading/empty/error/populated.
+
+**Result:** Next 16.3.1 + React 19.2.8 + Tailwind 4.3.3 + next-intl 4.13 + TanStack Query 5.101.
+10 component tests; full `make check` green.
+- Login verified end to end in a real browser: browser → BFF → Go → Postgres → back.
+- **The session cookie is invisible to JavaScript**, verified in-browser (`document.cookie` is
+  empty while authenticated) rather than merely asserted in code.
+- **The drift gate found two real defects on its first run** — see below.
+- `lib/api.ts` opens with `import 'server-only'`, so a client component importing it **fails the
+  build** rather than shipping `BACKEND_URL`/`SERVICE_KEY` to the browser.
+- `tools/check-bundle.mjs` scans the built client assets for the service key, the backend URL and
+  the `/api/v1/` prefix. Proven by planting a leak, watching the gate fail, and reverting.
+- The four required states live in the shell, because the session query is what every screen
+  depends on. "Empty" is real: an administrator can create a user and forget to assign a role.
+- The logout BFF route clears the cookie **even if the API call fails** — a user who pressed
+  «выйти» on a shared factory terminal must end up logged out regardless.
+
+**Two drifts the screenshot gate caught:**
+1. **Locale switcher order.** Mine rendered `РУ ТҶ EN`; the approved prototype is `ТҶ РУ EN`.
+2. **The user chip showed the role *key*** (`admin`) instead of its name. `roles` carries
+   `name_ru/name_tg/name_en` (`02-SCHEMA.md:56`) precisely so it need not — but `/auth/me` was
+   returning bare strings. **Contract changed:** `api.Role` now carries all three names, because a
+   role name is *content* an administrator writes, not UI chrome (`CLAUDE.md §6`).
+
+*Deferred:* nav count pills need `alerts` queries (T16+); the responsive pass (I27) lands with the
+first module that has a table to reflow.
 
 ---
 

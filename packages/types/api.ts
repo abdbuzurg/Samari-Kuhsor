@@ -91,13 +91,27 @@ export interface LoginResponse {
   user: User;
 }
 /**
+ * Role is one of the caller's roles.
+ * Names are carried in all three languages rather than pre-localised, because a
+ * role name is CONTENT, not UI chrome (CLAUDE.md §6) — administrators create
+ * roles and name them. docs/02-SCHEMA.md:56 makes `roles` one of two deliberate
+ * exceptions to the sibling-translation-table rule for exactly this reason, and
+ * the frontend picks the column matching the interface language.
+ */
+export interface Role {
+  key: string;
+  name_ru: string;
+  name_tg: string;
+  name_en: string;
+}
+/**
  * User is the caller's own identity, as returned by /auth/me.
  */
 export interface User {
   id: string;
   email: string;
   full_name: string;
-  roles: string[];
+  roles: Role[];
   /**
    * Permissions is the flat "resource:action" list the CRM uses to hide nav
    * entries and buttons. Hiding is presentation only — the server still enforces

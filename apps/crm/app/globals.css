@@ -1,0 +1,30 @@
+/* CRM stylesheet.
+ *
+ * Order is load-bearing and mirrors the prototype's four layers
+ * (HANDOFF-CRM-CONTEXT.md:394):
+ *
+ *   1. Tailwind          — utilities for all application layout
+ *   2. theme.css         — the prototype's :root tokens, values copied verbatim
+ *   3. components.css    — the design-system primitives, rules copied verbatim
+ *
+ * Both generated files come from tools/extract-crm.mjs and are checked by
+ * `make check`. Do not hand-edit them; change the extractor instead.
+ */
+@import "tailwindcss";
+
+@import "./styles/theme.css";
+@import "./styles/components.css";
+
+/* Chrome regions invert text colour. Anything inside the sidebar or top bar
+ * inherits white text, and any light surface placed inside them (popovers) must
+ * reset it explicitly — a real defect found in prototype review
+ * (HANDOFF-CRM-CONTEXT.md:385). */
+@layer base {
+  body {
+    font-family: var(--font-body);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+  }
+}

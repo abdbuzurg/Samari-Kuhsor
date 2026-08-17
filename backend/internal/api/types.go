@@ -82,12 +82,26 @@ type LoginResponse struct {
 	User  User   `json:"user"`
 }
 
+// Role is one of the caller's roles.
+//
+// Names are carried in all three languages rather than pre-localised, because a
+// role name is CONTENT, not UI chrome (CLAUDE.md §6) — administrators create
+// roles and name them. docs/02-SCHEMA.md:56 makes `roles` one of two deliberate
+// exceptions to the sibling-translation-table rule for exactly this reason, and
+// the frontend picks the column matching the interface language.
+type Role struct {
+	Key    string `json:"key"`
+	NameRU string `json:"name_ru"`
+	NameTG string `json:"name_tg"`
+	NameEN string `json:"name_en"`
+}
+
 // User is the caller's own identity, as returned by /auth/me.
 type User struct {
-	ID       string   `json:"id"`
-	Email    string   `json:"email"`
-	FullName string   `json:"full_name"`
-	Roles    []string `json:"roles"`
+	ID       string `json:"id"`
+	Email    string `json:"email"`
+	FullName string `json:"full_name"`
+	Roles    []Role `json:"roles"`
 	// Permissions is the flat "resource:action" list the CRM uses to hide nav
 	// entries and buttons. Hiding is presentation only — the server still enforces
 	// every request (docs/04-RBAC.md:120).

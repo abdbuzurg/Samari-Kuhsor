@@ -24,9 +24,11 @@ import (
 // as well is exactly the drift 03-API-CONTRACT.md:265 warns about.
 
 func identityResponse(ident auth.Identity) api.User {
-	roles := make([]string, 0, len(ident.Roles))
+	roles := make([]api.Role, 0, len(ident.Roles))
 	for _, r := range ident.Roles {
-		roles = append(roles, r.Key)
+		roles = append(roles, api.Role{
+			Key: r.Key, NameRU: r.NameRu, NameTG: r.NameTg, NameEN: r.NameEn,
+		})
 	}
 	// Normalised through rbac.Set so the list is sorted and deduplicated, and so
 	// a malformed row cannot reach the client (docs/03-API-CONTRACT.md:194).

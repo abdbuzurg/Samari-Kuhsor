@@ -36,8 +36,8 @@
   "mod": {
     "dashboard": "Dashboard",
     "crm": "CRM & Sales",
-    "website": "Website integration",
-    "products": "Products & Pricing",
+    "inquiries": "Website integration",
+    "items": "Products & Pricing",
     "inventory": "Inventory & Warehousing",
     "procurement": "Procurement & Suppliers",
     "production": "Production",
