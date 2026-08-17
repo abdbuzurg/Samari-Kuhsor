@@ -237,6 +237,19 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 		// Интеграция с сайтом. The submit endpoint is the one unauthenticated
 		// write in the system: the website has no user to act as. It is still
 		// behind the service key, and rate-limited by visitor IP in the domain.
+		// The public read surface. Guarded by the service key like everything
+		// else — "public" means no user session, not open to the internet — and
+		// deliberately narrow: active finished goods and published news, with no
+		// cost, supplier, stock or internal status anywhere in the payload.
+		v1.Public(api, http.MethodGet, "/public/products",
+			"the catalogue a visitor sees; no visitor has an account",
+			s.handlePublicProducts)
+		v1.Public(api, http.MethodGet, "/public/products/{sku}",
+			"one product page; no visitor has an account",
+			s.handlePublicProduct)
+		v1.Public(api, http.MethodGet, "/public/news",
+			"published news; no visitor has an account",
+			s.handlePublicNews)
 		v1.Public(api, http.MethodPost, "/public/inquiries",
 			"public website form; no visitor has an account to authenticate with",
 			s.handleSubmitInquiry)

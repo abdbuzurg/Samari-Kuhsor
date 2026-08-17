@@ -320,11 +320,14 @@ func TestPublicRoutesAreExactlyTheDocumentedSet(t *testing.T) {
 	srv := mustServer(t, pool)
 
 	want := map[string]bool{
-		"POST /api/v1/auth/login":       true,
-		"POST /api/v1/auth/logout":      true,
-		"GET /api/v1/auth/me":           true,
-		"GET /api/v1/health":            true,
-		"POST /api/v1/public/inquiries": true,
+		"POST /api/v1/auth/login":           true,
+		"POST /api/v1/auth/logout":          true,
+		"GET /api/v1/auth/me":               true,
+		"GET /api/v1/health":                true,
+		"POST /api/v1/public/inquiries":     true,
+		"GET /api/v1/public/products":       true,
+		"GET /api/v1/public/products/{sku}": true,
+		"GET /api/v1/public/news":           true,
 		// The alerts feed authenticates but is not guarded on a module: it filters
 		// per-resource inside the service against the caller's own grants, so
 		// guarding it on any single resource would be either too strict or a lie.

@@ -340,3 +340,25 @@ LEFT JOIN users u ON u.id = a.actor_id
 WHERE a.resource = ANY(sqlc.arg(resources)::text[])
 ORDER BY a.occurred_at DESC
 LIMIT $1;
+
+-- name: ListPublicNews :many
+-- Published news for the public site.
+--
+-- `published_on` in the future is SCHEDULED, not live: a post dated next week
+-- must not appear on the site because someone pressed publish today. And the
+-- status must be `published` specifically — `approved` means it has cleared
+-- review, not that the client has released it (docs/05-MODULES.md §16).
+SELECT n.id, n.slug, n.category, n.published_on,
+  COALESCE(tr.title, ru.title) AS title,
+  COALESCE(tr.excerpt, ru.excerpt) AS excerpt
+FROM news_posts n
+LEFT JOIN news_post_translations tr
+  ON tr.post_id = n.id AND tr.locale = sqlc.arg(locale)::text AND tr.deleted_at IS NULL
+LEFT JOIN news_post_translations ru
+  ON ru.post_id = n.id AND ru.locale = 'ru' AND ru.deleted_at IS NULL
+WHERE n.deleted_at IS NULL
+  AND n.status = 'published'
+  AND n.published_on IS NOT NULL
+  AND n.published_on <= CURRENT_DATE
+ORDER BY n.published_on DESC
+LIMIT $1;

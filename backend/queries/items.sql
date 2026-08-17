@@ -261,3 +261,46 @@ ORDER BY b.batch_no;
 
 -- name: CountBatchesAwaitingQR :one
 SELECT count(*) FROM batches WHERE deleted_at IS NULL AND qr_payload IS NULL;
+
+-- ---------------------------------------------------------------------------
+-- Public site — docs/03-API-CONTRACT.md §9
+-- ---------------------------------------------------------------------------
+--
+-- These read the catalogue for an anonymous visitor. What they deliberately do
+-- NOT select is as important as what they do: no cost price, no supplier, no
+-- stock, no internal status. A public endpoint that joins one table too many is
+-- how a competitor learns the margin.
+
+-- name: ListPublicProducts :many
+-- Only ACTIVE finished goods. A draft product is one the client is still
+-- editing, and publishing it would put unapproved copy on the public site.
+SELECT
+  i.id, i.sku,
+  COALESCE(tr.name, ru.name, i.sku) AS name,
+  COALESCE(tr.description, ru.description) AS description,
+  i.category
+FROM items i
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = sqlc.arg(locale)::text AND tr.deleted_at IS NULL
+LEFT JOIN item_translations ru
+  ON ru.item_id = i.id AND ru.locale = 'ru' AND ru.deleted_at IS NULL
+WHERE i.deleted_at IS NULL
+  AND i.item_type = 'finished_good'
+  AND i.status = 'active'
+ORDER BY i.sku;
+
+-- name: GetPublicProduct :one
+SELECT
+  i.id, i.sku,
+  COALESCE(tr.name, ru.name, i.sku) AS name,
+  COALESCE(tr.description, ru.description) AS description,
+  i.category, i.base_uom, i.shelf_life_days
+FROM items i
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = sqlc.arg(locale)::text AND tr.deleted_at IS NULL
+LEFT JOIN item_translations ru
+  ON ru.item_id = i.id AND ru.locale = 'ru' AND ru.deleted_at IS NULL
+WHERE i.deleted_at IS NULL
+  AND i.item_type = 'finished_good'
+  AND i.status = 'active'
+  AND i.sku = sqlc.arg(sku)::text;

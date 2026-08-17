@@ -1024,6 +1024,70 @@ func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsPa
 	return items, nil
 }
 
+const listPublicNews = `-- name: ListPublicNews :many
+SELECT n.id, n.slug, n.category, n.published_on,
+  COALESCE(tr.title, ru.title) AS title,
+  COALESCE(tr.excerpt, ru.excerpt) AS excerpt
+FROM news_posts n
+LEFT JOIN news_post_translations tr
+  ON tr.post_id = n.id AND tr.locale = $2::text AND tr.deleted_at IS NULL
+LEFT JOIN news_post_translations ru
+  ON ru.post_id = n.id AND ru.locale = 'ru' AND ru.deleted_at IS NULL
+WHERE n.deleted_at IS NULL
+  AND n.status = 'published'
+  AND n.published_on IS NOT NULL
+  AND n.published_on <= CURRENT_DATE
+ORDER BY n.published_on DESC
+LIMIT $1
+`
+
+type ListPublicNewsParams struct {
+	Limit  int32
+	Locale string
+}
+
+type ListPublicNewsRow struct {
+	ID          uuid.UUID
+	Slug        string
+	Category    *string
+	PublishedOn pgtype.Date
+	Title       string
+	Excerpt     *string
+}
+
+// Published news for the public site.
+//
+// `published_on` in the future is SCHEDULED, not live: a post dated next week
+// must not appear on the site because someone pressed publish today. And the
+// status must be `published` specifically — `approved` means it has cleared
+// review, not that the client has released it (docs/05-MODULES.md §16).
+func (q *Queries) ListPublicNews(ctx context.Context, arg ListPublicNewsParams) ([]ListPublicNewsRow, error) {
+	rows, err := q.db.Query(ctx, listPublicNews, arg.Limit, arg.Locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPublicNewsRow{}
+	for rows.Next() {
+		var i ListPublicNewsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Slug,
+			&i.Category,
+			&i.PublishedOn,
+			&i.Title,
+			&i.Excerpt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStockBalances = `-- name: ListStockBalances :many
 
 SELECT

@@ -420,6 +420,53 @@ func (q *Queries) GetItemBySKU(ctx context.Context, sku string) (Item, error) {
 	return i, err
 }
 
+const getPublicProduct = `-- name: GetPublicProduct :one
+SELECT
+  i.id, i.sku,
+  COALESCE(tr.name, ru.name, i.sku) AS name,
+  COALESCE(tr.description, ru.description) AS description,
+  i.category, i.base_uom, i.shelf_life_days
+FROM items i
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = $1::text AND tr.deleted_at IS NULL
+LEFT JOIN item_translations ru
+  ON ru.item_id = i.id AND ru.locale = 'ru' AND ru.deleted_at IS NULL
+WHERE i.deleted_at IS NULL
+  AND i.item_type = 'finished_good'
+  AND i.status = 'active'
+  AND i.sku = $2::text
+`
+
+type GetPublicProductParams struct {
+	Locale string
+	Sku    string
+}
+
+type GetPublicProductRow struct {
+	ID            uuid.UUID
+	Sku           string
+	Name          string
+	Description   *string
+	Category      *string
+	BaseUom       string
+	ShelfLifeDays *int32
+}
+
+func (q *Queries) GetPublicProduct(ctx context.Context, arg GetPublicProductParams) (GetPublicProductRow, error) {
+	row := q.db.QueryRow(ctx, getPublicProduct, arg.Locale, arg.Sku)
+	var i GetPublicProductRow
+	err := row.Scan(
+		&i.ID,
+		&i.Sku,
+		&i.Name,
+		&i.Description,
+		&i.Category,
+		&i.BaseUom,
+		&i.ShelfLifeDays,
+	)
+	return i, err
+}
+
 const issueBatchQR = `-- name: IssueBatchQR :one
 UPDATE batches
 SET qr_payload = $2, qr_issued_at = now()
@@ -880,6 +927,68 @@ func (q *Queries) ListPackagingUnitsForItems(ctx context.Context, itemIds []uuid
 			&i.DeletedAt,
 			&i.Version,
 			&i.CreatedBy,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listPublicProducts = `-- name: ListPublicProducts :many
+
+SELECT
+  i.id, i.sku,
+  COALESCE(tr.name, ru.name, i.sku) AS name,
+  COALESCE(tr.description, ru.description) AS description,
+  i.category
+FROM items i
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = $1::text AND tr.deleted_at IS NULL
+LEFT JOIN item_translations ru
+  ON ru.item_id = i.id AND ru.locale = 'ru' AND ru.deleted_at IS NULL
+WHERE i.deleted_at IS NULL
+  AND i.item_type = 'finished_good'
+  AND i.status = 'active'
+ORDER BY i.sku
+`
+
+type ListPublicProductsRow struct {
+	ID          uuid.UUID
+	Sku         string
+	Name        string
+	Description *string
+	Category    *string
+}
+
+// ---------------------------------------------------------------------------
+// Public site — docs/03-API-CONTRACT.md §9
+// ---------------------------------------------------------------------------
+//
+// These read the catalogue for an anonymous visitor. What they deliberately do
+// NOT select is as important as what they do: no cost price, no supplier, no
+// stock, no internal status. A public endpoint that joins one table too many is
+// how a competitor learns the margin.
+// Only ACTIVE finished goods. A draft product is one the client is still
+// editing, and publishing it would put unapproved copy on the public site.
+func (q *Queries) ListPublicProducts(ctx context.Context, locale string) ([]ListPublicProductsRow, error) {
+	rows, err := q.db.Query(ctx, listPublicProducts, locale)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListPublicProductsRow{}
+	for rows.Next() {
+		var i ListPublicProductsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Sku,
+			&i.Name,
+			&i.Description,
+			&i.Category,
 		); err != nil {
 			return nil, err
 		}

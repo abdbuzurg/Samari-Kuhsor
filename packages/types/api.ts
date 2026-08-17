@@ -477,6 +477,26 @@ export interface DashboardRevenue {
   revenue: string;
   order_count: number /* int */;
 }
+/**
+ * PublicProduct is what an anonymous visitor may see.
+ * Note what is ABSENT: cost, supplier, stock, internal status, batch. A public
+ * endpoint that joins one table too many is how a competitor learns the margin.
+ */
+export interface PublicProduct {
+  id: string;
+  sku: string;
+  name: string;
+  description?: string | null;
+  category?: string | null;
+}
+export interface PublicNewsItem {
+  id: string;
+  slug: string;
+  category?: string | null;
+  published_on?: string | null;
+  title: string;
+  excerpt?: string | null;
+}
 
 //////////
 // source: operations.go

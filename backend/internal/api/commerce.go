@@ -520,3 +520,28 @@ type DashboardRevenue struct {
 	Revenue    string `json:"revenue"`
 	OrderCount int    `json:"order_count"`
 }
+
+// ---------------------------------------------------------------------------
+// Public site
+// ---------------------------------------------------------------------------
+
+// PublicProduct is what an anonymous visitor may see.
+//
+// Note what is ABSENT: cost, supplier, stock, internal status, batch. A public
+// endpoint that joins one table too many is how a competitor learns the margin.
+type PublicProduct struct {
+	ID          string  `json:"id"`
+	SKU         string  `json:"sku"`
+	Name        string  `json:"name"`
+	Description *string `json:"description" tstype:"string | null"`
+	Category    *string `json:"category" tstype:"string | null"`
+}
+
+type PublicNewsItem struct {
+	ID          string  `json:"id"`
+	Slug        string  `json:"slug"`
+	Category    *string `json:"category" tstype:"string | null"`
+	PublishedOn *string `json:"published_on" tstype:"string | null"`
+	Title       string  `json:"title"`
+	Excerpt     *string `json:"excerpt" tstype:"string | null"`
+}

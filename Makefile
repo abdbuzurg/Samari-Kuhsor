@@ -117,8 +117,11 @@ check: ## THE GATE — everything that must be green before the next task opens
 # client-side code. Checked on the built output, because this is exactly the rule
 # that breaks silently the first time a server helper is imported by a component.
 _check-bundle:
-	@if [ -d apps/crm/.next/static ]; then node tools/check-bundle.mjs apps/crm; \
-	else echo "   (no build output yet)"; fi
+	@checked=0; \
+	for app in apps/crm apps/web; do \
+		if [ -d "$$app/.next/static" ]; then node tools/check-bundle.mjs $$app || exit 1; checked=1; fi; \
+	done; \
+	if [ $$checked -eq 0 ]; then echo "   (no build output yet)"; fi
 
 # Everything derived from design/ must match design/. The extractors assert the
 # semantic invariants (locale shape, no `tj` key, the CLAUDE.md §5 design contract)

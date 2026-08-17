@@ -723,3 +723,45 @@ func nullDecimal(d *decimal.Decimal) decimal.NullDecimal {
 	}
 	return decimal.NullDecimal{Decimal: *d, Valid: true}
 }
+
+// ---------------------------------------------------------------------------
+// Public site
+// ---------------------------------------------------------------------------
+
+// PublicList returns the active finished goods an anonymous visitor may see.
+func (s *Service) PublicList(ctx context.Context, locale string) ([]db.ListPublicProductsRow, error) {
+	rows, err := db.New(s.pool).ListPublicProducts(ctx, locale)
+	if err != nil {
+		return nil, fmt.Errorf("items: public list: %w", err)
+	}
+	return rows, nil
+}
+
+// PublicOne returns one product by SKU.
+//
+// Keyed on SKU rather than id because the public URL is /catalogue/APJ-1000: a
+// UUID in a customer-facing address is unreadable, unmemorable, and impossible
+// to quote over the phone — which visitors to a wholesale supplier do.
+func (s *Service) PublicOne(ctx context.Context, locale, sku string) (db.GetPublicProductRow, error) {
+	row, err := db.New(s.pool).GetPublicProduct(ctx, db.GetPublicProductParams{
+		Locale: locale, Sku: sku,
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.GetPublicProductRow{}, common.NotFound()
+		}
+		return db.GetPublicProductRow{}, fmt.Errorf("items: public product: %w", err)
+	}
+	return row, nil
+}
+
+// PublicNews returns published news posts.
+func (s *Service) PublicNews(ctx context.Context, locale string, limit int32) ([]db.ListPublicNewsRow, error) {
+	rows, err := db.New(s.pool).ListPublicNews(ctx, db.ListPublicNewsParams{
+		Locale: locale, Limit: limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("items: public news: %w", err)
+	}
+	return rows, nil
+}

@@ -178,6 +178,7 @@ type Querier interface {
 	GetPositionBalance(ctx context.Context, arg GetPositionBalanceParams) (decimal.Decimal, error)
 	// Yield is a computation, not a column (docs/02-SCHEMA.md:274).
 	GetProductionTotals(ctx context.Context, moID uuid.UUID) (GetProductionTotalsRow, error)
+	GetPublicProduct(ctx context.Context, arg GetPublicProductParams) (GetPublicProductRow, error)
 	GetPurchaseOrder(ctx context.Context, id uuid.UUID) (PurchaseOrder, error)
 	GetPurchaseOrderLine(ctx context.Context, id uuid.UUID) (PurchaseOrderLine, error)
 	// Production output lands here and only a quality decision moves it out (§7).
@@ -299,6 +300,24 @@ type Querier interface {
 	ListPackagingUnitsForItems(ctx context.Context, itemIds []uuid.UUID) ([]PackagingUnit, error)
 	ListPositions(ctx context.Context) ([]ListPositionsRow, error)
 	ListProductionEntries(ctx context.Context, moID uuid.UUID) ([]ProductionEntry, error)
+	// Published news for the public site.
+	//
+	// `published_on` in the future is SCHEDULED, not live: a post dated next week
+	// must not appear on the site because someone pressed publish today. And the
+	// status must be `published` specifically — `approved` means it has cleared
+	// review, not that the client has released it (docs/05-MODULES.md §16).
+	ListPublicNews(ctx context.Context, arg ListPublicNewsParams) ([]ListPublicNewsRow, error)
+	// ---------------------------------------------------------------------------
+	// Public site — docs/03-API-CONTRACT.md §9
+	// ---------------------------------------------------------------------------
+	//
+	// These read the catalogue for an anonymous visitor. What they deliberately do
+	// NOT select is as important as what they do: no cost price, no supplier, no
+	// stock, no internal status. A public endpoint that joins one table too many is
+	// how a competitor learns the margin.
+	// Only ACTIVE finished goods. A draft product is one the client is still
+	// editing, and publishing it would put unapproved copy on the public site.
+	ListPublicProducts(ctx context.Context, locale string) ([]ListPublicProductsRow, error)
 	ListPurchaseOrderLines(ctx context.Context, poID uuid.UUID) ([]ListPurchaseOrderLinesRow, error)
 	ListPurchaseOrders(ctx context.Context, arg ListPurchaseOrdersParams) ([]ListPurchaseOrdersRow, error)
 	ListQualityTests(ctx context.Context, batchID uuid.UUID) ([]ListQualityTestsRow, error)
