@@ -6,7 +6,21 @@ full. The next task does not open with a red suite.**
 Governing docs: `CLAUDE.md` → `docs/01-DECISIONS.md` → `docs/07-IMPLEMENTATION-PLAN.md` → the
 `docs/` file for the slice in hand.
 
-Status: `todo` · `wip` · `done`
+Status: `todo` · `wip` · `partial` · `done`
+
+---
+
+## Status
+
+| Range | State |
+|---|---|
+| T01–T33 | **done** — the CRM's thirteen modules, the public website, the CMS, notifications and the dashboard |
+| T34 | **partial** — first live end-to-end run done and its findings fixed; Playwright specs and the responsive pass are not |
+| T35 | **partial** — every deploy artefact built and verified locally; not rehearsed on a server, because there is none |
+| T36–T38 | **blocked** — need the Dushanbe server, the registered domains, and the client |
+
+Blocked means blocked on something outside this repository, not on work not yet
+started. See the bottom of this file for exactly what each one needs.
 
 ---
 
@@ -213,7 +227,8 @@ run: all zeros. Verified against the live dev database *and* end to end through 
 - The admin password is **generated** when unset and printed once, never defaulted — a well-known
   default password on a system holding regulatory records is worse than no seed at all.
 
-*Deferred:* `locations` (needs T16) and content page skeletons (need T28).
+*Deferred:* content page skeletons (need T28). `locations` now seed as reference data — the
+first live run found that production completion cannot work without a quarantine zone.
 
 ### T10 · CRM shell — `done`
 Next 16 + React 19 + Tailwind v4 + next-intl (cookie mode) + TanStack Query. Sidebar 252px, top bar
@@ -579,11 +594,25 @@ chart and the revenue KPI only.
 prototype's sample number never appears. Each panel is null — not zero — when the viewer may not
 read its module.
 
-### T34 · Full internal test pass — `todo`
+### T34 · Full internal test pass — `partial`
 **Done when:** `go test ./...`, `sqlc diff`, `tygo` staleness, `vitest` ×2, `next build` ×2 and
 **Playwright E2E across the five ToR workflows** (I26) are all green; the production cookie
 assertion under `TLS_MODE=auto` passes (I25); responsive pass complete across all modules.
 
+**Result:** First full end-to-end run against a live stack — Postgres 18, the Go API, both Next.js
+apps, seeded from scratch, driven over HTTP. It found three defects that 830 passing tests could
+not: 27 double-wrapped response envelopes, locations never seeded (so no manufacturing order could
+complete), and robots.txt serving `Allow: /` under a bare IP because the address was baked in at
+build time. All three fixed, each with a test that catches it.
+
+Verified live: the production→quality→sale chain, the released-batch gate, the oversell guard, the
+public enquiry sequences, the public catalogue with no session, the CRM's browser→BFF→Go path with
+`{data, meta}` intact, 401 rather than a leak without a session, no backend address or service key
+in any client asset, and the audit trail recording the whole run including the release as
+`approve quality`.
+
+**Still outstanding:** Playwright E2E specs are not written — the live run above was driven by curl.
+No responsive pass across breakpoints (I27), and no screenshot-drift gate.
 ### T35 · Staging rehearsal — `partial`
 **Done when:** clean-box deploy from the compose file succeeds; `seed:reference` runs; **restore
 test restores both `pg_dump` and the `uploads` tar** and a document opens afterwards (I18).
@@ -607,3 +636,29 @@ Absorbed as ordinary slices.
 **Done when:** both subdomains serve valid certificates; no application code changed to get there;
 staff accounts created; Russian training materials delivered; the D7 offline limitation is recorded
 to QOIM in writing.
+
+---
+
+## What T36–T38 need
+
+None of these is unstarted work. Each is waiting on something this repository
+cannot provide.
+
+**T36 · Server deploy.** Needs the Dushanbe server: an address, SSH access, and
+Docker installed. Everything else is ready — `deploy/README.md` stage 1 is the
+procedure, and `docker-compose.prod.yml` builds all four images from this repo.
+The one decision to make before running it is where backups get copied to, which
+`deploy/backup.sh` deliberately does not guess at.
+
+**T37 · Client feedback.** Needs the client, after T36.
+
+**T38 · DNS, TLS, launch.** Needs the domains registered and their A records
+pointed at the server. Domain registration is the longest external lead time in
+the project and nothing here shortens it. The switch itself is `TLS_MODE=auto`
+plus uncommenting two blocks in `deploy/Caddyfile`; the checklist is in
+`deploy/README.md` stage 3, and its last item is confirming from another machine
+that the Go API does NOT answer on a public port.
+
+**Before any wrappers are printed:** set `PUBLIC_SITE_URL` to the real domain.
+QR payloads embed it, wrappers are ordered months in advance (D11), and codes
+printed against a bare IP will stop resolving.
