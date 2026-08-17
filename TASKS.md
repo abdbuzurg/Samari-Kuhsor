@@ -190,13 +190,30 @@ fails, then reverting.
 - The HTTP handlers were refactored onto these types, so no payload is defined twice — defining
   them in both places is exactly the drift `03-API-CONTRACT.md:265` warns about.
 
-### T09 · `seed:reference` — `todo`
+### T09 · `seed:reference` — `done`
 Five products with packaging units and translations, seed roles with the exact permission matrix
 from `04-RBAC.md §4`, locations, one admin user, content page skeletons. Idempotent.
 
 **Done when:** running twice produces no duplicates and no error; a test asserts the seeded
 permission matrix equals `04-RBAC.md §4` cell for cell; a test asserts exactly five finished goods
 exist and none of the prototype's filler SKUs (D8).
+
+**Result:** 5 roles, 59 permissions, 5 items, 5 translations, 7 packaging units, 1 admin. Second
+run: all zeros. Verified against the live dev database *and* end to end through the running API.
+- The matrix test **restates `04-RBAC.md §4` independently** rather than reading the seed's own
+  data, so a typo shows up as a disagreement instead of a role quietly missing a permission.
+- A dedicated test asserts **Директор has `manage` on nothing** — `04-RBAC.md:95` ("management
+  reads; the floor writes") is a deliberate design decision that must survive someone later
+  assuming a director should be able to edit everything.
+- Shelf life, composition and nutrition are asserted **null**. Seeding a plausible value would
+  publish an unverified claim, which the client explicitly forbade (`02-SCHEMA.md:176`).
+- Only `ru` translations are seeded. Inventing Tajik or English product names would publish
+  unreviewed content; a missing locale row correctly falls back to `ru`.
+- Filler SKUs are asserted absent by code *and* by name (гранат / клубнич / 1,5 л).
+- The admin password is **generated** when unset and printed once, never defaulted — a well-known
+  default password on a system holding regulatory records is worse than no seed at all.
+
+*Deferred:* `locations` (needs T16) and content page skeletons (need T28).
 
 ### T10 · CRM shell — `todo`
 Next 16 + React 19 + Tailwind v4 + next-intl (cookie mode) + TanStack Query. Sidebar 252px, top bar
