@@ -79,7 +79,7 @@ func (s *Server) handleCreateBatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	batch, err := s.batches.Create(r.Context(), ident.User.ID, batches.CreateInput{
+	batch, err := s.svc.Batches.Create(r.Context(), ident.User.ID, batches.CreateInput{
 		BatchNo:    req.BatchNo,
 		ItemID:     itemID,
 		ProducedOn: producedOn,
@@ -98,7 +98,7 @@ func (s *Server) handleGetBatch(w http.ResponseWriter, r *http.Request) {
 		common.Fail(w, r, err)
 		return
 	}
-	batch, err := s.batches.Get(r.Context(), id)
+	batch, err := s.svc.Batches.Get(r.Context(), id)
 	if err != nil {
 		common.Fail(w, r, err)
 		return
@@ -121,7 +121,7 @@ func (s *Server) handleIssueBatchQR(w http.ResponseWriter, r *http.Request) {
 		common.Fail(w, r, err)
 		return
 	}
-	batch, err := s.batches.IssueQR(r.Context(), ident.User.ID, id)
+	batch, err := s.svc.Batches.IssueQR(r.Context(), ident.User.ID, id)
 	if err != nil {
 		common.Fail(w, r, err)
 		return
@@ -136,7 +136,7 @@ func (s *Server) handleBatchQRSVG(w http.ResponseWriter, r *http.Request) {
 		common.Fail(w, r, err)
 		return
 	}
-	svg, err := s.batches.SVGFor(r.Context(), id)
+	svg, err := s.svc.Batches.SVGFor(r.Context(), id)
 	if err != nil {
 		common.Fail(w, r, err)
 		return
@@ -165,7 +165,7 @@ func (s *Server) handleExportQR(w http.ResponseWriter, r *http.Request) {
 	// is written would hand the printer a truncated ZIP that looks complete, and
 	// a short export means a batch ships with the wrong wrapper.
 	var buf bytes.Buffer
-	count, err := s.batches.ExportQR(r.Context(), &buf, filter)
+	count, err := s.svc.Batches.ExportQR(r.Context(), &buf, filter)
 	if err != nil {
 		common.Fail(w, r, err)
 		return

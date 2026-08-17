@@ -13,6 +13,463 @@
  */
 
 //////////
+// source: commerce.go
+
+export interface Supplier {
+  id: string;
+  name: string;
+  tax_id?: string | null;
+  contact?: string | null;
+  region?: string | null;
+  rating?: number | null;
+  version: number /* int32 */;
+}
+export interface SupplierWriteRequest {
+  name: string;
+  tax_id?: string;
+  contact?: string;
+  region?: string;
+  rating?: number /* int32 */;
+}
+export interface PurchaseOrderRow {
+  id: string;
+  po_no: string;
+  supplier_id: string;
+  supplier_name: string;
+  expected_at?: string | null;
+  total: string;
+  status: Status;
+  version: number /* int32 */;
+  created_at: string;
+}
+export interface PurchaseOrder {
+  PurchaseOrderRow: PurchaseOrderRow;
+  lines: PurchaseOrderLine[];
+  /**
+   * AllowedTransitions is what this actor may move the order to next, given the
+   * current status and their procurement:approve grant.
+   */
+  allowed_transitions: string[];
+}
+export interface PurchaseOrderLine {
+  id: string;
+  item_id: string;
+  sku: string;
+  item_name: string;
+  qty: string;
+  received_qty: string;
+  unit_price: string;
+  line_total: string;
+}
+export interface PurchaseOrderLineWrite {
+  item_id: string;
+  qty: string;
+  unit_price: string;
+}
+export interface PurchaseOrderWriteRequest {
+  po_no: string;
+  supplier_id: string;
+  expected_at?: string;
+  lines: PurchaseOrderLineWrite[];
+}
+/**
+ * TransitionRequest moves a document to a new status. Shared by purchase orders
+ * and sales orders, which have different matrices but the same request shape.
+ */
+export interface TransitionRequest {
+  to: string;
+}
+export interface GoodsReceiptLineWrite {
+  po_line_id: string;
+  qty: string;
+  batch_id?: string;
+}
+export interface GoodsReceiptRequest {
+  location_id: string;
+  note?: string;
+  lines: GoodsReceiptLineWrite[];
+}
+export interface GoodsReceipt {
+  id: string;
+  po_id: string;
+  received_at: string;
+}
+export interface SalesOrderRow {
+  id: string;
+  so_no: string;
+  customer_id: string;
+  customer_name: string;
+  ordered_on?: string | null;
+  total: string;
+  status: Status;
+  version: number /* int32 */;
+  created_at: string;
+}
+export interface SalesOrder {
+  SalesOrderRow: SalesOrderRow;
+  lines: SalesOrderLine[];
+}
+export interface SalesOrderLine {
+  id: string;
+  item_id: string;
+  sku: string;
+  item_name: string;
+  batch_id?: string | null;
+  batch_no?: string | null;
+  qty: string;
+  unit_price: string;
+  line_total: string;
+}
+export interface SalesOrderLineWrite {
+  item_id: string;
+  batch_id?: string;
+  qty: string;
+  unit_price: string;
+}
+export interface SalesOrderWriteRequest {
+  so_no: string;
+  customer_id: string;
+  ordered_on?: string;
+  lines: SalesOrderLineWrite[];
+}
+/**
+ * ConfirmOrderRequest names the location the stock leaves from. Confirmation is
+ * the moment the company commits, so it is also the moment the released-batch
+ * rule and the stock check apply (docs/05-MODULES.md §9).
+ */
+export interface ConfirmOrderRequest {
+  location_id: string;
+}
+export interface Shipment {
+  id: string;
+  trip_no: string;
+  route_from?: string | null;
+  route_to?: string | null;
+  driver_id?: string | null;
+  driver_name?: string | null;
+  vehicle_id?: string | null;
+  vehicle_plate?: string | null;
+  transport_cost?: string | null;
+  status: Status;
+  version: number /* int32 */;
+  created_at: string;
+  lines: ShipmentLine[];
+}
+export interface ShipmentLine {
+  id: string;
+  item_id: string;
+  sku: string;
+  item_name: string;
+  batch_id: string;
+  batch_no: string;
+  qty: string;
+}
+export interface ShipmentWriteRequest {
+  trip_no: string;
+  route_from?: string;
+  route_to?: string;
+  driver_id?: string;
+  vehicle_id?: string;
+  transport_cost?: string;
+}
+/**
+ * ShipmentLoadRequest loads one batch onto a trip. The batch must be released —
+ * checked in Go, because a lorry leaving with quarantined product is the failure
+ * this whole chain exists to prevent.
+ */
+export interface ShipmentLoadRequest {
+  item_id: string;
+  batch_id: string;
+  qty: string;
+}
+export interface Inquiry {
+  id: string;
+  reference_no: string;
+  type: Status;
+  name: string;
+  company?: string | null;
+  contact: string;
+  message?: string | null;
+  batch_id?: string | null;
+  batch_no?: string | null;
+  status: Status;
+  submitted_at: string;
+  version: number /* int32 */;
+}
+/**
+ * InquirySubmitRequest is the only request shape an unauthenticated caller can
+ * send. Everything here is untrusted: it is length-bounded, type-checked and
+ * rate-limited by IP before a row is written.
+ */
+export interface InquirySubmitRequest {
+  type: string;
+  name: string;
+  company?: string;
+  contact: string;
+  message?: string;
+  batch_id?: string;
+}
+/**
+ * InquiryReceipt is what the website shows the visitor. Deliberately minimal: the
+ * reference number and nothing that could confirm what else is in the database.
+ */
+export interface InquiryReceipt {
+  reference_no: string;
+}
+export interface Lead {
+  id: string;
+  name: string;
+  source?: string | null;
+  status: Status;
+}
+export interface RoleDetail {
+  id: string;
+  key: string;
+  name: string;
+  permissions: string[];
+  user_count: number /* int64 */;
+  version: number /* int32 */;
+}
+export interface RoleWriteRequest {
+  key: string;
+  name: string;
+}
+export interface RolePermissionsRequest {
+  permissions: string[];
+}
+export interface UserRolesRequest {
+  role_ids: string[];
+}
+export interface UserActiveRequest {
+  active: boolean;
+}
+export interface AdminUserRow {
+  id: string;
+  email: string;
+  full_name: string;
+  is_active: boolean;
+  status: Status;
+  roles: string[];
+  version: number /* int32 */;
+}
+/**
+ * PermissionCatalogue is every resource:action the system recognises, so the role
+ * editor is generated from the enforced list rather than a hand-kept copy that
+ * could drift from it.
+ */
+export interface PermissionCatalogue {
+  resources: PermissionResource[];
+}
+export interface PermissionResource {
+  key: string;
+  actions: string[];
+}
+export interface Notification {
+  id: string;
+  kind: string;
+  resource: string;
+  resource_id?: string | null;
+  level: string;
+  title: string;
+  body?: string | null;
+  occurred_at: string;
+  is_read: boolean;
+}
+/**
+ * AlertFeed is the bell: persisted events plus the live standing conditions, and
+ * the counts that drive the sidebar pills. Both come from one endpoint so the
+ * bell and the sidebar cannot disagree.
+ */
+export interface AlertFeed {
+  notifications: Notification[];
+  conditions: AlertCondition[];
+  unread: number /* int */;
+  /**
+   * Counts is resource → number of open items, for the nav pills.
+   */
+  counts: { [key: string]: number /* int */};
+}
+export interface AlertCondition {
+  kind: string;
+  resource: string;
+  level: string;
+  count: number /* int */;
+}
+
+//////////
+// source: operations.go
+
+export interface Location {
+  id: string;
+  code: string;
+  name: string;
+  zone: string;
+}
+/**
+ * StockBalanceRow is one position in the warehouse list. `OnHand` is a SUM
+ * computed at read time; there is no column behind it (CLAUDE.md §4.2).
+ */
+export interface StockBalanceRow {
+  item_id: string;
+  sku: string;
+  item_name: string;
+  base_uom: string;
+  batch_id?: string | null;
+  batch_no?: string | null;
+  batch_status?: Status | null;
+  expires_on?: string | null;
+  location_id: string;
+  location_code: string;
+  location_zone: string;
+  on_hand: string;
+  min_qty?: string | null;
+  status: Status;
+  last_movement_at?: string | null;
+}
+/**
+ * StockMovementRow is one line of the ledger, with the balance after it.
+ */
+export interface StockMovementRow {
+  id: string;
+  occurred_at: string;
+  qty_delta: string;
+  running_balance: string;
+  reason: Status;
+  ref_type?: string | null;
+  ref_id?: string | null;
+  note?: string | null;
+  created_by?: string | null;
+}
+export interface MovementWriteRequest {
+  item_id: string;
+  batch_id?: string;
+  location_id: string;
+  qty_delta: string;
+  reason: string;
+  note?: string;
+}
+export interface TransferRequest {
+  item_id: string;
+  batch_id?: string;
+  from_location_id: string;
+  to_location_id: string;
+  qty: string;
+  note?: string;
+}
+export interface ManufacturingOrderRow {
+  id: string;
+  mo_no: string;
+  item_id: string;
+  sku: string;
+  item_name: string;
+  batch_id?: string | null;
+  batch_no?: string | null;
+  line?: string | null;
+  scheduled_for?: string | null;
+  planned_qty: string;
+  good_qty: string;
+  scrap_qty: string;
+  status: Status;
+  version: number /* int32 */;
+  created_at: string;
+}
+export interface ManufacturingOrder {
+  ManufacturingOrderRow: ManufacturingOrderRow;
+  /**
+   * Progress is good ÷ planned as a whole percentage, capped at 100 for display.
+   * Computed here so the two frontends cannot disagree about rounding.
+   */
+  progress: number /* int */;
+  /**
+   * Yield is good ÷ (good + scrap). Null rather than 0 when nothing has run:
+   * "0% yield" and "not started" read very differently on a shift report.
+   */
+  yield_percent?: string | null;
+  downtime_min: number /* int64 */;
+  entries: ProductionEntry[];
+}
+export interface ProductionEntry {
+  id: string;
+  recorded_at: string;
+  good_qty: string;
+  scrap_qty: string;
+  downtime_min: number /* int32 */;
+  note?: string | null;
+  recorded_by?: string | null;
+}
+export interface ManufacturingOrderWriteRequest {
+  mo_no: string;
+  item_id: string;
+  batch_no: string;
+  planned_qty: string;
+  scheduled_for?: string;
+  line?: string;
+}
+export interface ProductionEntryWriteRequest {
+  good_qty: string;
+  scrap_qty?: string;
+  downtime_min?: number /* int32 */;
+  note?: string;
+}
+export interface QualityTest {
+  id: string;
+  batch_id: string;
+  test_type: string;
+  result: Status;
+  result_value?: string | null;
+  tested_at: string;
+  inspector_id?: string | null;
+  inspector?: string | null;
+  notes?: string | null;
+}
+export interface QualityTestWriteRequest {
+  test_type: string;
+  result_value?: string;
+  passed?: boolean;
+  notes?: string;
+}
+/**
+ * BatchStatusEvent is immutable evidence: who decided, when, and why. It has no
+ * version and no deleted_at, so there is nothing here to edit.
+ */
+export interface BatchStatusEvent {
+  id: string;
+  from_status?: Status | null;
+  to_status: Status;
+  occurred_at: string;
+  decided_by: string;
+  decider_name?: string | null;
+  reason?: string | null;
+}
+/**
+ * BatchTransitionRequest moves a batch. `to` is the destination status; the
+ * legality of the move and whether it needs quality:approve are decided in Go.
+ */
+export interface BatchTransitionRequest {
+  to: string;
+  reason?: string;
+}
+/**
+ * BatchDetail is the traceability view: the batch, its tests, its status history
+ * and where its stock currently sits.
+ */
+export interface BatchDetail {
+  batch: Batch;
+  sku: string;
+  item_name: string;
+  tests: QualityTest[];
+  history: BatchStatusEvent[];
+  stock: StockBalanceRow[];
+  /**
+   * AllowedTransitions is what this user may do next, given the current status
+   * and their permissions. The frontend renders buttons from it rather than
+   * re-implementing the transition matrix (docs/04-RBAC.md — hiding is not
+   * enforcement, but showing an impossible button is a bug too).
+   */
+  allowed_transitions: string[];
+}
+
+//////////
 // source: types.go
 /*
 Package api holds every payload type the HTTP layer sends or receives.

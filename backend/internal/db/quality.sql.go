@@ -106,6 +106,45 @@ func (q *Queries) CreateQualityTest(ctx context.Context, arg CreateQualityTestPa
 	return i, err
 }
 
+const getBatchWithItem = `-- name: GetBatchWithItem :one
+SELECT b.id, b.batch_no, b.item_id, b.produced_on, b.expires_on, b.qr_payload, b.qr_issued_at, b.status, b.created_at, b.updated_at, b.deleted_at, b.version, b.created_by, i.sku, COALESCE(tr.name, i.sku) AS item_name
+FROM batches b
+JOIN items i ON i.id = b.item_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
+WHERE b.id = $1 AND b.deleted_at IS NULL
+`
+
+type GetBatchWithItemRow struct {
+	Batch    Batch
+	Sku      string
+	ItemName string
+}
+
+// The traceability header: the batch plus enough of the product to name it.
+func (q *Queries) GetBatchWithItem(ctx context.Context, id uuid.UUID) (GetBatchWithItemRow, error) {
+	row := q.db.QueryRow(ctx, getBatchWithItem, id)
+	var i GetBatchWithItemRow
+	err := row.Scan(
+		&i.Batch.ID,
+		&i.Batch.BatchNo,
+		&i.Batch.ItemID,
+		&i.Batch.ProducedOn,
+		&i.Batch.ExpiresOn,
+		&i.Batch.QrPayload,
+		&i.Batch.QrIssuedAt,
+		&i.Batch.Status,
+		&i.Batch.CreatedAt,
+		&i.Batch.UpdatedAt,
+		&i.Batch.DeletedAt,
+		&i.Batch.Version,
+		&i.Batch.CreatedBy,
+		&i.Sku,
+		&i.ItemName,
+	)
+	return i, err
+}
+
 const insertBatchStatusEvent = `-- name: InsertBatchStatusEvent :one
 INSERT INTO batch_status_events (batch_id, from_status, to_status, decided_by, reason)
 VALUES ($1, $2, $3, $4, $5)

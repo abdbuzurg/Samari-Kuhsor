@@ -81,6 +81,14 @@ var SortSpec = common.SortSpec{
 	DefaultDesc: true,
 }
 
+// SupplierSortSpec is separate because suppliers and orders share no columns —
+// one spec covering both would let `?sort=po_no` through on the supplier list and
+// then fail in SQL.
+var SupplierSortSpec = common.SortSpec{
+	Allowed: []string{"name", "region", "rating"},
+	Default: "name",
+}
+
 type Service struct {
 	pool      *pgxpool.Pool
 	inventory *inventory.Service
@@ -490,4 +498,43 @@ func (s *Service) List(ctx context.Context, p common.Params, status *string) ([]
 		return nil, 0, fmt.Errorf("procurement: count: %w", err)
 	}
 	return rows, total, nil
+}
+
+// Suppliers lists suppliers for the module list and the order form's picker.
+func (s *Service) Suppliers(ctx context.Context, p common.Params) ([]db.Supplier, int64, error) {
+	q := db.New(s.pool)
+	rows, err := q.ListSuppliers(ctx, db.ListSuppliersParams{
+		Q: nilIfEmpty(p.Query), Limit: p.Limit(), Offset: p.Offset(),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("procurement: suppliers: %w", err)
+	}
+	total, err := q.CountSuppliers(ctx, nilIfEmpty(p.Query))
+	if err != nil {
+		return nil, 0, fmt.Errorf("procurement: count suppliers: %w", err)
+	}
+	return rows, total, nil
+}
+
+// AllowedFrom projects the purchase-order matrix onto one status, the same way
+// quality.AllowedFrom does for batches — so the buttons and the rules share a
+// single definition.
+func AllowedFrom(status string, hasApprove bool) []string {
+	out := make([]string, 0, len(legalTransitions))
+	for _, t := range legalTransitions {
+		if t.From != status || (t.RequiresApprove && !hasApprove) {
+			continue
+		}
+		out = append(out, t.To)
+	}
+	return out
+}
+
+// nilIfEmpty turns an absent search string into a NULL, so the query's
+// `narg IS NULL OR ...` branch skips the filter rather than matching "".
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

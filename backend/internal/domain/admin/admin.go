@@ -35,6 +35,13 @@ var SortSpec = common.SortSpec{
 	DefaultDesc: false,
 }
 
+// UserSortSpec covers the Пользователи list. Email is the default because it is
+// the only column guaranteed unique and present.
+var UserSortSpec = common.SortSpec{
+	Allowed: []string{"email", "full_name", "is_active"},
+	Default: "email",
+}
+
 type Service struct{ pool *pgxpool.Pool }
 
 func NewService(pool *pgxpool.Pool) *Service { return &Service{pool: pool} }

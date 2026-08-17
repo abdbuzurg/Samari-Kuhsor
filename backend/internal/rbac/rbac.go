@@ -32,6 +32,11 @@ const (
 	Approve Action = "approve"
 )
 
+// AllActions is the catalogue, in escalating order of authority. The role editor
+// is generated from this, so it cannot offer an action the middleware does not
+// recognise — and Valid() below is the same list, kept adjacent on purpose.
+var AllActions = []Action{Read, Manage, Approve}
+
 func (a Action) Valid() bool {
 	switch a {
 	case Read, Manage, Approve:

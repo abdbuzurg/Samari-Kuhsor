@@ -22,9 +22,17 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/qoim/samari/backend/internal/alerts"
 	"github.com/qoim/samari/backend/internal/auth"
+	"github.com/qoim/samari/backend/internal/domain/admin"
 	"github.com/qoim/samari/backend/internal/domain/batches"
+	"github.com/qoim/samari/backend/internal/domain/inquiries"
+	"github.com/qoim/samari/backend/internal/domain/inventory"
 	"github.com/qoim/samari/backend/internal/domain/items"
+	"github.com/qoim/samari/backend/internal/domain/procurement"
+	"github.com/qoim/samari/backend/internal/domain/production"
+	"github.com/qoim/samari/backend/internal/domain/quality"
+	"github.com/qoim/samari/backend/internal/domain/sales"
 	"github.com/qoim/samari/backend/internal/http/common"
 	"github.com/qoim/samari/backend/internal/rbac"
 )
@@ -37,20 +45,37 @@ type Config struct {
 	ServiceKey string
 }
 
+// Services is every domain the API serves.
+//
+// A struct rather than a parameter list: with a dozen modules a positional
+// signature is a standing invitation to swap two services of the same type, and
+// the compiler would not notice.
+type Services struct {
+	Auth        *auth.Service
+	Items       *items.Service
+	Batches     *batches.Service
+	Inventory   *inventory.Service
+	Production  *production.Service
+	Quality     *quality.Service
+	Procurement *procurement.Service
+	Sales       *sales.Service
+	Inquiries   *inquiries.Service
+	Admin       *admin.Service
+	Alerts      *alerts.Service
+}
+
 type Server struct {
-	auth    *auth.Service
-	items   *items.Service
-	batches *batches.Service
-	cfg     Config
-	router  chi.Router
-	reg     *rbac.Registry
+	svc    Services
+	cfg    Config
+	router chi.Router
+	reg    *rbac.Registry
 }
 
 // NewServer builds the API. It returns an error rather than a Server if any route
 // was registered without declaring its permission — the process must refuse to
 // serve rather than expose an ungoverned endpoint (docs/04-RBAC.md:123).
-func NewServer(authSvc *auth.Service, itemsSvc *items.Service, batchesSvc *batches.Service, cfg Config) (*Server, error) {
-	s := &Server{auth: authSvc, items: itemsSvc, batches: batchesSvc, cfg: cfg, reg: rbac.NewRegistry()}
+func NewServer(svc Services, cfg Config) (*Server, error) {
+	s := &Server{svc: svc, cfg: cfg, reg: rbac.NewRegistry()}
 
 	// Sort whitelists are validated at startup: a default outside its own
 	// whitelist would put an unvetted column name into an ORDER BY.
@@ -123,6 +148,119 @@ func NewServer(authSvc *auth.Service, itemsSvc *items.Service, batchesSvc *batch
 			rbac.Items, rbac.Read, s.handleBatchQRSVG)
 		v1.Guarded(api, http.MethodGet, "/batches/qr-export",
 			rbac.Items, rbac.Read, s.handleExportQR)
+
+		// Склад и запасы. Everything read here is a SUM computed at read time; the
+		// only write is an append to the ledger.
+		v1.Guarded(api, http.MethodGet, "/stock",
+			rbac.Inventory, rbac.Read, s.handleListStock)
+		v1.Guarded(api, http.MethodGet, "/stock/ledger",
+			rbac.Inventory, rbac.Read, s.handleStockLedger)
+		v1.Guarded(api, http.MethodGet, "/locations",
+			rbac.Inventory, rbac.Read, s.handleListLocations)
+		v1.Guarded(api, http.MethodPost, "/stock/movements",
+			rbac.Inventory, rbac.Manage, s.handlePostMovement)
+		v1.Guarded(api, http.MethodPost, "/stock/transfers",
+			rbac.Inventory, rbac.Manage, s.handleTransfer)
+
+		// Производство. Completion posts stock to quarantine and moves the batch,
+		// so it is guarded as `manage` on production — the quality decision that
+		// releases it afterwards is a separate authority.
+		v1.Guarded(api, http.MethodGet, "/manufacturing-orders",
+			rbac.Production, rbac.Read, s.handleListManufacturingOrders)
+		v1.Guarded(api, http.MethodGet, "/manufacturing-orders/{id}",
+			rbac.Production, rbac.Read, s.handleGetManufacturingOrder)
+		v1.Guarded(api, http.MethodPost, "/manufacturing-orders",
+			rbac.Production, rbac.Manage, s.handleCreateManufacturingOrder)
+		v1.Guarded(api, http.MethodPost, "/manufacturing-orders/{id}/entries",
+			rbac.Production, rbac.Manage, s.handleRecordProductionEntry)
+		v1.Guarded(api, http.MethodPost, "/manufacturing-orders/{id}/complete",
+			rbac.Production, rbac.Manage, s.handleCompleteManufacturingOrder)
+
+		// Качество. The transition endpoint is `manage`, not `approve`: some moves
+		// need approve and some do not, and the matrix decides which. Guarding the
+		// whole route on approve would block the automatic move into quarantine.
+		v1.Guarded(api, http.MethodGet, "/batches/{id}/detail",
+			rbac.Quality, rbac.Read, s.handleBatchDetail)
+		v1.Guarded(api, http.MethodPost, "/batches/{id}/tests",
+			rbac.Quality, rbac.Manage, s.handleRecordQualityTest)
+		v1.Guarded(api, http.MethodPost, "/batches/{id}/transition",
+			rbac.Quality, rbac.Manage, s.handleTransitionBatch)
+
+		// Закупки.
+		v1.Guarded(api, http.MethodGet, "/suppliers",
+			rbac.Procurement, rbac.Read, s.handleListSuppliers)
+		v1.Guarded(api, http.MethodPost, "/suppliers",
+			rbac.Procurement, rbac.Manage, s.handleCreateSupplier)
+		v1.Guarded(api, http.MethodGet, "/purchase-orders",
+			rbac.Procurement, rbac.Read, s.handleListPurchaseOrders)
+		v1.Guarded(api, http.MethodGet, "/purchase-orders/{id}",
+			rbac.Procurement, rbac.Read, s.handleGetPurchaseOrder)
+		v1.Guarded(api, http.MethodPost, "/purchase-orders",
+			rbac.Procurement, rbac.Manage, s.handleCreatePurchaseOrder)
+		v1.Guarded(api, http.MethodPost, "/purchase-orders/{id}/transition",
+			rbac.Procurement, rbac.Manage, s.handleTransitionPurchaseOrder)
+		v1.Guarded(api, http.MethodPost, "/purchase-orders/{id}/receipts",
+			rbac.Procurement, rbac.Manage, s.handleReceivePurchaseOrder)
+
+		// Продажи.
+		v1.Guarded(api, http.MethodGet, "/sales-orders",
+			rbac.CRM, rbac.Read, s.handleListSalesOrders)
+		v1.Guarded(api, http.MethodGet, "/sales-orders/{id}",
+			rbac.CRM, rbac.Read, s.handleGetSalesOrder)
+		v1.Guarded(api, http.MethodPost, "/sales-orders",
+			rbac.CRM, rbac.Manage, s.handleCreateSalesOrder)
+		v1.Guarded(api, http.MethodPost, "/sales-orders/{id}/confirm",
+			rbac.CRM, rbac.Manage, s.handleConfirmSalesOrder)
+
+		// Логистика.
+		v1.Guarded(api, http.MethodGet, "/shipments",
+			rbac.Logistics, rbac.Read, s.handleListShipments)
+		v1.Guarded(api, http.MethodGet, "/shipments/{id}",
+			rbac.Logistics, rbac.Read, s.handleGetShipment)
+		v1.Guarded(api, http.MethodPost, "/shipments",
+			rbac.Logistics, rbac.Manage, s.handleCreateShipment)
+		v1.Guarded(api, http.MethodPost, "/shipments/{id}/lines",
+			rbac.Logistics, rbac.Manage, s.handleLoadShipment)
+
+		// Интеграция с сайтом. The submit endpoint is the one unauthenticated
+		// write in the system: the website has no user to act as. It is still
+		// behind the service key, and rate-limited by visitor IP in the domain.
+		v1.Public(api, http.MethodPost, "/public/inquiries",
+			"public website form; no visitor has an account to authenticate with",
+			s.handleSubmitInquiry)
+		v1.Guarded(api, http.MethodGet, "/inquiries",
+			rbac.Inquiries, rbac.Read, s.handleListInquiries)
+		v1.Guarded(api, http.MethodPost, "/inquiries/{id}/convert",
+			rbac.Inquiries, rbac.Manage, s.handleConvertInquiry)
+
+		// Уведомления. Not guarded on a module: the feed is filtered per-resource
+		// inside the service against the caller's own permissions, so any
+		// authenticated user may ask and sees only what they may read.
+		v1.Public(api, http.MethodGet, "/alerts",
+			"filtered per-resource inside the service against the caller's own grants",
+			s.handleAlerts)
+		v1.Public(api, http.MethodPost, "/alerts/read",
+			"marks read only what this caller was already permitted to see",
+			s.handleMarkAlertsRead)
+
+		// Администрирование. Everything here is admin:manage — there is no
+		// read-only view of the permission system that is worth the surface.
+		v1.Guarded(api, http.MethodGet, "/admin/roles",
+			rbac.Admin, rbac.Read, s.handleListRoles)
+		v1.Guarded(api, http.MethodPost, "/admin/roles",
+			rbac.Admin, rbac.Manage, s.handleCreateRole)
+		v1.Guarded(api, http.MethodPut, "/admin/roles/{id}/permissions",
+			rbac.Admin, rbac.Manage, s.handleSetRolePermissions)
+		v1.Guarded(api, http.MethodDelete, "/admin/roles/{id}",
+			rbac.Admin, rbac.Manage, s.handleDeleteRole)
+		v1.Guarded(api, http.MethodGet, "/admin/users",
+			rbac.Admin, rbac.Read, s.handleListUsers)
+		v1.Guarded(api, http.MethodPut, "/admin/users/{id}/roles",
+			rbac.Admin, rbac.Manage, s.handleSetUserRoles)
+		v1.Guarded(api, http.MethodPut, "/admin/users/{id}/active",
+			rbac.Admin, rbac.Manage, s.handleSetUserActive)
+		v1.Guarded(api, http.MethodGet, "/admin/permissions",
+			rbac.Admin, rbac.Read, s.handlePermissionCatalogue)
 	})
 
 	if err := rbac.Verify(r, s.reg); err != nil {
@@ -174,7 +312,7 @@ func (s *Server) resolveIdentity(next http.Handler) http.Handler {
 			return
 		}
 
-		ident, err := s.auth.Authenticate(r.Context(), token)
+		ident, err := s.svc.Auth.Authenticate(r.Context(), token)
 		if err != nil {
 			// A bad token is anonymous, not an error: the route decides whether
 			// anonymous is acceptable. Anything unexpected is still surfaced.

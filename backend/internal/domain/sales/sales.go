@@ -67,6 +67,14 @@ var SortSpec = common.SortSpec{
 	DefaultDesc: true,
 }
 
+// ShipmentSortSpec covers Логистика. Trips sort by departure, not by number: the
+// dispatcher's question is "what is going out today".
+var ShipmentSortSpec = common.SortSpec{
+	Allowed:     []string{"trip_no", "status", "created_at"},
+	Default:     "created_at",
+	DefaultDesc: true,
+}
+
 type Service struct {
 	pool      *pgxpool.Pool
 	inventory *inventory.Service
@@ -429,4 +437,31 @@ func (s *Service) ListOrders(ctx context.Context, p common.Params, status *strin
 		return nil, 0, fmt.Errorf("sales: count: %w", err)
 	}
 	return rows, total, nil
+}
+
+// Shipments lists trips with the driver and vehicle resolved. A trip identified
+// only by two UUIDs is unreadable in a list, and the dispatcher's whole job is
+// knowing which lorry and which driver.
+func (s *Service) Shipments(ctx context.Context, p common.Params, status *string) ([]db.ListShipmentsRow, int64, error) {
+	q := db.New(s.pool)
+	rows, err := q.ListShipments(ctx, db.ListShipmentsParams{
+		Status: status, Q: nilIfEmpty(p.Query), Limit: p.Limit(), Offset: p.Offset(),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("sales: shipments: %w", err)
+	}
+	total, err := q.CountShipments(ctx, db.CountShipmentsParams{Status: status, Q: nilIfEmpty(p.Query)})
+	if err != nil {
+		return nil, 0, fmt.Errorf("sales: count shipments: %w", err)
+	}
+	return rows, total, nil
+}
+
+// nilIfEmpty turns an absent search string into a NULL, so the query's
+// `narg IS NULL OR ...` branch skips the filter rather than matching "".
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }

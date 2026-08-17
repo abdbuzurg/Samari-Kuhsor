@@ -12,9 +12,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/qoim/samari/backend/internal/alerts"
 	"github.com/qoim/samari/backend/internal/auth"
+	"github.com/qoim/samari/backend/internal/domain/admin"
 	"github.com/qoim/samari/backend/internal/domain/batches"
+	"github.com/qoim/samari/backend/internal/domain/inquiries"
+	"github.com/qoim/samari/backend/internal/domain/inventory"
 	"github.com/qoim/samari/backend/internal/domain/items"
+	"github.com/qoim/samari/backend/internal/domain/procurement"
+	"github.com/qoim/samari/backend/internal/domain/production"
+	"github.com/qoim/samari/backend/internal/domain/quality"
+	"github.com/qoim/samari/backend/internal/domain/sales"
 	samarihttp "github.com/qoim/samari/backend/internal/http"
 	"github.com/qoim/samari/backend/internal/testsupport"
 )
@@ -23,15 +31,34 @@ const password = "правильный-пароль-42"
 
 const serviceKey = "test-service-key"
 
+// servicesFor composes the domain services exactly as cmd/api does.
+//
+// One inventory service shared by production, procurement and sales, because the
+// ledger has one writer. A harness that wired three separate services would pass
+// every test here while the real binary oversold.
+func servicesFor(pool *pgxpool.Pool) samarihttp.Services {
+	inventorySvc := inventory.NewService(pool)
+	qualitySvc := quality.NewService(pool)
+	return samarihttp.Services{
+		Auth:        auth.NewService(pool, auth.DefaultConfig()),
+		Items:       items.NewService(pool),
+		Batches:     batches.NewService(pool, "https://samari-kuhsor.tj"),
+		Inventory:   inventorySvc,
+		Production:  production.NewService(pool, inventorySvc, qualitySvc),
+		Quality:     qualitySvc,
+		Procurement: procurement.NewService(pool, inventorySvc),
+		Sales:       sales.NewService(pool, inventorySvc),
+		Inquiries:   inquiries.NewService(pool, inquiries.DefaultRateLimit()),
+		Admin:       admin.NewService(pool),
+		Alerts:      alerts.NewService(pool),
+	}
+}
+
 func newServer(t *testing.T) (http.Handler, *pgxpool.Pool) {
 	t.Helper()
 	pool := testsupport.NewDB(t)
-	srv, err := samarihttp.NewServer(
-		auth.NewService(pool, auth.DefaultConfig()),
-		items.NewService(pool),
-		batches.NewService(pool, "https://samari-kuhsor.tj"),
-		samarihttp.Config{ServiceKey: serviceKey},
-	)
+	srv, err := samarihttp.NewServer(servicesFor(pool),
+		samarihttp.Config{ServiceKey: serviceKey})
 	if err != nil {
 		t.Fatalf("NewServer: %v", err)
 	}
@@ -140,9 +167,7 @@ func TestServerRefusesToBuildWithAnUndeclaredRoute(t *testing.T) {
 	t.Parallel()
 	// Every route the real server mounts is declared, so it builds.
 	pool := testsupport.NewDB(t)
-	if _, err := samarihttp.NewServer(auth.NewService(pool, auth.DefaultConfig()),
-		items.NewService(pool), batches.NewService(pool, "https://samari-kuhsor.tj"),
-		samarihttp.Config{}); err != nil {
+	if _, err := samarihttp.NewServer(servicesFor(pool), samarihttp.Config{}); err != nil {
 		t.Fatalf("the real router failed its own declaration check: %v", err)
 	}
 }
@@ -150,9 +175,7 @@ func TestServerRefusesToBuildWithAnUndeclaredRoute(t *testing.T) {
 func TestEveryRouteDeclaresItsAccess(t *testing.T) {
 	t.Parallel()
 	pool := testsupport.NewDB(t)
-	srv, err := samarihttp.NewServer(auth.NewService(pool, auth.DefaultConfig()),
-		items.NewService(pool), batches.NewService(pool, "https://samari-kuhsor.tj"),
-		samarihttp.Config{})
+	srv, err := samarihttp.NewServer(servicesFor(pool), samarihttp.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}

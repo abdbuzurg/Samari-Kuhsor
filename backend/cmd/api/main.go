@@ -20,9 +20,17 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/qoim/samari/backend/internal/alerts"
 	"github.com/qoim/samari/backend/internal/auth"
+	"github.com/qoim/samari/backend/internal/domain/admin"
 	"github.com/qoim/samari/backend/internal/domain/batches"
+	"github.com/qoim/samari/backend/internal/domain/inquiries"
+	"github.com/qoim/samari/backend/internal/domain/inventory"
 	"github.com/qoim/samari/backend/internal/domain/items"
+	"github.com/qoim/samari/backend/internal/domain/procurement"
+	"github.com/qoim/samari/backend/internal/domain/production"
+	"github.com/qoim/samari/backend/internal/domain/quality"
+	"github.com/qoim/samari/backend/internal/domain/sales"
 	samarihttp "github.com/qoim/samari/backend/internal/http"
 )
 
@@ -93,14 +101,27 @@ func run() error {
 	}
 	defer pool.Close()
 
-	srv, err := samarihttp.NewServer(
-		auth.NewService(pool, auth.DefaultConfig()),
-		items.NewService(pool),
+	// The operating chain composes: production posts stock and moves batch status,
+	// procurement and sales post stock. Each is handed the service it needs rather
+	// than reaching for the pool, so the ledger has exactly one writer.
+	inventorySvc := inventory.NewService(pool)
+	qualitySvc := quality.NewService(pool)
+
+	srv, err := samarihttp.NewServer(samarihttp.Services{
+		Auth:  auth.NewService(pool, auth.DefaultConfig()),
+		Items: items.NewService(pool),
 		// The QR payload is printed onto wrappers months in advance, so this must
 		// be the real production address from the very first export (D11).
-		batches.NewService(pool, envOr("PUBLIC_SITE_URL", "https://samari-kuhsor.tj")),
-		samarihttp.Config{ServiceKey: os.Getenv("SERVICE_KEY")},
-	)
+		Batches:     batches.NewService(pool, envOr("PUBLIC_SITE_URL", "https://samari-kuhsor.tj")),
+		Inventory:   inventorySvc,
+		Production:  production.NewService(pool, inventorySvc, qualitySvc),
+		Quality:     qualitySvc,
+		Procurement: procurement.NewService(pool, inventorySvc),
+		Sales:       sales.NewService(pool, inventorySvc),
+		Inquiries:   inquiries.NewService(pool, inquiries.DefaultRateLimit()),
+		Admin:       admin.NewService(pool),
+		Alerts:      alerts.NewService(pool),
+	}, samarihttp.Config{ServiceKey: os.Getenv("SERVICE_KEY")})
 	if err != nil {
 		// docs/04-RBAC.md:123 — an undeclared route means we do not serve at all.
 		return fmt.Errorf("route declaration check failed: %w", err)

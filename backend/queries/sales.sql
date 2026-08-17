@@ -16,10 +16,12 @@ INSERT INTO sales_order_lines (sales_order_id, item_id, batch_id, qty, unit_pric
 VALUES ($1,$2,$3,$4,$5,$6) RETURNING *;
 
 -- name: ListSalesOrderLines :many
-SELECT l.*, i.sku, b.batch_no, b.status AS batch_status
+SELECT l.*, i.sku, COALESCE(tr.name, i.sku) AS item_name, b.batch_no, b.status AS batch_status
 FROM sales_order_lines l
 JOIN items i ON i.id=l.item_id
 LEFT JOIN batches b ON b.id=l.batch_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
 WHERE l.sales_order_id=$1 AND l.deleted_at IS NULL ORDER BY i.sku;
 
 -- name: ListSalesOrders :many
@@ -64,15 +66,21 @@ INSERT INTO shipment_lines (shipment_id, item_id, batch_id, qty, created_by)
 VALUES ($1,$2,$3,$4,$5) RETURNING *;
 
 -- name: ListShipmentLines :many
-SELECT l.*, i.sku, b.batch_no, b.status AS batch_status
+SELECT l.*, i.sku, COALESCE(tr.name, i.sku) AS item_name, b.batch_no, b.status AS batch_status
 FROM shipment_lines l JOIN items i ON i.id=l.item_id JOIN batches b ON b.id=l.batch_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
 WHERE l.shipment_id=$1 AND l.deleted_at IS NULL ORDER BY i.sku;
 
 -- name: ListShipments :many
-SELECT * FROM shipments WHERE deleted_at IS NULL
-  AND (sqlc.narg(status)::text IS NULL OR status=sqlc.narg(status))
-  AND (sqlc.narg(q)::text IS NULL OR unaccent(lower(trip_no)) LIKE '%'||unaccent(lower(sqlc.narg(q)))||'%')
-ORDER BY created_at DESC LIMIT $1 OFFSET $2;
+SELECT sqlc.embed(s), e.full_name AS driver_name, v.plate AS vehicle_plate
+FROM shipments s
+LEFT JOIN employees e ON e.id=s.driver_id
+LEFT JOIN vehicles v ON v.id=s.vehicle_id
+WHERE s.deleted_at IS NULL
+  AND (sqlc.narg(status)::text IS NULL OR s.status=sqlc.narg(status))
+  AND (sqlc.narg(q)::text IS NULL OR unaccent(lower(s.trip_no)) LIKE '%'||unaccent(lower(sqlc.narg(q)))||'%')
+ORDER BY s.created_at DESC LIMIT $1 OFFSET $2;
 
 -- name: CountShipments :one
 SELECT count(*) FROM shipments WHERE deleted_at IS NULL

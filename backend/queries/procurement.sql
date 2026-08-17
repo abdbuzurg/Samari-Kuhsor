@@ -57,10 +57,12 @@ VALUES ($1,$2,$3,$4,$5) RETURNING *;
 SELECT * FROM purchase_order_lines WHERE id=$1 AND deleted_at IS NULL;
 
 -- name: ListPurchaseOrderLines :many
-SELECT l.*, i.sku,
+SELECT l.*, i.sku, COALESCE(tr.name, i.sku) AS item_name,
   COALESCE((SELECT SUM(rl.qty) FROM goods_receipt_lines rl
             WHERE rl.po_line_id=l.id AND rl.deleted_at IS NULL),0)::numeric AS received_qty
 FROM purchase_order_lines l JOIN items i ON i.id=l.item_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
 WHERE l.po_id=$1 AND l.deleted_at IS NULL ORDER BY i.sku;
 
 -- name: CreateGoodsReceipt :one
@@ -86,3 +88,4 @@ WHERE deleted_at IS NULL AND status IN ('draft','approval');
 SELECT count(*)::int FROM purchase_orders
 WHERE deleted_at IS NULL AND expected_at < CURRENT_DATE
   AND status IN ('confirmed','in_transit','receiving');
+

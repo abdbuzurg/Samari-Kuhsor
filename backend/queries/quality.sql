@@ -66,3 +66,12 @@ SELECT count(*)::int FROM batches WHERE status = $1 AND deleted_at IS NULL;
 
 -- name: CountFailedTests :one
 SELECT count(*)::int FROM quality_tests WHERE passed = false AND deleted_at IS NULL;
+
+-- name: GetBatchWithItem :one
+-- The traceability header: the batch plus enough of the product to name it.
+SELECT sqlc.embed(b), i.sku, COALESCE(tr.name, i.sku) AS item_name
+FROM batches b
+JOIN items i ON i.id = b.item_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
+WHERE b.id = $1 AND b.deleted_at IS NULL;

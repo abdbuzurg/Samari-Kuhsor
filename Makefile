@@ -131,16 +131,26 @@ _check-extraction:
 
 # Generated code must be committed and current. A drift here is the silent bug
 # docs/03-API-CONTRACT.md:265 singles out as the most likely in this architecture.
+# Scratch space for the generated-code comparisons below.
+TMP := $(shell mktemp -d)
+
 _check-sqlc:
 	@if [ -f backend/sqlc.yaml ]; then \
 		cd backend && sqlc diff || { echo "sqlc: generated code is stale — run 'make sqlc'"; exit 1; }; \
 	else echo "   (sqlc not wired yet — T03)"; fi
 
+# Staleness means "the committed TypeScript does not match what the Go produces",
+# NOT "the working tree is dirty". Diffing against HEAD conflates the two: it fails
+# on every legitimate DTO change until the moment you commit, which trains you to
+# ignore it. Snapshot, regenerate, compare the two outputs.
 _check-tygo:
 	@if [ -f backend/tygo.yaml ]; then \
+		cp packages/types/api.ts $(TMP)/api.ts.before 2>/dev/null || : ; \
 		$(MAKE) --no-print-directory tygo; \
-		if ! git diff --quiet -- packages/types; then \
-			echo "tygo: packages/types is stale — run 'make tygo' and commit"; exit 1; fi; \
+		if ! diff -q $(TMP)/api.ts.before packages/types/api.ts >/dev/null 2>&1; then \
+			echo "tygo: packages/types/api.ts did not match the Go DTOs; it has been"; \
+			echo "      regenerated. Review and commit the change."; \
+			diff -u $(TMP)/api.ts.before packages/types/api.ts | head -40; exit 1; fi; \
 	else echo "   (tygo not wired yet — T08)"; fi
 
 help: ## Show this help

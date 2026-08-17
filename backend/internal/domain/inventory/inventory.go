@@ -279,24 +279,28 @@ func (s *Service) BalanceOf(ctx context.Context, p Position) (decimal.Decimal, e
 // ListFilter narrows the stock list.
 type ListFilter struct {
 	ItemID uuid.NullUUID
-	Zone   *string
+	// BatchID answers the second half of traceability: given a batch number from a
+	// complaint, where is the rest of it now?
+	BatchID uuid.NullUUID
+	Zone    *string
 }
 
 func (s *Service) List(ctx context.Context, p common.Params, f ListFilter) ([]db.ListStockBalancesRow, int64, error) {
 	q := db.New(s.pool)
 
 	rows, err := q.ListStockBalances(ctx, db.ListStockBalancesParams{
-		ItemID: f.ItemID,
-		Zone:   f.Zone,
-		Q:      nilIfEmpty(p.Query),
-		Limit:  p.Limit(),
-		Offset: p.Offset(),
+		ItemID:  f.ItemID,
+		BatchID: f.BatchID,
+		Zone:    f.Zone,
+		Q:       nilIfEmpty(p.Query),
+		Limit:   p.Limit(),
+		Offset:  p.Offset(),
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("inventory: list: %w", err)
 	}
 	total, err := q.CountStockBalances(ctx, db.CountStockBalancesParams{
-		ItemID: f.ItemID, Zone: f.Zone, Q: nilIfEmpty(p.Query),
+		ItemID: f.ItemID, BatchID: f.BatchID, Zone: f.Zone, Q: nilIfEmpty(p.Query),
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("inventory: count: %w", err)
@@ -393,4 +397,16 @@ func nilIfEmpty(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+// Locations lists the warehouse zones, for the movement form's pickers.
+//
+// Unpaginated: the factory has a handful of zones, not a catalogue, and paging
+// them would put a "next page" control on a list of four.
+func (s *Service) Locations(ctx context.Context) ([]db.Location, error) {
+	rows, err := db.New(s.pool).ListLocations(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("inventory: locations: %w", err)
+	}
+	return rows, nil
 }

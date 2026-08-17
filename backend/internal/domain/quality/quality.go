@@ -29,6 +29,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/qoim/samari/backend/internal/alerts"
 	"github.com/qoim/samari/backend/internal/audit"
 	"github.com/qoim/samari/backend/internal/db"
 	"github.com/qoim/samari/backend/internal/http/common"
@@ -292,7 +293,46 @@ func (s *Service) TransitionTx(ctx context.Context, tx pgx.Tx, actor uuid.UUID, 
 	}); err != nil {
 		return db.Batch{}, err
 	}
+
+	// Two of the three persisted notifications originate here
+	// (docs/05-MODULES.md §17). They are written on the caller's transaction, so a
+	// rolled-back transition leaves no notification behind.
+	if kind, level, ok := notifyFor(in.To); ok {
+		title := fmt.Sprintf("Партия %s — %s", batch.BatchNo, statusNoun(in.To))
+		body := ""
+		if in.Reason != nil {
+			body = *in.Reason
+		}
+		if err := alerts.Emit(ctx, tx, audit.Actor(actor), kind, Resource, in.BatchID, level, title, body); err != nil {
+			return db.Batch{}, fmt.Errorf("quality: notify: %w", err)
+		}
+	}
 	return updated, nil
+}
+
+// notifyFor maps a destination status to its notification, if it has one.
+//
+// Only quarantine and rejection notify. A release is good news that the person
+// who approved it already knows, and notifying on it would train the factory to
+// dismiss the bell without reading it.
+func notifyFor(to string) (alerts.Kind, common.Level, bool) {
+	switch to {
+	case StatusQuarantine:
+		return alerts.KindBatchQuarantined, common.LevelWarn, true
+	case StatusRejected:
+		return alerts.KindBatchRejected, common.LevelDanger, true
+	}
+	return "", "", false
+}
+
+func statusNoun(status string) string {
+	switch status {
+	case StatusQuarantine:
+		return "на карантине"
+	case StatusRejected:
+		return "забракована"
+	}
+	return status
 }
 
 // EnsureSellable refuses a batch that may not leave the building.
@@ -334,4 +374,36 @@ func contains(set []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// AllowedFrom lists the destinations legally reachable from `status` by an actor
+// with (or without) quality:approve.
+//
+// Derived from the same table the domain enforces, so a button can never be
+// offered for a move that will then be refused — and adding a transition to the
+// matrix adds its button with no second edit.
+func AllowedFrom(status string, hasApprove bool) []string {
+	out := make([]string, 0, len(legalTransitions))
+	for _, t := range legalTransitions {
+		if t.From != status {
+			continue
+		}
+		if t.RequiresApprove && !hasApprove {
+			continue
+		}
+		out = append(out, t.To)
+	}
+	return out
+}
+
+// BatchWithItem loads a batch together with enough of its product to name it.
+func (s *Service) BatchWithItem(ctx context.Context, id uuid.UUID) (db.GetBatchWithItemRow, error) {
+	row, err := db.New(s.pool).GetBatchWithItem(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.GetBatchWithItemRow{}, common.NotFound()
+		}
+		return db.GetBatchWithItemRow{}, fmt.Errorf("quality: batch: %w", err)
+	}
+	return row, nil
 }

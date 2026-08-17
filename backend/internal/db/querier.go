@@ -25,6 +25,11 @@ type Querier interface {
 	CountBatchesAwaitingQR(ctx context.Context) (int64, error)
 	CountBatchesByStatus(ctx context.Context, status string) (int32, error)
 	CountBatchesExpiringWithin(ctx context.Context, days int32) (int32, error)
+	CountContractsExpiringWithin(ctx context.Context, days int32) (int32, error)
+	// ---------------------------------------------------------------------------
+	// Derived standing conditions — the other seven (docs/07 I15)
+	// ---------------------------------------------------------------------------
+	CountDocumentsExpiringWithin(ctx context.Context, days int32) (int32, error)
 	CountFailedTests(ctx context.Context) (int32, error)
 	CountInquiries(ctx context.Context, arg CountInquiriesParams) (int64, error)
 	// Rate limiting by IP (docs/03-API-CONTRACT.md:249).
@@ -41,6 +46,7 @@ type Querier interface {
 	// Must apply exactly the same filters as ListItems, or the pagination metadata
 	// describes a different collection from the one returned.
 	CountListItems(ctx context.Context, arg CountListItemsParams) (int64, error)
+	CountMaintenanceDue(ctx context.Context, days int32) (int32, error)
 	CountManufacturingOrders(ctx context.Context, arg CountManufacturingOrdersParams) (int64, error)
 	CountOverdueDeliveries(ctx context.Context) (int32, error)
 	CountOverdueTasks(ctx context.Context) (int32, error)
@@ -51,6 +57,7 @@ type Querier interface {
 	CountShipments(ctx context.Context, arg CountShipmentsParams) (int64, error)
 	CountStockBalances(ctx context.Context, arg CountStockBalancesParams) (int64, error)
 	CountSuppliers(ctx context.Context, q_ *string) (int64, error)
+	CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (int32, error)
 	CountUsers(ctx context.Context, q_ *string) (int64, error)
 	// The last-admin guard (docs/04-RBAC.md:147). Counts ACTIVE, non-deleted users
 	// holding a permission, because a deactivated administrator cannot rescue anyone.
@@ -106,6 +113,8 @@ type Querier interface {
 	// ---------------------------------------------------------------------------
 	GetBatchByID(ctx context.Context, id uuid.UUID) (Batch, error)
 	GetBatchByNo(ctx context.Context, batchNo string) (Batch, error)
+	// The traceability header: the batch plus enough of the product to name it.
+	GetBatchWithItem(ctx context.Context, id uuid.UUID) (GetBatchWithItemRow, error)
 	GetCurrentItemPrice(ctx context.Context, itemID uuid.UUID) (ItemPrice, error)
 	GetInquiry(ctx context.Context, id uuid.UUID) (Inquiry, error)
 	// Товары и цены — the product master. docs/05-MODULES.md §4.
@@ -159,6 +168,10 @@ type Querier interface {
 	InsertAuditEntry(ctx context.Context, arg InsertAuditEntryParams) (AuditLog, error)
 	// Append-only and immutable: no deleted_at, no version. This row is the evidence.
 	InsertBatchStatusEvent(ctx context.Context, arg InsertBatchStatusEventParams) (BatchStatusEvent, error)
+	// ---------------------------------------------------------------------------
+	// Notifications — the three DISCRETE events only (docs/07 I15)
+	// ---------------------------------------------------------------------------
+	InsertNotification(ctx context.Context, arg InsertNotificationParams) (Notification, error)
 	InsertProductionEntry(ctx context.Context, arg InsertProductionEntryParams) (ProductionEntry, error)
 	// ---------------------------------------------------------------------------
 	// Movements
@@ -212,6 +225,9 @@ type Querier interface {
 	// The movement ledger for one position, with a running balance — the detail view
 	// (docs/05-MODULES.md:115).
 	ListMovementsForPosition(ctx context.Context, arg ListMovementsForPositionParams) ([]ListMovementsForPositionRow, error)
+	// Filtered by the viewer's readable resources at READ time: a notification is
+	// broadcast by resource, not addressed to a user (docs/05-MODULES.md:294).
+	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
 	// ---------------------------------------------------------------------------
 	// Detail
 	// ---------------------------------------------------------------------------
@@ -229,7 +245,7 @@ type Querier interface {
 	ListSalesOrderLines(ctx context.Context, salesOrderID uuid.UUID) ([]ListSalesOrderLinesRow, error)
 	ListSalesOrders(ctx context.Context, arg ListSalesOrdersParams) ([]ListSalesOrdersRow, error)
 	ListShipmentLines(ctx context.Context, shipmentID uuid.UUID) ([]ListShipmentLinesRow, error)
-	ListShipments(ctx context.Context, arg ListShipmentsParams) ([]Shipment, error)
+	ListShipments(ctx context.Context, arg ListShipmentsParams) ([]ListShipmentsRow, error)
 	// ---------------------------------------------------------------------------
 	// Balances — derived, never stored
 	// ---------------------------------------------------------------------------
@@ -250,6 +266,7 @@ type Querier interface {
 	// the position; batch_id is nullable, so it is coalesced to a fixed sentinel
 	// rather than left to hash NULL.
 	LockStockPosition(ctx context.Context, arg LockStockPositionParams) error
+	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) error
 	// A sequence per prefix. SELECT ... FOR UPDATE on the max row would still race on
 	// an empty table, so the uniqueness is guaranteed by the partial unique index and
 	// this is only a hint for the next number.

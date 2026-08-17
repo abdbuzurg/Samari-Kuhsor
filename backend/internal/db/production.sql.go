@@ -16,11 +16,14 @@ import (
 const countManufacturingOrders = `-- name: CountManufacturingOrders :one
 SELECT count(*) FROM manufacturing_orders mo
 JOIN items i ON i.id = mo.item_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
 WHERE mo.deleted_at IS NULL
   AND ($1::text IS NULL OR mo.status = $1)
   AND ($2::text IS NULL
        OR unaccent(lower(mo.mo_no)) LIKE '%' || unaccent(lower($2)) || '%'
-       OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($2)) || '%')
+       OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($2)) || '%'
+       OR unaccent(lower(COALESCE(tr.name, ''))) LIKE '%' || unaccent(lower($2)) || '%')
 `
 
 type CountManufacturingOrdersParams struct {
@@ -185,6 +188,11 @@ func (q *Queries) InsertProductionEntry(ctx context.Context, arg InsertProductio
 
 const listManufacturingOrders = `-- name: ListManufacturingOrders :many
 SELECT mo.id, mo.mo_no, mo.item_id, mo.batch_id, mo.line, mo.planned_qty, mo.scheduled_for, mo.status, mo.created_at, mo.updated_at, mo.deleted_at, mo.version, mo.created_by, i.sku, b.batch_no,
+  -- The list shows the Russian product name, not the SKU alone: an operator on
+  -- the line reads «Сок яблочный 1 л», not APJ-1000. Falls back to the SKU so a
+  -- product whose translation is missing still renders something identifiable
+  -- rather than an empty cell.
+  COALESCE(tr.name, i.sku) AS item_name,
   COALESCE((SELECT SUM(good_qty) FROM production_entries e
              WHERE e.mo_id = mo.id AND e.deleted_at IS NULL), 0)::numeric AS good_qty,
   COALESCE((SELECT SUM(scrap_qty) FROM production_entries e
@@ -192,11 +200,14 @@ SELECT mo.id, mo.mo_no, mo.item_id, mo.batch_id, mo.line, mo.planned_qty, mo.sch
 FROM manufacturing_orders mo
 JOIN items i ON i.id = mo.item_id
 LEFT JOIN batches b ON b.id = mo.batch_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
 WHERE mo.deleted_at IS NULL
   AND ($3::text IS NULL OR mo.status = $3)
   AND ($4::text IS NULL
        OR unaccent(lower(mo.mo_no)) LIKE '%' || unaccent(lower($4)) || '%'
-       OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($4)) || '%')
+       OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($4)) || '%'
+       OR unaccent(lower(COALESCE(tr.name, ''))) LIKE '%' || unaccent(lower($4)) || '%')
 ORDER BY mo.scheduled_for DESC NULLS LAST, mo.mo_no DESC
 LIMIT $1 OFFSET $2
 `
@@ -212,6 +223,7 @@ type ListManufacturingOrdersRow struct {
 	ManufacturingOrder ManufacturingOrder
 	Sku                string
 	BatchNo            *string
+	ItemName           string
 	GoodQty            decimal.Decimal
 	ScrapQty           decimal.Decimal
 }
@@ -246,6 +258,7 @@ func (q *Queries) ListManufacturingOrders(ctx context.Context, arg ListManufactu
 			&i.ManufacturingOrder.CreatedBy,
 			&i.Sku,
 			&i.BatchNo,
+			&i.ItemName,
 			&i.GoodQty,
 			&i.ScrapQty,
 		); err != nil {

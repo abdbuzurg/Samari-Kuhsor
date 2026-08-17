@@ -36,7 +36,7 @@ func (s *Server) handleListItems(w http.ResponseWriter, r *http.Request) {
 		Locale:   localeOf(r),
 	}
 
-	rows, total, err := s.items.List(r.Context(), p, filter)
+	rows, total, err := s.svc.Items.List(r.Context(), p, filter)
 	if err != nil {
 		common.Fail(w, r, err)
 		return
@@ -55,7 +55,7 @@ func (s *Server) handleGetItem(w http.ResponseWriter, r *http.Request) {
 		common.Fail(w, r, err)
 		return
 	}
-	detail, err := s.items.Get(r.Context(), id)
+	detail, err := s.svc.Items.Get(r.Context(), id)
 	if err != nil {
 		common.Fail(w, r, err)
 		return
@@ -92,7 +92,7 @@ func (s *Server) handleCreateItem(w http.ResponseWriter, r *http.Request) {
 		status = "draft" // matches the column default; a new product is not published by accident
 	}
 
-	detail, err := s.items.Create(r.Context(), ident.User.ID, items.CreateInput{
+	detail, err := s.svc.Items.Create(r.Context(), ident.User.ID, items.CreateInput{
 		SKU:           req.SKU,
 		ItemType:      req.ItemType,
 		Category:      req.Category,
@@ -138,7 +138,7 @@ func (s *Server) handleUpdateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	detail, err := s.items.Update(r.Context(), ident.User.ID, id, items.UpdateInput{
+	detail, err := s.svc.Items.Update(r.Context(), ident.User.ID, id, items.UpdateInput{
 		Version:       version,
 		Category:      req.Category,
 		BaseUOM:       req.BaseUOM,
@@ -180,7 +180,7 @@ func (s *Server) handleDeleteItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := s.items.Delete(r.Context(), ident.User.ID, id, version); err != nil {
+	if err := s.svc.Items.Delete(r.Context(), ident.User.ID, id, version); err != nil {
 		common.Fail(w, r, err)
 		return
 	}
@@ -223,7 +223,7 @@ func (s *Server) handleAddItemPrice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	price, err := s.items.AddPrice(r.Context(), ident.User.ID, id, items.PriceInput{
+	price, err := s.svc.Items.AddPrice(r.Context(), ident.User.ID, id, items.PriceInput{
 		Amount:    amount,
 		Currency:  req.Currency,
 		ValidFrom: validFrom,

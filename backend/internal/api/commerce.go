@@ -1,0 +1,326 @@
+package api
+
+// Wire types for Закупки, Продажи, Логистика, Интеграция с сайтом and
+// Администрирование.
+
+// ---------------------------------------------------------------------------
+// Закупки
+// ---------------------------------------------------------------------------
+
+type Supplier struct {
+	ID      string  `json:"id"`
+	Name    string  `json:"name"`
+	TaxID   *string `json:"tax_id" tstype:"string | null"`
+	Contact *string `json:"contact" tstype:"string | null"`
+	Region  *string `json:"region" tstype:"string | null"`
+	Rating  *int32  `json:"rating" tstype:"number | null"`
+	Version int32   `json:"version"`
+}
+
+type SupplierWriteRequest struct {
+	Name    string  `json:"name"`
+	TaxID   *string `json:"tax_id"`
+	Contact *string `json:"contact"`
+	Region  *string `json:"region"`
+	Rating  *int32  `json:"rating"`
+}
+
+type PurchaseOrderRow struct {
+	ID           string  `json:"id"`
+	PONo         string  `json:"po_no"`
+	SupplierID   string  `json:"supplier_id"`
+	SupplierName string  `json:"supplier_name"`
+	ExpectedAt   *string `json:"expected_at" tstype:"string | null"`
+	Total        string  `json:"total"`
+	Status       Status  `json:"status"`
+	Version      int32   `json:"version"`
+	CreatedAt    string  `json:"created_at"`
+}
+
+type PurchaseOrder struct {
+	PurchaseOrderRow
+	Lines []PurchaseOrderLine `json:"lines"`
+	// AllowedTransitions is what this actor may move the order to next, given the
+	// current status and their procurement:approve grant.
+	AllowedTransitions []string `json:"allowed_transitions"`
+}
+
+type PurchaseOrderLine struct {
+	ID          string `json:"id"`
+	ItemID      string `json:"item_id"`
+	SKU         string `json:"sku"`
+	ItemName    string `json:"item_name"`
+	Qty         string `json:"qty"`
+	ReceivedQty string `json:"received_qty"`
+	UnitPrice   string `json:"unit_price"`
+	LineTotal   string `json:"line_total"`
+}
+
+type PurchaseOrderLineWrite struct {
+	ItemID    string `json:"item_id"`
+	Qty       string `json:"qty"`
+	UnitPrice string `json:"unit_price"`
+}
+
+type PurchaseOrderWriteRequest struct {
+	PONo       string                   `json:"po_no"`
+	SupplierID string                   `json:"supplier_id"`
+	ExpectedAt *string                  `json:"expected_at"`
+	Lines      []PurchaseOrderLineWrite `json:"lines"`
+}
+
+// TransitionRequest moves a document to a new status. Shared by purchase orders
+// and sales orders, which have different matrices but the same request shape.
+type TransitionRequest struct {
+	To string `json:"to"`
+}
+
+type GoodsReceiptLineWrite struct {
+	POLineID string  `json:"po_line_id"`
+	Qty      string  `json:"qty"`
+	BatchID  *string `json:"batch_id"`
+}
+
+type GoodsReceiptRequest struct {
+	LocationID string                  `json:"location_id"`
+	Note       *string                 `json:"note"`
+	Lines      []GoodsReceiptLineWrite `json:"lines"`
+}
+
+type GoodsReceipt struct {
+	ID         string `json:"id"`
+	POID       string `json:"po_id"`
+	ReceivedAt string `json:"received_at"`
+}
+
+// ---------------------------------------------------------------------------
+// Продажи
+// ---------------------------------------------------------------------------
+
+type SalesOrderRow struct {
+	ID           string  `json:"id"`
+	SONo         string  `json:"so_no"`
+	CustomerID   string  `json:"customer_id"`
+	CustomerName string  `json:"customer_name"`
+	OrderedOn    *string `json:"ordered_on" tstype:"string | null"`
+	Total        string  `json:"total"`
+	Status       Status  `json:"status"`
+	Version      int32   `json:"version"`
+	CreatedAt    string  `json:"created_at"`
+}
+
+type SalesOrder struct {
+	SalesOrderRow
+	Lines []SalesOrderLine `json:"lines"`
+}
+
+type SalesOrderLine struct {
+	ID        string  `json:"id"`
+	ItemID    string  `json:"item_id"`
+	SKU       string  `json:"sku"`
+	ItemName  string  `json:"item_name"`
+	BatchID   *string `json:"batch_id" tstype:"string | null"`
+	BatchNo   *string `json:"batch_no" tstype:"string | null"`
+	Qty       string  `json:"qty"`
+	UnitPrice string  `json:"unit_price"`
+	LineTotal string  `json:"line_total"`
+}
+
+type SalesOrderLineWrite struct {
+	ItemID    string  `json:"item_id"`
+	BatchID   *string `json:"batch_id"`
+	Qty       string  `json:"qty"`
+	UnitPrice string  `json:"unit_price"`
+}
+
+type SalesOrderWriteRequest struct {
+	SONo       string                `json:"so_no"`
+	CustomerID string                `json:"customer_id"`
+	OrderedOn  *string               `json:"ordered_on"`
+	Lines      []SalesOrderLineWrite `json:"lines"`
+}
+
+// ConfirmOrderRequest names the location the stock leaves from. Confirmation is
+// the moment the company commits, so it is also the moment the released-batch
+// rule and the stock check apply (docs/05-MODULES.md §9).
+type ConfirmOrderRequest struct {
+	LocationID string `json:"location_id"`
+}
+
+// ---------------------------------------------------------------------------
+// Логистика
+// ---------------------------------------------------------------------------
+
+type Shipment struct {
+	ID            string         `json:"id"`
+	TripNo        string         `json:"trip_no"`
+	RouteFrom     *string        `json:"route_from" tstype:"string | null"`
+	RouteTo       *string        `json:"route_to" tstype:"string | null"`
+	DriverID      *string        `json:"driver_id" tstype:"string | null"`
+	DriverName    *string        `json:"driver_name" tstype:"string | null"`
+	VehicleID     *string        `json:"vehicle_id" tstype:"string | null"`
+	VehiclePlate  *string        `json:"vehicle_plate" tstype:"string | null"`
+	TransportCost *string        `json:"transport_cost" tstype:"string | null"`
+	Status        Status         `json:"status"`
+	Version       int32          `json:"version"`
+	CreatedAt     string         `json:"created_at"`
+	Lines         []ShipmentLine `json:"lines"`
+}
+
+type ShipmentLine struct {
+	ID       string `json:"id"`
+	ItemID   string `json:"item_id"`
+	SKU      string `json:"sku"`
+	ItemName string `json:"item_name"`
+	BatchID  string `json:"batch_id"`
+	BatchNo  string `json:"batch_no"`
+	Qty      string `json:"qty"`
+}
+
+type ShipmentWriteRequest struct {
+	TripNo        string  `json:"trip_no"`
+	RouteFrom     *string `json:"route_from"`
+	RouteTo       *string `json:"route_to"`
+	DriverID      *string `json:"driver_id"`
+	VehicleID     *string `json:"vehicle_id"`
+	TransportCost *string `json:"transport_cost"`
+}
+
+// ShipmentLoadRequest loads one batch onto a trip. The batch must be released —
+// checked in Go, because a lorry leaving with quarantined product is the failure
+// this whole chain exists to prevent.
+type ShipmentLoadRequest struct {
+	ItemID  string `json:"item_id"`
+	BatchID string `json:"batch_id"`
+	Qty     string `json:"qty"`
+}
+
+// ---------------------------------------------------------------------------
+// Интеграция с сайтом
+// ---------------------------------------------------------------------------
+
+type Inquiry struct {
+	ID          string  `json:"id"`
+	ReferenceNo string  `json:"reference_no"`
+	Type        Status  `json:"type"`
+	Name        string  `json:"name"`
+	Company     *string `json:"company" tstype:"string | null"`
+	Contact     string  `json:"contact"`
+	Message     *string `json:"message" tstype:"string | null"`
+	BatchID     *string `json:"batch_id" tstype:"string | null"`
+	BatchNo     *string `json:"batch_no" tstype:"string | null"`
+	Status      Status  `json:"status"`
+	SubmittedAt string  `json:"submitted_at"`
+	Version     int32   `json:"version"`
+}
+
+// InquirySubmitRequest is the only request shape an unauthenticated caller can
+// send. Everything here is untrusted: it is length-bounded, type-checked and
+// rate-limited by IP before a row is written.
+type InquirySubmitRequest struct {
+	Type    string  `json:"type"`
+	Name    string  `json:"name"`
+	Company *string `json:"company"`
+	Contact string  `json:"contact"`
+	Message *string `json:"message"`
+	BatchID *string `json:"batch_id"`
+}
+
+// InquiryReceipt is what the website shows the visitor. Deliberately minimal: the
+// reference number and nothing that could confirm what else is in the database.
+type InquiryReceipt struct {
+	ReferenceNo string `json:"reference_no"`
+}
+
+type Lead struct {
+	ID     string  `json:"id"`
+	Name   string  `json:"name"`
+	Source *string `json:"source" tstype:"string | null"`
+	Status Status  `json:"status"`
+}
+
+// ---------------------------------------------------------------------------
+// Администрирование
+// ---------------------------------------------------------------------------
+
+type RoleDetail struct {
+	ID          string   `json:"id"`
+	Key         string   `json:"key"`
+	Name        string   `json:"name"`
+	Permissions []string `json:"permissions"`
+	UserCount   int64    `json:"user_count"`
+	Version     int32    `json:"version"`
+}
+
+type RoleWriteRequest struct {
+	Key  string `json:"key"`
+	Name string `json:"name"`
+}
+
+type RolePermissionsRequest struct {
+	Permissions []string `json:"permissions"`
+}
+
+type UserRolesRequest struct {
+	RoleIDs []string `json:"role_ids"`
+}
+
+type UserActiveRequest struct {
+	Active bool `json:"active"`
+}
+
+type AdminUserRow struct {
+	ID       string   `json:"id"`
+	Email    string   `json:"email"`
+	FullName string   `json:"full_name"`
+	IsActive bool     `json:"is_active"`
+	Status   Status   `json:"status"`
+	Roles    []string `json:"roles"`
+	Version  int32    `json:"version"`
+}
+
+// PermissionCatalogue is every resource:action the system recognises, so the role
+// editor is generated from the enforced list rather than a hand-kept copy that
+// could drift from it.
+type PermissionCatalogue struct {
+	Resources []PermissionResource `json:"resources"`
+}
+
+type PermissionResource struct {
+	Key     string   `json:"key"`
+	Actions []string `json:"actions"`
+}
+
+// ---------------------------------------------------------------------------
+// Уведомления
+// ---------------------------------------------------------------------------
+
+type Notification struct {
+	ID         string  `json:"id"`
+	Kind       string  `json:"kind"`
+	Resource   string  `json:"resource"`
+	ResourceID *string `json:"resource_id" tstype:"string | null"`
+	Level      string  `json:"level"`
+	Title      string  `json:"title"`
+	Body       *string `json:"body" tstype:"string | null"`
+	OccurredAt string  `json:"occurred_at"`
+	IsRead     bool    `json:"is_read"`
+}
+
+// AlertFeed is the bell: persisted events plus the live standing conditions, and
+// the counts that drive the sidebar pills. Both come from one endpoint so the
+// bell and the sidebar cannot disagree.
+type AlertFeed struct {
+	Notifications []Notification   `json:"notifications"`
+	Conditions    []AlertCondition `json:"conditions"`
+	Unread        int              `json:"unread"`
+	// Counts is resource → number of open items, for the nav pills.
+	Counts map[string]int `json:"counts"`
+}
+
+type AlertCondition struct {
+	Kind     string `json:"kind"`
+	Resource string `json:"resource"`
+	Level    string `json:"level"`
+	Count    int    `json:"count"`
+}

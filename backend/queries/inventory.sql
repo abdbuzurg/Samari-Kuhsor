@@ -63,7 +63,9 @@ WHERE item_id = $1
 -- (docs/05-MODULES.md:115).
 SELECT
   m.*,
-  SUM(m.qty_delta) OVER (ORDER BY m.occurred_at, m.id) AS running_balance
+  -- Cast for the same reason the view is cast in migration 00005: an
+  -- uncast SUM over a window generates as int64 and truncates partial units.
+  (SUM(m.qty_delta) OVER (ORDER BY m.occurred_at, m.id))::numeric(14,3) AS running_balance
 FROM stock_movements m
 WHERE m.item_id = $1
   AND m.batch_id IS NOT DISTINCT FROM sqlc.narg(batch_id)::uuid
@@ -113,6 +115,7 @@ LEFT JOIN item_translations tr
 LEFT JOIN batches bt ON bt.id = b.batch_id
 WHERE b.on_hand <> 0
   AND (sqlc.narg(item_id)::uuid IS NULL OR b.item_id = sqlc.narg(item_id))
+  AND (sqlc.narg(batch_id)::uuid IS NULL OR b.batch_id = sqlc.narg(batch_id))
   AND (sqlc.narg(zone)::text IS NULL OR l.zone = sqlc.narg(zone))
   AND (
     sqlc.narg(q)::text IS NULL
@@ -133,6 +136,7 @@ LEFT JOIN item_translations tr
 LEFT JOIN batches bt ON bt.id = b.batch_id
 WHERE b.on_hand <> 0
   AND (sqlc.narg(item_id)::uuid IS NULL OR b.item_id = sqlc.narg(item_id))
+  AND (sqlc.narg(batch_id)::uuid IS NULL OR b.batch_id = sqlc.narg(batch_id))
   AND (sqlc.narg(zone)::text IS NULL OR l.zone = sqlc.narg(zone))
   AND (
     sqlc.narg(q)::text IS NULL
@@ -178,3 +182,56 @@ WHERE i.deleted_at IS NULL AND i.min_qty IS NOT NULL
 GROUP BY i.id, i.sku, i.min_qty
 HAVING SUM(b.on_hand) < i.min_qty
 ORDER BY i.sku;
+
+-- ---------------------------------------------------------------------------
+-- Notifications — the three DISCRETE events only (docs/07 I15)
+-- ---------------------------------------------------------------------------
+
+-- name: InsertNotification :one
+INSERT INTO notifications (kind, resource, resource_id, level, title, body, created_by)
+VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *;
+
+-- name: ListNotifications :many
+-- Filtered by the viewer's readable resources at READ time: a notification is
+-- broadcast by resource, not addressed to a user (docs/05-MODULES.md:294).
+SELECT n.*, (r.id IS NOT NULL)::boolean AS is_read
+FROM notifications n
+LEFT JOIN notification_reads r ON r.notification_id=n.id AND r.user_id=$1
+WHERE n.deleted_at IS NULL AND n.resource = ANY(sqlc.arg(resources)::text[])
+ORDER BY n.occurred_at DESC LIMIT $2;
+
+-- name: CountUnreadNotifications :one
+SELECT count(*)::int FROM notifications n
+LEFT JOIN notification_reads r ON r.notification_id=n.id AND r.user_id=$1
+WHERE n.deleted_at IS NULL AND r.id IS NULL
+  AND n.resource = ANY(sqlc.arg(resources)::text[]);
+
+-- name: MarkNotificationsRead :exec
+INSERT INTO notification_reads (notification_id, user_id)
+SELECT n.id, $1 FROM notifications n
+WHERE n.deleted_at IS NULL AND n.resource = ANY(sqlc.arg(resources)::text[])
+ON CONFLICT DO NOTHING;
+
+-- ---------------------------------------------------------------------------
+-- Derived standing conditions — the other seven (docs/07 I15)
+-- ---------------------------------------------------------------------------
+
+-- name: CountDocumentsExpiringWithin :one
+SELECT count(*)::int FROM documents
+WHERE deleted_at IS NULL AND valid_until IS NOT NULL
+  AND valid_until <= CURRENT_DATE + sqlc.arg(days)::int
+  AND status IN ('active','expiring');
+
+-- name: CountContractsExpiringWithin :one
+SELECT count(*)::int FROM employees
+WHERE deleted_at IS NULL AND contract_until IS NOT NULL
+  AND contract_until <= CURRENT_DATE + sqlc.arg(days)::int
+  AND status = 'active';
+
+-- name: CountMaintenanceDue :one
+SELECT count(*)::int FROM assets a
+WHERE a.deleted_at IS NULL AND a.status <> 'retired'
+  AND EXISTS (SELECT 1 FROM maintenance_events m
+              WHERE m.asset_id=a.id AND m.deleted_at IS NULL
+                AND m.next_due_on IS NOT NULL
+                AND m.next_due_on <= CURRENT_DATE + sqlc.arg(days)::int);

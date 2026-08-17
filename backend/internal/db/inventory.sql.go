@@ -28,6 +28,38 @@ func (q *Queries) CountBatchesExpiringWithin(ctx context.Context, days int32) (i
 	return column_1, err
 }
 
+const countContractsExpiringWithin = `-- name: CountContractsExpiringWithin :one
+SELECT count(*)::int FROM employees
+WHERE deleted_at IS NULL AND contract_until IS NOT NULL
+  AND contract_until <= CURRENT_DATE + $1::int
+  AND status = 'active'
+`
+
+func (q *Queries) CountContractsExpiringWithin(ctx context.Context, days int32) (int32, error) {
+	row := q.db.QueryRow(ctx, countContractsExpiringWithin, days)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countDocumentsExpiringWithin = `-- name: CountDocumentsExpiringWithin :one
+
+SELECT count(*)::int FROM documents
+WHERE deleted_at IS NULL AND valid_until IS NOT NULL
+  AND valid_until <= CURRENT_DATE + $1::int
+  AND status IN ('active','expiring')
+`
+
+// ---------------------------------------------------------------------------
+// Derived standing conditions — the other seven (docs/07 I15)
+// ---------------------------------------------------------------------------
+func (q *Queries) CountDocumentsExpiringWithin(ctx context.Context, days int32) (int32, error) {
+	row := q.db.QueryRow(ctx, countDocumentsExpiringWithin, days)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countItemsBelowMinimum = `-- name: CountItemsBelowMinimum :one
 
 SELECT count(*)::int FROM (
@@ -52,6 +84,22 @@ func (q *Queries) CountItemsBelowMinimum(ctx context.Context) (int32, error) {
 	return column_1, err
 }
 
+const countMaintenanceDue = `-- name: CountMaintenanceDue :one
+SELECT count(*)::int FROM assets a
+WHERE a.deleted_at IS NULL AND a.status <> 'retired'
+  AND EXISTS (SELECT 1 FROM maintenance_events m
+              WHERE m.asset_id=a.id AND m.deleted_at IS NULL
+                AND m.next_due_on IS NOT NULL
+                AND m.next_due_on <= CURRENT_DATE + $1::int)
+`
+
+func (q *Queries) CountMaintenanceDue(ctx context.Context, days int32) (int32, error) {
+	row := q.db.QueryRow(ctx, countMaintenanceDue, days)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countStockBalances = `-- name: CountStockBalances :one
 SELECT count(*)
 FROM stock_balances b
@@ -62,26 +110,52 @@ LEFT JOIN item_translations tr
 LEFT JOIN batches bt ON bt.id = b.batch_id
 WHERE b.on_hand <> 0
   AND ($1::uuid IS NULL OR b.item_id = $1)
-  AND ($2::text IS NULL OR l.zone = $2)
+  AND ($2::uuid IS NULL OR b.batch_id = $2)
+  AND ($3::text IS NULL OR l.zone = $3)
   AND (
-    $3::text IS NULL
-    OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($3)) || '%'
-    OR unaccent(lower(COALESCE(tr.name, ''))) LIKE '%' || unaccent(lower($3)) || '%'
-    OR unaccent(lower(COALESCE(bt.batch_no, ''))) LIKE '%' || unaccent(lower($3)) || '%'
+    $4::text IS NULL
+    OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($4)) || '%'
+    OR unaccent(lower(COALESCE(tr.name, ''))) LIKE '%' || unaccent(lower($4)) || '%'
+    OR unaccent(lower(COALESCE(bt.batch_no, ''))) LIKE '%' || unaccent(lower($4)) || '%'
   )
 `
 
 type CountStockBalancesParams struct {
-	ItemID uuid.NullUUID
-	Zone   *string
-	Q      *string
+	ItemID  uuid.NullUUID
+	BatchID uuid.NullUUID
+	Zone    *string
+	Q       *string
 }
 
 func (q *Queries) CountStockBalances(ctx context.Context, arg CountStockBalancesParams) (int64, error) {
-	row := q.db.QueryRow(ctx, countStockBalances, arg.ItemID, arg.Zone, arg.Q)
+	row := q.db.QueryRow(ctx, countStockBalances,
+		arg.ItemID,
+		arg.BatchID,
+		arg.Zone,
+		arg.Q,
+	)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const countUnreadNotifications = `-- name: CountUnreadNotifications :one
+SELECT count(*)::int FROM notifications n
+LEFT JOIN notification_reads r ON r.notification_id=n.id AND r.user_id=$1
+WHERE n.deleted_at IS NULL AND r.id IS NULL
+  AND n.resource = ANY($2::text[])
+`
+
+type CountUnreadNotificationsParams struct {
+	UserID    uuid.UUID
+	Resources []string
+}
+
+func (q *Queries) CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countUnreadNotifications, arg.UserID, arg.Resources)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createLocation = `-- name: CreateLocation :one
@@ -221,6 +295,54 @@ func (q *Queries) GetQuarantineLocation(ctx context.Context) (Location, error) {
 		&i.Code,
 		&i.Name,
 		&i.Zone,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+	)
+	return i, err
+}
+
+const insertNotification = `-- name: InsertNotification :one
+
+INSERT INTO notifications (kind, resource, resource_id, level, title, body, created_by)
+VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, kind, resource, resource_id, level, title, body, occurred_at, created_at, updated_at, deleted_at, version, created_by
+`
+
+type InsertNotificationParams struct {
+	Kind       string
+	Resource   string
+	ResourceID uuid.NullUUID
+	Level      string
+	Title      string
+	Body       *string
+	CreatedBy  uuid.NullUUID
+}
+
+// ---------------------------------------------------------------------------
+// Notifications — the three DISCRETE events only (docs/07 I15)
+// ---------------------------------------------------------------------------
+func (q *Queries) InsertNotification(ctx context.Context, arg InsertNotificationParams) (Notification, error) {
+	row := q.db.QueryRow(ctx, insertNotification,
+		arg.Kind,
+		arg.Resource,
+		arg.ResourceID,
+		arg.Level,
+		arg.Title,
+		arg.Body,
+		arg.CreatedBy,
+	)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.Resource,
+		&i.ResourceID,
+		&i.Level,
+		&i.Title,
+		&i.Body,
+		&i.OccurredAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -453,7 +575,9 @@ func (q *Queries) ListMovements(ctx context.Context, arg ListMovementsParams) ([
 const listMovementsForPosition = `-- name: ListMovementsForPosition :many
 SELECT
   m.id, m.item_id, m.batch_id, m.location_id, m.qty_delta, m.reason, m.ref_type, m.ref_id, m.note, m.occurred_at, m.created_at, m.updated_at, m.deleted_at, m.version, m.created_by,
-  SUM(m.qty_delta) OVER (ORDER BY m.occurred_at, m.id) AS running_balance
+  -- Cast for the same reason the view is cast in migration 00005: an
+  -- uncast SUM over a window generates as int64 and truncates partial units.
+  (SUM(m.qty_delta) OVER (ORDER BY m.occurred_at, m.id))::numeric(14,3) AS running_balance
 FROM stock_movements m
 WHERE m.item_id = $1
   AND m.batch_id IS NOT DISTINCT FROM $5::uuid
@@ -487,7 +611,7 @@ type ListMovementsForPositionRow struct {
 	DeletedAt      pgtype.Timestamptz
 	Version        int32
 	CreatedBy      uuid.NullUUID
-	RunningBalance int64
+	RunningBalance decimal.Decimal
 }
 
 // The movement ledger for one position, with a running balance — the detail view
@@ -535,6 +659,74 @@ func (q *Queries) ListMovementsForPosition(ctx context.Context, arg ListMovement
 	return items, nil
 }
 
+const listNotifications = `-- name: ListNotifications :many
+SELECT n.id, n.kind, n.resource, n.resource_id, n.level, n.title, n.body, n.occurred_at, n.created_at, n.updated_at, n.deleted_at, n.version, n.created_by, (r.id IS NOT NULL)::boolean AS is_read
+FROM notifications n
+LEFT JOIN notification_reads r ON r.notification_id=n.id AND r.user_id=$1
+WHERE n.deleted_at IS NULL AND n.resource = ANY($3::text[])
+ORDER BY n.occurred_at DESC LIMIT $2
+`
+
+type ListNotificationsParams struct {
+	UserID    uuid.UUID
+	Limit     int32
+	Resources []string
+}
+
+type ListNotificationsRow struct {
+	ID         uuid.UUID
+	Kind       string
+	Resource   string
+	ResourceID uuid.NullUUID
+	Level      string
+	Title      string
+	Body       *string
+	OccurredAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+	IsRead     bool
+}
+
+// Filtered by the viewer's readable resources at READ time: a notification is
+// broadcast by resource, not addressed to a user (docs/05-MODULES.md:294).
+func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error) {
+	rows, err := q.db.Query(ctx, listNotifications, arg.UserID, arg.Limit, arg.Resources)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListNotificationsRow{}
+	for rows.Next() {
+		var i ListNotificationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.Resource,
+			&i.ResourceID,
+			&i.Level,
+			&i.Title,
+			&i.Body,
+			&i.OccurredAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Version,
+			&i.CreatedBy,
+			&i.IsRead,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listStockBalances = `-- name: ListStockBalances :many
 
 SELECT
@@ -556,23 +748,25 @@ LEFT JOIN item_translations tr
 LEFT JOIN batches bt ON bt.id = b.batch_id
 WHERE b.on_hand <> 0
   AND ($3::uuid IS NULL OR b.item_id = $3)
-  AND ($4::text IS NULL OR l.zone = $4)
+  AND ($4::uuid IS NULL OR b.batch_id = $4)
+  AND ($5::text IS NULL OR l.zone = $5)
   AND (
-    $5::text IS NULL
-    OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($5)) || '%'
-    OR unaccent(lower(COALESCE(tr.name, ''))) LIKE '%' || unaccent(lower($5)) || '%'
-    OR unaccent(lower(COALESCE(bt.batch_no, ''))) LIKE '%' || unaccent(lower($5)) || '%'
+    $6::text IS NULL
+    OR unaccent(lower(i.sku)) LIKE '%' || unaccent(lower($6)) || '%'
+    OR unaccent(lower(COALESCE(tr.name, ''))) LIKE '%' || unaccent(lower($6)) || '%'
+    OR unaccent(lower(COALESCE(bt.batch_no, ''))) LIKE '%' || unaccent(lower($6)) || '%'
   )
 ORDER BY i.sku, l.code, bt.batch_no NULLS FIRST
 LIMIT $1 OFFSET $2
 `
 
 type ListStockBalancesParams struct {
-	Limit  int32
-	Offset int32
-	ItemID uuid.NullUUID
-	Zone   *string
-	Q      *string
+	Limit   int32
+	Offset  int32
+	ItemID  uuid.NullUUID
+	BatchID uuid.NullUUID
+	Zone    *string
+	Q       *string
 }
 
 type ListStockBalancesRow struct {
@@ -601,6 +795,7 @@ func (q *Queries) ListStockBalances(ctx context.Context, arg ListStockBalancesPa
 		arg.Limit,
 		arg.Offset,
 		arg.ItemID,
+		arg.BatchID,
 		arg.Zone,
 		arg.Q,
 	)
@@ -658,5 +853,22 @@ type LockStockPositionParams struct {
 // rather than left to hash NULL.
 func (q *Queries) LockStockPosition(ctx context.Context, arg LockStockPositionParams) error {
 	_, err := q.db.Exec(ctx, lockStockPosition, arg.Column1, arg.Column2, arg.Column3)
+	return err
+}
+
+const markNotificationsRead = `-- name: MarkNotificationsRead :exec
+INSERT INTO notification_reads (notification_id, user_id)
+SELECT n.id, $1 FROM notifications n
+WHERE n.deleted_at IS NULL AND n.resource = ANY($2::text[])
+ON CONFLICT DO NOTHING
+`
+
+type MarkNotificationsReadParams struct {
+	UserID    uuid.UUID
+	Resources []string
+}
+
+func (q *Queries) MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) error {
+	_, err := q.db.Exec(ctx, markNotificationsRead, arg.UserID, arg.Resources)
 	return err
 }

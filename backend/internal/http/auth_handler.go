@@ -68,7 +68,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, ident, err := s.auth.Login(r.Context(), auth.LoginRequest{
+	token, ident, err := s.svc.Auth.Login(r.Context(), auth.LoginRequest{
 		Email:     req.Email,
 		Password:  req.Password,
 		IP:        clientIP(r),
@@ -108,7 +108,7 @@ func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
 		common.Fail(w, r, common.Unauthenticated())
 		return
 	}
-	if err := s.auth.Logout(r.Context(), ident, clientIP(r)); err != nil {
+	if err := s.svc.Auth.Logout(r.Context(), ident, clientIP(r)); err != nil {
 		common.Fail(w, r, err)
 		return
 	}

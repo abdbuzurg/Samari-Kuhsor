@@ -360,10 +360,12 @@ func (q *Queries) ListGoodsReceipts(ctx context.Context, poID uuid.UUID) ([]Good
 }
 
 const listPurchaseOrderLines = `-- name: ListPurchaseOrderLines :many
-SELECT l.id, l.po_id, l.item_id, l.qty, l.unit_price, l.created_at, l.updated_at, l.deleted_at, l.version, l.created_by, i.sku,
+SELECT l.id, l.po_id, l.item_id, l.qty, l.unit_price, l.created_at, l.updated_at, l.deleted_at, l.version, l.created_by, i.sku, COALESCE(tr.name, i.sku) AS item_name,
   COALESCE((SELECT SUM(rl.qty) FROM goods_receipt_lines rl
             WHERE rl.po_line_id=l.id AND rl.deleted_at IS NULL),0)::numeric AS received_qty
 FROM purchase_order_lines l JOIN items i ON i.id=l.item_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
 WHERE l.po_id=$1 AND l.deleted_at IS NULL ORDER BY i.sku
 `
 
@@ -379,6 +381,7 @@ type ListPurchaseOrderLinesRow struct {
 	Version     int32
 	CreatedBy   uuid.NullUUID
 	Sku         string
+	ItemName    string
 	ReceivedQty decimal.Decimal
 }
 
@@ -403,6 +406,7 @@ func (q *Queries) ListPurchaseOrderLines(ctx context.Context, poID uuid.UUID) ([
 			&i.Version,
 			&i.CreatedBy,
 			&i.Sku,
+			&i.ItemName,
 			&i.ReceivedQty,
 		); err != nil {
 			return nil, err

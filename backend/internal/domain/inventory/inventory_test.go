@@ -568,3 +568,71 @@ func TestStockBalancesIsAView(t *testing.T) {
 		t.Errorf("stock_balances is a %s; it must be a view so balances stay derived (I5)", kind)
 	}
 }
+
+// A regression test for a real defect: sqlc typed `SUM(qty_delta)` as int64 in
+// both the stock_balances view and the ledger's running-balance window, so every
+// fractional quantity truncated to a whole number on the way out.
+//
+// It was invisible because the domain's own BalanceOf casts explicitly — only the
+// list and ledger read paths were affected, and neither had a fractional case.
+// CLAUDE.md §4.7 chose numeric(14,3) precisely so raw materials could be issued in
+// partial units, so 0.750 kg reading as 0 is the failure that rule exists to stop.
+func TestFractionalQuantitiesSurviveTheReadPath(t *testing.T) {
+	t.Parallel()
+	f := setup(t)
+	ctx := context.Background()
+
+	// Three partial issues that do not sum to a whole number.
+	for _, qty := range []string{"12.125", "0.750", "-0.375"} {
+		d, err := decimal.NewFromString(qty)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reason := inventory.ReasonGoodsReceipt
+		if d.IsNegative() {
+			reason = inventory.ReasonMaterialIssue
+		}
+		if _, err := f.svc.Post(ctx, f.actor, inventory.Movement{
+			Position: inventory.Position{ItemID: f.item, LocationID: f.locA},
+			QtyDelta: d, Reason: reason,
+		}); err != nil {
+			t.Fatalf("posting %s: %v", qty, err)
+		}
+	}
+	want := decimal.RequireFromString("12.500")
+
+	// The list view — a SUM through the view.
+	rows, _, err := f.svc.List(ctx, common.Params{Page: 1, PerPage: 20}, inventory.ListFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("%d positions, want 1", len(rows))
+	}
+	if !rows[0].StockBalance.OnHand.Equal(want) {
+		t.Errorf("list on_hand = %s, want %s", rows[0].StockBalance.OnHand, want)
+	}
+
+	// The ledger — a SUM through a window function, which is a separate cast.
+	ledger, err := f.svc.Ledger(ctx, inventory.Position{ItemID: f.item, LocationID: f.locA}, 20, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ledger) != 3 {
+		t.Fatalf("%d ledger rows, want 3", len(ledger))
+	}
+	// Ordered newest first, so the first row carries the final balance.
+	if !ledger[0].RunningBalance.Equal(want) {
+		t.Errorf("running balance = %s, want %s", ledger[0].RunningBalance, want)
+	}
+
+	// And BalanceOf, which was already correct — asserted so all three read paths
+	// are pinned to the same number rather than two of three.
+	balance, err := f.svc.BalanceOf(ctx, inventory.Position{ItemID: f.item, LocationID: f.locA})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !balance.Equal(want) {
+		t.Errorf("BalanceOf = %s, want %s", balance, want)
+	}
+}

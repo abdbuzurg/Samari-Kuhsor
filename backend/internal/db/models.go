@@ -639,8 +639,8 @@ type StockBalance struct {
 	ItemID         uuid.UUID
 	BatchID        uuid.NullUUID
 	LocationID     uuid.UUID
-	OnHand         int64
-	LastMovementAt interface{}
+	OnHand         decimal.Decimal
+	LastMovementAt pgtype.Timestamptz
 }
 
 type StockMovement struct {

@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/qoim/samari/backend/internal/alerts"
 	"github.com/qoim/samari/backend/internal/audit"
 	"github.com/qoim/samari/backend/internal/db"
 	"github.com/qoim/samari/backend/internal/http/common"
@@ -206,6 +207,26 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (db.Inquiry, error
 		After:      map[string]any{"reference_no": inquiry.ReferenceNo, "type": in.Type},
 	}); err != nil {
 		return db.Inquiry{}, err
+	}
+
+	// The third persisted notification (docs/05-MODULES.md §17).
+	//
+	// The title is the reference number, not a rendered sentence: the enquiry type
+	// is already carried by `kind`, and per C3 the label for it is chosen by the
+	// frontend in the reader's locale. Baking "Оптовый запрос" into the row would
+	// pin every notification to the language of whoever's submission created it.
+	//
+	// A complaint is
+	// danger, not warn: it is the entry point to the ToR's traceability workflow
+	// and the only enquiry type that can mean a product problem is in the field.
+	level := common.LevelInfo
+	if in.Type == TypeComplaint {
+		level = common.LevelDanger
+	}
+	if err := alerts.Emit(ctx, tx, uuid.NullUUID{}, alerts.KindInquiryReceived,
+		Resource, inquiry.ID, level,
+		inquiry.ReferenceNo, in.Name); err != nil {
+		return db.Inquiry{}, fmt.Errorf("inquiries: notify: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return db.Inquiry{}, fmt.Errorf("inquiries: commit: %w", err)

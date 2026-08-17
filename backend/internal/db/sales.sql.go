@@ -273,10 +273,12 @@ func (q *Queries) GetShipment(ctx context.Context, id uuid.UUID) (Shipment, erro
 }
 
 const listSalesOrderLines = `-- name: ListSalesOrderLines :many
-SELECT l.id, l.sales_order_id, l.item_id, l.batch_id, l.qty, l.unit_price, l.created_at, l.updated_at, l.deleted_at, l.version, l.created_by, i.sku, b.batch_no, b.status AS batch_status
+SELECT l.id, l.sales_order_id, l.item_id, l.batch_id, l.qty, l.unit_price, l.created_at, l.updated_at, l.deleted_at, l.version, l.created_by, i.sku, COALESCE(tr.name, i.sku) AS item_name, b.batch_no, b.status AS batch_status
 FROM sales_order_lines l
 JOIN items i ON i.id=l.item_id
 LEFT JOIN batches b ON b.id=l.batch_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
 WHERE l.sales_order_id=$1 AND l.deleted_at IS NULL ORDER BY i.sku
 `
 
@@ -293,6 +295,7 @@ type ListSalesOrderLinesRow struct {
 	Version      int32
 	CreatedBy    uuid.NullUUID
 	Sku          string
+	ItemName     string
 	BatchNo      *string
 	BatchStatus  *string
 }
@@ -319,6 +322,7 @@ func (q *Queries) ListSalesOrderLines(ctx context.Context, salesOrderID uuid.UUI
 			&i.Version,
 			&i.CreatedBy,
 			&i.Sku,
+			&i.ItemName,
 			&i.BatchNo,
 			&i.BatchStatus,
 		); err != nil {
@@ -396,8 +400,10 @@ func (q *Queries) ListSalesOrders(ctx context.Context, arg ListSalesOrdersParams
 }
 
 const listShipmentLines = `-- name: ListShipmentLines :many
-SELECT l.id, l.shipment_id, l.item_id, l.batch_id, l.qty, l.created_at, l.updated_at, l.deleted_at, l.version, l.created_by, i.sku, b.batch_no, b.status AS batch_status
+SELECT l.id, l.shipment_id, l.item_id, l.batch_id, l.qty, l.created_at, l.updated_at, l.deleted_at, l.version, l.created_by, i.sku, COALESCE(tr.name, i.sku) AS item_name, b.batch_no, b.status AS batch_status
 FROM shipment_lines l JOIN items i ON i.id=l.item_id JOIN batches b ON b.id=l.batch_id
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
 WHERE l.shipment_id=$1 AND l.deleted_at IS NULL ORDER BY i.sku
 `
 
@@ -413,6 +419,7 @@ type ListShipmentLinesRow struct {
 	Version     int32
 	CreatedBy   uuid.NullUUID
 	Sku         string
+	ItemName    string
 	BatchNo     string
 	BatchStatus string
 }
@@ -438,6 +445,7 @@ func (q *Queries) ListShipmentLines(ctx context.Context, shipmentID uuid.UUID) (
 			&i.Version,
 			&i.CreatedBy,
 			&i.Sku,
+			&i.ItemName,
 			&i.BatchNo,
 			&i.BatchStatus,
 		); err != nil {
@@ -452,10 +460,14 @@ func (q *Queries) ListShipmentLines(ctx context.Context, shipmentID uuid.UUID) (
 }
 
 const listShipments = `-- name: ListShipments :many
-SELECT id, trip_no, route_from, route_to, driver_id, vehicle_id, transport_cost, status, departed_at, delivered_at, created_at, updated_at, deleted_at, version, created_by FROM shipments WHERE deleted_at IS NULL
-  AND ($3::text IS NULL OR status=$3)
-  AND ($4::text IS NULL OR unaccent(lower(trip_no)) LIKE '%'||unaccent(lower($4))||'%')
-ORDER BY created_at DESC LIMIT $1 OFFSET $2
+SELECT s.id, s.trip_no, s.route_from, s.route_to, s.driver_id, s.vehicle_id, s.transport_cost, s.status, s.departed_at, s.delivered_at, s.created_at, s.updated_at, s.deleted_at, s.version, s.created_by, e.full_name AS driver_name, v.plate AS vehicle_plate
+FROM shipments s
+LEFT JOIN employees e ON e.id=s.driver_id
+LEFT JOIN vehicles v ON v.id=s.vehicle_id
+WHERE s.deleted_at IS NULL
+  AND ($3::text IS NULL OR s.status=$3)
+  AND ($4::text IS NULL OR unaccent(lower(s.trip_no)) LIKE '%'||unaccent(lower($4))||'%')
+ORDER BY s.created_at DESC LIMIT $1 OFFSET $2
 `
 
 type ListShipmentsParams struct {
@@ -465,7 +477,13 @@ type ListShipmentsParams struct {
 	Q      *string
 }
 
-func (q *Queries) ListShipments(ctx context.Context, arg ListShipmentsParams) ([]Shipment, error) {
+type ListShipmentsRow struct {
+	Shipment     Shipment
+	DriverName   *string
+	VehiclePlate *string
+}
+
+func (q *Queries) ListShipments(ctx context.Context, arg ListShipmentsParams) ([]ListShipmentsRow, error) {
 	rows, err := q.db.Query(ctx, listShipments,
 		arg.Limit,
 		arg.Offset,
@@ -476,25 +494,27 @@ func (q *Queries) ListShipments(ctx context.Context, arg ListShipmentsParams) ([
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Shipment{}
+	items := []ListShipmentsRow{}
 	for rows.Next() {
-		var i Shipment
+		var i ListShipmentsRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.TripNo,
-			&i.RouteFrom,
-			&i.RouteTo,
-			&i.DriverID,
-			&i.VehicleID,
-			&i.TransportCost,
-			&i.Status,
-			&i.DepartedAt,
-			&i.DeliveredAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-			&i.Version,
-			&i.CreatedBy,
+			&i.Shipment.ID,
+			&i.Shipment.TripNo,
+			&i.Shipment.RouteFrom,
+			&i.Shipment.RouteTo,
+			&i.Shipment.DriverID,
+			&i.Shipment.VehicleID,
+			&i.Shipment.TransportCost,
+			&i.Shipment.Status,
+			&i.Shipment.DepartedAt,
+			&i.Shipment.DeliveredAt,
+			&i.Shipment.CreatedAt,
+			&i.Shipment.UpdatedAt,
+			&i.Shipment.DeletedAt,
+			&i.Shipment.Version,
+			&i.Shipment.CreatedBy,
+			&i.DriverName,
+			&i.VehiclePlate,
 		); err != nil {
 			return nil, err
 		}
