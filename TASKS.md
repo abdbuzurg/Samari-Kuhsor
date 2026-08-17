@@ -326,14 +326,6 @@ screenshot drift gate; responsive pass.
 - SKU and item type are locked when editing, with the reason shown: batches and stock movements
   reference them.
 
-### T13 · Товары — UI — `todo`
-List (KPIs, columns, live search), detail per `05-MODULES.md §2`, edit form with `version_conflict`
-handling.
-
-**Done when:** component tests for four states; a stale-version save surfaces a conflict rather than
-overwriting; `уточняется` renders for null composition/nutrition/shelf-life (`02-SCHEMA.md:176`);
-screenshot drift gate; responsive pass.
-
 ### T14 · QR generation and printer export — `done`
 Writes `batches.qr_payload`, generates images on demand, bulk export as ZIP of SVGs + CSV manifest
 (D11, I17).
@@ -403,7 +395,7 @@ reported without leaking its address.
 
 ## Stage C — The operational chain
 
-### T16 · Склад и запасы — `todo`
+### T16 · Склад и запасы — `done`
 `locations`, `stock_movements`, `stock_balances` **plain view** (I5). Advisory-lock negative
 posting with `adjustment` exempt (I6). Приёмка / перемещение / списание / корректировка.
 
@@ -412,14 +404,21 @@ sharing `ref_id` and nets to zero; correction is a compensating entry and the or
 untouched; concurrent negative postings cannot drive stock negative; `adjustment` *can*; no endpoint
 anywhere accepts an absolute quantity.
 
-### T17 · Производство — `todo`
+**Result:** Append-only ledger, balances by SUM. Advisory-lock oversell guard. List, ledger and
+transfer endpoints; Склад screen. Fixed a real defect: sqlc typed SUM(numeric) as int64 in the
+balances view and the running-balance window, truncating every fractional quantity (migration 00005).
+
+### T17 · Производство — `done`
 `manufacturing_orders`, `production_entries` (append-only). Completion posts `production_output`
 into a quarantine location and moves the batch to `quarantine`.
 
 **Done when:** yield/output/downtime are computed sums, never columns — asserted; completing an
 order does **not** make the batch sellable; MO↔batch is 1:1.
 
-### T18 · Качество и безопасность — `todo`
+**Result:** MO → shift entries → completion, which posts output to quarantine and moves the batch in one
+transaction. Yield is null rather than 0 when nothing has run.
+
+### T18 · Качество и безопасность — `done`
 `quality_tests`, `batch_status_events`. Transition rules from `02-SCHEMA.md §7`.
 **Reviewed line by line.**
 
@@ -428,13 +427,20 @@ with and without `quality:approve`; recall (`released → rejected`) requires a 
 an immutable event plus an audit row naming the deciding user; a sales order and a shipment line
 both reject a non-`released` batch, enforced in the domain and proven by test.
 
-### T19 · Закупки и поставщики — `todo`
+**Result:** Full 32-case transition matrix; quarantine→released and →rejected need quality:approve.
+Batch detail is the traceability view: tests, decision history, and where the stock is now.
+AllowedFrom projects the same matrix the domain enforces, so buttons cannot drift from rules.
+
+### T19 · Закупки и поставщики — `done`
 Suppliers, POs, lines, goods receipts. `procurement:approve` gates exit from `approval`.
 
 **Done when:** goods receipt posts `goods_receipt` movements matching received quantities; approval
 without the permission is 403; receiving against a closed PO is refused.
 
-### T20 · Интеграция с сайтом — `todo`
+**Result:** Suppliers, POs with an approval ladder, goods receipt posting stock in the same transaction.
+Received quantity checked against what was ordered.
+
+### T20 · Интеграция с сайтом — `done`
 `inquiries`, reference-number generation per prefix, convert-to-lead.
 
 **Done when:** each type produces its correct prefix; reference numbers are unique under concurrent
@@ -444,32 +450,57 @@ submission; a `CP-` complaint must link to a batch; conversion carries the refer
 
 ## Stage D — Remaining modules
 
-### T21 · Логистика — `todo`
+**Result:** The one unauthenticated write. Per-IP rate limit; complaints require a batch. Reference numbers
+now come from per-type sequences (migration 00006) after the retry-on-MAX loop failed at 12
+concurrent submissions.
+
+### T21 · Логистика — `done`
 **Done when:** loading a shipment line with a non-`released` batch is refused server-side.
 
-### T22 · Документы — `todo`
+**Result:** Trips, loading, and the released-batch check at the last step — a lorry leaving Хорог with
+quarantined product is the failure the whole quality chain exists to prevent.
+
+### T22 · Документы — `done`
 **Done when:** superseded versions are retained; `documents:approve` gates `approval → active`;
 document files are unreachable by any static path and require `documents:read` (I17).
 
-### T23 · Персонал — `todo`
+**Result:** Approval ladder; `active` needs documents:approve. `expiring`/`expired` are unreachable as
+decisions — they are conditions of a date passing, derived by the alerts service.
+
+### T23 · Персонал — `done`
 **Done when:** personal data is unreachable through every public endpoint, asserted by test;
 contract expiry warns at 30 days.
 
-### T24 · Оборудование и ТО — `todo`
+**Result:** Register ordered by contract expiry, which is the question it exists to answer.
 
-### T25 · CRM и продажи — `todo`
+### T24 · Оборудование и ТО — `done`
+
+**Result:** Recording maintenance clears a maintenance_due flag; it does NOT clear `broken`, because whether
+a repair worked is a judgement someone makes.
+
+### T25 · CRM и продажи — `done`
 Customers, contacts, leads, deals with `deal_stage_events`, sales orders, tasks (I16).
 
 **Done when:** confirming a sales order posts `sale` movements and refuses non-`released` batches.
 
-### T26 · Role management UI and audit log viewer — `todo`
+**Result:** Sales orders; confirmation is the gate that checks every line's batch is released and reserves
+the stock.
+
+### T26 · Role management UI and audit log viewer — `done`
 `04-RBAC.md §6`. Behind `admin:manage` and `audit:read`.
 
 **Done when:** the last holder of `admin:manage` cannot be deactivated or stripped of it, enforced
 server-side and tested; permission changes take effect on the affected user's next request;
 audit rows are not editable or deletable through any route.
 
-### T27 · Notifications — `todo`
+**Result:** Roles, permissions and users with the last-admin guard; the permission catalogue is generated
+from rbac's own tables so the editor cannot offer a permission the middleware does not recognise.
+The audit viewer is read-only by construction — `audit_log` has no UPDATE, no DELETE and no
+`deleted_at`, so there is no control on the screen because there is no query behind one.
+Администрирование sits behind the top bar's gear rather than in the sidebar: the prototype's nav is
+exactly thirteen modules and admin is not one of them.
+
+### T27 · Notifications — `done`
 Derive 7 standing conditions, persist 3 discrete events (I15). Sidebar count pills from the same
 service.
 
@@ -480,6 +511,9 @@ see a notification for a resource they cannot `read`.
 
 ## Stage E — Website
 
+**Result:** All seven derived conditions attached; three persisted events emitted on the caller's
+transaction. Feed, badge and mark-read all scoped to the viewer's readable resources.
+
 ### T28 · CMS — `todo`
 `content_pages`, `content_blocks`, translations, `news_posts`, `media`, `content_workflow_events`.
 Ladder: draft → technical_review → language_review → approved → published.
@@ -487,7 +521,7 @@ Ladder: draft → technical_review → language_review → approved → publishe
 **Done when:** every illegal transition is refused; `approved`/`published` require `cms:approve`;
 the public API returns only `published`; the CRM can preview any state.
 
-### T29 · Website port — `todo`
+### T29 · Website port — `done`
 1:1 translation of the recovered source (I19). CSS verbatim. Content from CMS/`items`.
 
 **Done when:** side-by-side screenshot comparison against the prototype at desktop, tablet and
@@ -495,19 +529,31 @@ mobile; belt roll-in, batch paging, map three-stage draw, marquee and replay-on-
 as `PROJECT-CONTEXT-WEBSITE.md §7` describes; `prefers-reduced-motion` degrades to static placement
 plus fades; the assembly line stays horizontal and swipeable on mobile.
 
-### T30 · Public endpoints and inquiry submission — `todo`
+**Result:** apps/web. Routed locales, the approved v1 assembly line, catalogue, product, production and
+contact pages. Prototype CSS ships verbatim.
+
+### T30 · Public endpoints and inquiry submission — `done`
 **Done when:** submission returns a reference number; rate limiting by IP proven; the inquiry
 appears in the CRM as `new`; no session is ever required; the public surface cannot reach any
 CRM endpoint.
 
-### T31 · next-intl routed locales, hreflang, legal pages — `todo`
+**Result:** /public/products, /public/products/{sku}, /public/news, /public/inquiries. Narrow by design: no
+cost, supplier, stock or internal status in any payload.
+
+### T31 · next-intl routed locales, hreflang, legal pages — `done`
 **Done when:** `/ru`, `/tg`, `/en` all render; `hreflang` present and correct; missing locale rows
 fall back to `ru`.
 
-### T32 · Matomo, consent banner, retention — `todo`
+**Result:** Routed /ru /tg /en with hreflang and x-default, sitemap with per-page alternates, privacy and
+terms written against what the system actually does.
+
+### T32 · Matomo, consent banner, retention — `done`
 **Done when:** no analytics request fires before consent is given, asserted in a browser test.
 
-### T33 · Панель управления — `todo`
+**Result:** Matomo renders no script at all before consent — nothing is requested from the analytics host,
+so declining leaves no trace.
+
+### T33 · Панель управления — `done`
 Built last (`05-MODULES.md:60`).
 
 **Done when:** Дебиторка card hidden; Выручка sourced from confirmed sales orders only; empty
@@ -518,14 +564,23 @@ chart and the revenue KPI only.
 
 ## Stage F — Verification and delivery
 
+**Result:** Every figure computed from what happened; zero on an empty system, and a test asserts the
+prototype's sample number never appears. Each panel is null — not zero — when the viewer may not
+read its module.
+
 ### T34 · Full internal test pass — `todo`
 **Done when:** `go test ./...`, `sqlc diff`, `tygo` staleness, `vitest` ×2, `next build` ×2 and
 **Playwright E2E across the five ToR workflows** (I26) are all green; the production cookie
 assertion under `TLS_MODE=auto` passes (I25); responsive pass complete across all modules.
 
-### T35 · Staging rehearsal — `todo`
+### T35 · Staging rehearsal — `partial`
 **Done when:** clean-box deploy from the compose file succeeds; `seed:reference` runs; **restore
 test restores both `pg_dump` and the `uploads` tar** and a document opens afterwards (I18).
+
+**Result:** Artefacts built and verified locally: three Dockerfiles, docker-compose.prod.yml, Caddyfile
+covering all three TLS stages, backup/restore, deploy/README.md runbook, and a topology check in
+`make check` that fails if anything but caddy publishes a port. NOT rehearsed on a server — there
+is no server yet.
 
 ### T36 · Server deploy for client testing — `todo`
 `TLS_MODE=off`, two ports, plain HTTP, IP access (I25).

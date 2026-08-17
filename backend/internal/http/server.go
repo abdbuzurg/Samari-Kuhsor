@@ -312,6 +312,11 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 			rbac.Admin, rbac.Manage, s.handleSetUserRoles)
 		v1.Guarded(api, http.MethodPut, "/admin/users/{id}/active",
 			rbac.Admin, rbac.Manage, s.handleSetUserActive)
+		// The audit viewer. audit:read, not admin:manage — reading the trail and
+		// changing who may do what are different authorities, and an auditor
+		// should not need the power to grant themselves anything.
+		v1.Guarded(api, http.MethodGet, "/audit",
+			rbac.Audit, rbac.Read, s.handleAuditLog)
 		v1.Guarded(api, http.MethodGet, "/admin/permissions",
 			rbac.Admin, rbac.Read, s.handlePermissionCatalogue)
 	})

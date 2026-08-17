@@ -1,7 +1,9 @@
 'use client';
 
 import type {
+  AdminUserRow,
   Asset,
+  AuditEntry,
   BatchDetail,
   BatchListRow,
   Document,
@@ -10,7 +12,9 @@ import type {
   MaintenanceEvent,
   ManufacturingOrder,
   ManufacturingOrderRow,
+  PermissionCatalogue,
   PurchaseOrder,
+  RoleDetail,
   PurchaseOrderRow,
   SalesOrder,
   SalesOrderRow,
@@ -19,10 +23,15 @@ import type {
   Supplier,
 } from '@samari/types';
 
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { ApiError } from '@/lib/session';
-import { createResourceHooks, type ListQuery } from '@/lib/resource';
+import {
+  createResourceHooks,
+  toSearchParams,
+  type Collection,
+  type ListQuery,
+} from '@/lib/resource';
 
 /**
  * The data layer for the operating chain and commerce modules.
@@ -244,4 +253,122 @@ export function useDocuments(query: StatusQuery) {
 export const useCreateDocument = documents.useCreate;
 export function useTransitionDocument(id: string) {
   return documents.useAction<Document>(id, 'transition');
+}
+
+// ---------------------------------------------------------------------------
+// Администрирование
+// ---------------------------------------------------------------------------
+
+const roles = createResourceHooks<RoleDetail, RoleDetail>('admin/roles');
+export function useRoles() {
+  return roles.useList({});
+}
+export const useCreateRole = roles.useCreate;
+export const useDeleteRole = roles.useRemove;
+
+const users = createResourceHooks<AdminUserRow, AdminUserRow>('admin/users');
+export function useAdminUsers(query: StatusQuery) {
+  return users.useList(withStatus(query));
+}
+
+/** The permission catalogue the role editor renders its checkboxes from. */
+export function usePermissionCatalogue() {
+  return useQuery<PermissionCatalogue>({
+    queryKey: ['admin', 'permissions'],
+    queryFn: () => getJSON<PermissionCatalogue>('/api/admin/permissions'),
+  });
+}
+
+/** PUT, not POST: replacing a role's whole permission set is idempotent, and a
+ *  partial update would make "revoke" impossible to express. */
+export function useSetRolePermissions() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ roleId, permissions }: { roleId: string; permissions: string[] }) =>
+      putJSON(`/api/admin/roles/${roleId}/permissions`, { permissions }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin/roles'] }),
+  });
+}
+
+export function useSetUserRoles() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, roleIds }: { userId: string; roleIds: string[] }) =>
+      putJSON(`/api/admin/users/${userId}/roles`, { role_ids: roleIds }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin/users'] }),
+  });
+}
+
+export function useSetUserActive() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ userId, active }: { userId: string; active: boolean }) =>
+      putJSON(`/api/admin/users/${userId}/active`, { active }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin/users'] }),
+  });
+}
+
+export interface AuditQuery {
+  resource?: string;
+  actorId?: string;
+  page?: number;
+}
+
+/**
+ * The audit log, read with a plain query rather than through the resource engine.
+ *
+ * The engine's detail type requires `version`, and an audit entry has none —
+ * deliberately. It is append-only evidence with no update path, so there is
+ * nothing to guard a concurrent edit against. Forcing it through the CRUD engine
+ * would mean inventing a field to satisfy a constraint that does not apply.
+ */
+export function useAuditLog(query: AuditQuery) {
+  return useQuery<Collection<AuditEntry>>({
+    queryKey: ['audit', query],
+    queryFn: async () => {
+      const search = toSearchParams({
+        page: query.page,
+        filters: { resource: query.resource, actor_id: query.actorId },
+      });
+      const res = await fetch(`/api/audit${search}`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new ApiError(
+          res.status,
+          body?.error?.code ?? 'internal_error',
+          body?.error?.message ?? '',
+        );
+      }
+      return { data: body.data ?? [], meta: body.meta };
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
+async function getJSON<T>(path: string): Promise<T> {
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' } });
+  const body = await res.json();
+  if (!res.ok) {
+    throw new ApiError(res.status, body?.error?.code ?? 'internal_error', body?.error?.message ?? '');
+  }
+  return body.data as T;
+}
+
+async function putJSON(path: string, payload: unknown): Promise<void> {
+  const res = await fetch(path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new ApiError(
+      res.status,
+      body?.error?.code ?? 'internal_error',
+      body?.error?.message ?? '',
+      body?.error?.details,
+    );
+  }
 }

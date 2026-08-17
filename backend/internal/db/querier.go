@@ -229,7 +229,12 @@ type Querier interface {
 	ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListAssetsRow, error)
 	// The audit viewer (docs/04-RBAC.md §6), filterable by actor, resource and date
 	// range. NULL means "no filter" for each dimension.
-	ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLog, error)
+	//
+	// The actor's NAME is joined in, because a viewer scanning for who released a
+	// batch cannot read a UUID. The join is LEFT: a public enquiry has no actor, and
+	// an inner join would silently hide exactly the rows that are least accounted
+	// for.
+	ListAudit(ctx context.Context, arg ListAuditParams) ([]ListAuditRow, error)
 	// Powers the activity panel on every detail view (docs/05-MODULES.md §2).
 	ListAuditForResource(ctx context.Context, arg ListAuditForResourceParams) ([]AuditLog, error)
 	ListBatchStatusEvents(ctx context.Context, batchID uuid.UUID) ([]ListBatchStatusEventsRow, error)

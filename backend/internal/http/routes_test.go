@@ -102,6 +102,7 @@ var everyGuardedRoute = []routeCase{
 	{"PUT", "/api/v1/admin/users/" + zeroUUID + "/roles", "admin:manage", `{"role_ids":[]}`},
 	{"PUT", "/api/v1/admin/users/" + zeroUUID + "/active", "admin:manage", `{"active":false}`},
 	{"GET", "/api/v1/admin/permissions", "admin:read", ""},
+	{"GET", "/api/v1/audit", "audit:read", ""},
 }
 
 const zeroUUID = "00000000-0000-0000-0000-000000000000"

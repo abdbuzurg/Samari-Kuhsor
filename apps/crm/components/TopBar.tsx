@@ -2,7 +2,8 @@
 
 import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
-import { Search, Bell, Settings, ChevronDown, User, LogOut } from 'lucide-react';
+import Link from 'next/link';
+import { Search, Bell, Settings, ChevronDown, User, LogOut, ScrollText } from 'lucide-react';
 
 import { locales, localeLabels, type Locale } from '@/i18n/config';
 
@@ -23,6 +24,12 @@ export interface TopBarProps {
   roleName: string;
   locale: Locale;
   unreadCount?: number;
+  /** Shows the Администрирование gear. Cosmetic — Go refuses regardless. */
+  canAdminister?: boolean;
+  /** Shows Журнал действий in the user menu. Guarded on audit:read, which is a
+   *  different authority from admin:manage: reading the trail and changing who
+   *  may do what are not the same power. */
+  canAudit?: boolean;
   onLocaleChange: (locale: Locale) => void;
   onLogout: () => void;
   onSearch?: (query: string) => void;
@@ -33,6 +40,8 @@ export function TopBar({
   roleName,
   locale,
   unreadCount = 0,
+  canAdminister = false,
+  canAudit = false,
   onLocaleChange,
   onLogout,
   onSearch,
@@ -114,13 +123,22 @@ export function TopBar({
         )}
       </button>
 
-      <button
-        type="button"
-        className="w-9 h-9 grid place-items-center rounded-sm hover:bg-white/10"
-        aria-label={t('settings')}
-      >
-        <Settings size={17} aria-hidden />
-      </button>
+      {/* Администрирование lives here rather than in the sidebar. The
+          prototype's nav is exactly thirteen modules and admin is not one of
+          them (design/Samari-Kuhsor-Green-CRM.html:549); adding a fourteenth
+          would be a change the client did not ask for. The gear is where the
+          prototype already put settings, and it is hidden entirely from a user
+          who cannot administer — hiding is cosmetic, but a control that always
+          fails is its own defect. */}
+      {canAdminister && (
+        <Link
+          href="/admin"
+          className="w-9 h-9 grid place-items-center rounded-sm hover:bg-white/10"
+          aria-label={t('settings')}
+        >
+          <Settings size={17} aria-hidden />
+        </Link>
+      )}
 
       <div className="relative">
         <button
@@ -163,6 +181,16 @@ export function TopBar({
               <User size={15} aria-hidden />
               {t('profile')}
             </button>
+            {canAudit && (
+              <Link
+                href="/audit"
+                role="menuitem"
+                className="w-full flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-black/5"
+              >
+                <ScrollText size={15} aria-hidden />
+                Журнал действий
+              </Link>
+            )}
             <button
               type="button"
               role="menuitem"

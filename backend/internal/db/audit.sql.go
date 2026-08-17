@@ -106,13 +106,14 @@ func (q *Queries) InsertAuditEntry(ctx context.Context, arg InsertAuditEntryPara
 }
 
 const listAudit = `-- name: ListAudit :many
-SELECT id, actor_id, action, resource, resource_id, before, after, ip, occurred_at FROM audit_log
-WHERE ($3::uuid IS NULL OR actor_id = $3)
-  AND ($4::text IS NULL OR resource = $4)
-  AND ($5::uuid IS NULL OR resource_id = $5)
-  AND ($6::timestamptz IS NULL OR occurred_at >= $6)
-  AND ($7::timestamptz IS NULL OR occurred_at <= $7)
-ORDER BY occurred_at DESC, id DESC
+SELECT a.id, a.actor_id, a.action, a.resource, a.resource_id, a.before, a.after, a.ip, a.occurred_at, u.full_name AS actor_name FROM audit_log a
+LEFT JOIN users u ON u.id = a.actor_id
+WHERE ($3::uuid IS NULL OR a.actor_id = $3)
+  AND ($4::text IS NULL OR a.resource = $4)
+  AND ($5::uuid IS NULL OR a.resource_id = $5)
+  AND ($6::timestamptz IS NULL OR a.occurred_at >= $6)
+  AND ($7::timestamptz IS NULL OR a.occurred_at <= $7)
+ORDER BY a.occurred_at DESC, a.id DESC
 LIMIT $1 OFFSET $2
 `
 
@@ -126,9 +127,27 @@ type ListAuditParams struct {
 	ToTs       pgtype.Timestamptz
 }
 
+type ListAuditRow struct {
+	ID         uuid.UUID
+	ActorID    uuid.NullUUID
+	Action     string
+	Resource   string
+	ResourceID uuid.NullUUID
+	Before     []byte
+	After      []byte
+	Ip         *netip.Addr
+	OccurredAt pgtype.Timestamptz
+	ActorName  *string
+}
+
 // The audit viewer (docs/04-RBAC.md §6), filterable by actor, resource and date
 // range. NULL means "no filter" for each dimension.
-func (q *Queries) ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLog, error) {
+//
+// The actor's NAME is joined in, because a viewer scanning for who released a
+// batch cannot read a UUID. The join is LEFT: a public enquiry has no actor, and
+// an inner join would silently hide exactly the rows that are least accounted
+// for.
+func (q *Queries) ListAudit(ctx context.Context, arg ListAuditParams) ([]ListAuditRow, error) {
 	rows, err := q.db.Query(ctx, listAudit,
 		arg.Limit,
 		arg.Offset,
@@ -142,9 +161,9 @@ func (q *Queries) ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLo
 		return nil, err
 	}
 	defer rows.Close()
-	items := []AuditLog{}
+	items := []ListAuditRow{}
 	for rows.Next() {
-		var i AuditLog
+		var i ListAuditRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.ActorID,
@@ -155,6 +174,7 @@ func (q *Queries) ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLo
 			&i.After,
 			&i.Ip,
 			&i.OccurredAt,
+			&i.ActorName,
 		); err != nil {
 			return nil, err
 		}

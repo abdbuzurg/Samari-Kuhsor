@@ -1,6 +1,7 @@
 package http
 
 import (
+	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -419,4 +420,75 @@ func (s *Server) handlePermissionCatalogue(w http.ResponseWriter, r *http.Reques
 		out.Resources = append(out.Resources, api.PermissionResource{Key: res, Actions: actions})
 	}
 	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+}
+
+// handleAuditLog serves the audit viewer (docs/04-RBAC.md §6).
+//
+// Read-only, and not by convention: audit_log has no UPDATE and no DELETE query
+// anywhere in this repository and no deleted_at column to tombstone with. There
+// is no route that could edit an entry because there is no query that could.
+func (s *Server) handleAuditLog(w http.ResponseWriter, r *http.Request) {
+	params, err := common.ParseParams(r, admin.AuditSortSpec)
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	filter := admin.AuditFilter{Resource: optionalQuery(r, "resource")}
+	if raw := r.URL.Query().Get("actor_id"); raw != "" {
+		id, err := parseUUIDField(raw, "actor_id")
+		if err != nil {
+			common.Fail(w, r, err)
+			return
+		}
+		filter.ActorID = uuid.NullUUID{UUID: id, Valid: true}
+	}
+	if raw := r.URL.Query().Get("resource_id"); raw != "" {
+		id, err := parseUUIDField(raw, "resource_id")
+		if err != nil {
+			common.Fail(w, r, err)
+			return
+		}
+		filter.ResourceID = uuid.NullUUID{UUID: id, Valid: true}
+	}
+
+	rows, total, err := s.svc.Admin.Audit(r.Context(), params, filter)
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	out := make([]api.AuditEntry, 0, len(rows))
+	for _, row := range rows {
+		entry := api.AuditEntry{
+			ID: row.ID.String(), Action: row.Action, Resource: row.Resource,
+			ActorName:  row.ActorName,
+			OccurredAt: common.Timestamp(row.OccurredAt),
+			Before:     rawJSON(row.Before),
+			After:      rawJSON(row.After),
+		}
+		if row.ResourceID.Valid {
+			id := row.ResourceID.UUID.String()
+			entry.ResourceID = &id
+		}
+		if row.ActorID.Valid {
+			id := row.ActorID.UUID.String()
+			entry.ActorID = &id
+		}
+		if row.Ip != nil {
+			ip := row.Ip.String()
+			entry.IP = &ip
+		}
+		out = append(out, entry)
+	}
+	common.List(w, out, common.NewPageMeta(params, total))
+}
+
+// rawJSON passes a jsonb column through as JSON rather than as a base64 string.
+//
+// Without this the before/after payloads reach the browser as the raw []byte
+// Go marshals them from, which renders as base64 and is useless to a reader.
+func rawJSON(b []byte) any {
+	if len(b) == 0 {
+		return nil
+	}
+	return json.RawMessage(b)
 }

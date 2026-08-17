@@ -19,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/qoim/samari/backend/internal/audit"
@@ -480,4 +481,51 @@ func permStrings(rows []db.RolePermission) []string {
 		out = append(out, r.Resource+":"+r.Action)
 	}
 	return out
+}
+
+// ---------------------------------------------------------------------------
+// Audit viewer
+// ---------------------------------------------------------------------------
+
+// AuditSortSpec is deliberately not a whitelist of columns.
+//
+// The audit log has exactly one useful order — newest first — and offering to
+// sort it by resource or actor invites reading it as a report rather than as a
+// chronology. Filters narrow it; the order does not change.
+var AuditSortSpec = common.SortSpec{
+	Allowed:     []string{"occurred_at"},
+	Default:     "occurred_at",
+	DefaultDesc: true,
+}
+
+// AuditFilter narrows the viewer. Every field is optional; nil means no filter.
+type AuditFilter struct {
+	ActorID    uuid.NullUUID
+	Resource   *string
+	ResourceID uuid.NullUUID
+	From, To   pgtype.Timestamptz
+}
+
+// Audit returns audit entries for the viewer (docs/04-RBAC.md §6).
+//
+// There is no write path here and there never will be: audit_log has no UPDATE
+// and no DELETE query anywhere in this repository, and no deleted_at column to
+// tombstone with. That is what makes it evidence rather than a log.
+func (s *Service) Audit(ctx context.Context, p common.Params, f AuditFilter) ([]db.ListAuditRow, int64, error) {
+	q := db.New(s.pool)
+	rows, err := q.ListAudit(ctx, db.ListAuditParams{
+		ActorID: f.ActorID, Resource: f.Resource, ResourceID: f.ResourceID,
+		FromTs: f.From, ToTs: f.To, Limit: p.Limit(), Offset: p.Offset(),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("admin: audit: %w", err)
+	}
+	total, err := q.CountAudit(ctx, db.CountAuditParams{
+		ActorID: f.ActorID, Resource: f.Resource, ResourceID: f.ResourceID,
+		FromTs: f.From, ToTs: f.To,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("admin: count audit: %w", err)
+	}
+	return rows, total, nil
 }

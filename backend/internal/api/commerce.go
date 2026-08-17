@@ -545,3 +545,22 @@ type PublicNewsItem struct {
 	Title       string  `json:"title"`
 	Excerpt     *string `json:"excerpt" tstype:"string | null"`
 }
+
+// AuditEntry is one line of the audit viewer.
+//
+// `before` and `after` are raw JSON, passed through rather than shaped: the
+// audit trail records what each module actually wrote, and a DTO that flattened
+// those into named fields would have to be edited every time any module gained
+// one — at which point old entries would render wrong.
+type AuditEntry struct {
+	ID         string  `json:"id"`
+	Action     string  `json:"action"`
+	Resource   string  `json:"resource"`
+	ResourceID *string `json:"resource_id" tstype:"string | null"`
+	ActorID    *string `json:"actor_id" tstype:"string | null"`
+	ActorName  *string `json:"actor_name" tstype:"string | null"`
+	IP         *string `json:"ip" tstype:"string | null"`
+	OccurredAt string  `json:"occurred_at"`
+	Before     any     `json:"before" tstype:"unknown"`
+	After      any     `json:"after" tstype:"unknown"`
+}

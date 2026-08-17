@@ -6,7 +6,7 @@ import { useTransition, type ReactNode } from 'react';
 
 import { Sidebar } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
-import { useSession, useLogout } from '@/lib/session';
+import { useSession, useLogout, can } from '@/lib/session';
 import { setLocale } from '@/app/actions';
 import type { Locale } from '@/i18n/config';
 import type { Role } from '@samari/types';
@@ -104,6 +104,8 @@ export function AppShell({
           userName={user.full_name}
           roleName={roleName(user.roles[0], locale)}
           locale={locale}
+          canAdminister={can(user.permissions, 'admin', 'manage')}
+          canAudit={can(user.permissions, 'audit', 'read')}
           onLocaleChange={handleLocaleChange}
           onLogout={handleLogout}
         />

@@ -497,6 +497,25 @@ export interface PublicNewsItem {
   title: string;
   excerpt?: string | null;
 }
+/**
+ * AuditEntry is one line of the audit viewer.
+ * `before` and `after` are raw JSON, passed through rather than shaped: the
+ * audit trail records what each module actually wrote, and a DTO that flattened
+ * those into named fields would have to be edited every time any module gained
+ * one — at which point old entries would render wrong.
+ */
+export interface AuditEntry {
+  id: string;
+  action: string;
+  resource: string;
+  resource_id?: string | null;
+  actor_id?: string | null;
+  actor_name?: string | null;
+  ip?: string | null;
+  occurred_at: string;
+  before: unknown;
+  after: unknown;
+}
 
 //////////
 // source: operations.go
