@@ -93,7 +93,7 @@ harness startup measured and recorded; `AssertAudited` fails loudly when no audi
 - `CREATE DATABASE … TEMPLATE` refuses to run while anything is connected to the template, so the
   explicit close after migrating is load-bearing, not tidiness.
 
-### T05 · Auth — `todo`
+### T05 · Auth — `done` (domain; HTTP endpoints land in T07)
 argon2id, `POST /auth/login`, `POST /auth/logout`, `GET /auth/me`, session token hashed at rest,
 `failed_attempts`/`locked_until` lockout, idle timeout, absolute expiry, logout-everywhere on
 password change.
@@ -102,6 +102,23 @@ password change.
 `failed_attempts`; N failures lock the account; locked account rejects a *correct* password;
 expired session rejected; revoked session rejected; `/auth/me` returns the flat permission list;
 login and logout both write `audit_log`; the raw token never appears in the database.
+
+**Result:** `internal/audit` + `internal/auth`, **33 tests green**. Every gate item covered, plus:
+- `TestRawTokenIsNeverStored` enumerates *every* text column in *every* table and asserts the raw
+  token appears in none of them — not just that `sessions.token_hash` looks like a digest.
+- Deactivating a user takes effect on their **next request**, not their next login. A dismissed
+  employee whose session stays valid until it lapses is a real access-control hole.
+- A failed login writes **no** audit row (the counter increment still commits).
+- The password-change audit entry is asserted to contain neither the plaintext nor any hash.
+- Verification uses the parameters stored in the hash, so raising argon2 cost later cannot lock
+  every user out.
+- Unknown email still pays for a hash comparison, so login timing is not a user-enumeration oracle.
+
+*Sequencing note:* this task delivers the auth **domain**. The `/auth/*` HTTP endpoints need the
+response envelope and error mapping, so they are wired in T07 alongside the RBAC middleware.
+*Test-design note:* lockout expiry is tested by expiring `locked_until` directly rather than by
+sleeping — argon2 is deliberately slow, so a lockout short enough to wait for is shorter than the
+failed attempts that trigger it, and such a test passes or fails on machine speed.
 
 ### T06 · RBAC — `todo`
 `rbac.Require(resource, action)`, permission resolution as the union across roles, `manage` implies
