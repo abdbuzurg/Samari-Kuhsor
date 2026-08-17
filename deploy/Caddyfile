@@ -1,0 +1,78 @@
+# Caddy, fronting both apps.
+#
+# Written to serve three deploy stages from one file, because rewriting the
+# reverse proxy at the moment DNS goes live is exactly when a mistake is
+# expensive:
+#
+#   TLS_MODE=off       both apps on port 80 by path. What the client tests on.
+#   TLS_MODE=internal  Caddy's own CA, for a staging rehearsal.
+#   TLS_MODE=auto      Let's Encrypt on the real hostnames.
+#
+# The path split under `off` exists because there is only one IP and no DNS: the
+# site is at / and the CRM at /crm. Once hostnames exist, each gets its own
+# server block and the path prefix disappears.
+
+{
+	admin off
+	# Let's Encrypt needs an address to warn about expiry. Empty is fine when TLS
+	# is off or internal.
+	email {$ACME_EMAIL}
+}
+
+(common) {
+	encode zstd gzip
+
+	header {
+		# Sent regardless of TLS mode. They cost nothing over HTTP and mean the
+		# headers are not something to remember to add on launch day.
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		# No third-party anything: fonts are self-hosted through next/font and
+		# Matomo runs on our own host, so the policy can be this tight.
+		Content-Security-Policy "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+		-Server
+	}
+}
+
+# ---------------------------------------------------------------------------
+# TLS_MODE=off — one IP, no DNS. The client's first test.
+# ---------------------------------------------------------------------------
+:80 {
+	import common
+
+	# The CRM under /crm. handle_path strips the prefix before proxying, so the
+	# app itself is unaware it is mounted under one.
+	handle_path /crm/* {
+		reverse_proxy crm:3000
+	}
+	# Bare /crm with no trailing slash would otherwise 404.
+	redir /crm /crm/ permanent
+
+	handle {
+		reverse_proxy web:3001
+	}
+}
+
+# ---------------------------------------------------------------------------
+# TLS_MODE=internal / auto — real hostnames, one server block each.
+#
+# These blocks are inert until SITE_HOST and CRM_HOST are set to hostnames; with
+# the defaults they collapse onto :80 above and Caddy ignores the duplicates.
+# Uncomment the tls directive that matches the mode when DNS lands (T38).
+# ---------------------------------------------------------------------------
+# {$SITE_HOST} {
+# 	import common
+# 	# tls internal          # TLS_MODE=internal
+# 	reverse_proxy web:3001
+# }
+#
+# {$CRM_HOST} {
+# 	import common
+# 	# tls internal          # TLS_MODE=internal
+# 	reverse_proxy crm:3000
+#
+# 	# The CRM is staff-only and must never be indexed, even accidentally.
+# 	header /robots.txt Content-Type text/plain
+# 	respond /robots.txt "User-agent: *\nDisallow: /\n" 200
+# }

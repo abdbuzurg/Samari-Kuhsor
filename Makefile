@@ -111,6 +111,7 @@ check: ## THE GATE — everything that must be green before the next task opens
 	echo "==> web tests";     $(MAKE) --no-print-directory test-web; \
 	echo "==> next build";    $(MAKE) --no-print-directory build; \
 	echo "==> bundle safety"; $(MAKE) --no-print-directory _check-bundle; \
+	echo "==> topology";      $(MAKE) --no-print-directory _check-topology; \
 	echo; echo "check: GREEN"
 
 # CLAUDE.md §3: no backend URL, token or service credential may appear in
@@ -122,6 +123,14 @@ _check-bundle:
 		if [ -d "$$app/.next/static" ]; then node tools/check-bundle.mjs $$app || exit 1; checked=1; fi; \
 	done; \
 	if [ $$checked -eq 0 ]; then echo "   (no build output yet)"; fi
+
+# The production topology IS the security model: caddy is the only service with a
+# host port, and the api has none at all. Checked against the RENDERED compose
+# config rather than the YAML, because an override file or a profile would escape
+# a regex over the source.
+_check-topology:
+	@if command -v docker >/dev/null 2>&1; then node tools/check-topology.mjs; \
+	else echo "   (docker not available; topology unchecked)"; fi
 
 # Everything derived from design/ must match design/. The extractors assert the
 # semantic invariants (locale shape, no `tj` key, the CLAUDE.md §5 design contract)

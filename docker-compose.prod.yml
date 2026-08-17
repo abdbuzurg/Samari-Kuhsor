@@ -1,0 +1,123 @@
+# Production topology — docs/07-IMPLEMENTATION-PLAN.md I18.
+#
+# The shape of this file is the security model, so read the ports section before
+# changing anything:
+#
+#   caddy   publishes 80 and 443. It is the ONLY service with a host port.
+#   crm     3000, compose network only.
+#   web     3001, compose network only.
+#   api     8080, compose network only — NOT reachable from the host at all.
+#   db      5432, compose network only.
+#
+# That is what makes "the browser never calls the Go API directly" (CLAUDE.md §3)
+# a fact about the network rather than a convention people follow. The service
+# key is defence in depth behind it, never the only lock.
+#
+# TLS_MODE (I18) has three settings and the deploy sequence uses all three:
+#   off      — plain HTTP on a bare IP. What the client tests on first, because
+#              the domains are not registered yet.
+#   internal — Caddy's own CA. For a staging rehearsal with a hosts-file name.
+#   auto     — Let's Encrypt. Switched on when DNS resolves (T38).
+
+name: samari
+
+x-restart: &restart
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:18-alpine
+    <<: *restart
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-samari}
+      POSTGRES_INITDB_ARGS: "--locale-provider=icu --icu-locale=und-x-icu --encoding=UTF8"
+    volumes:
+      # Postgres 18 stores data in a major-version subdirectory and needs the
+      # mount at /var/lib/postgresql, NOT /var/lib/postgresql/data. Mounting the
+      # old path makes the container refuse to start — this cost an hour in dev.
+      - pgdata:/var/lib/postgresql
+      - ./deploy/backup:/backup
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    <<: *restart
+    # No `ports:`. Deliberate, and the single most important line in this file.
+    environment:
+      APP_ENV: production
+      ADDR: ":8080"
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-samari}?sslmode=disable
+      SERVICE_KEY: ${SERVICE_KEY:?set SERVICE_KEY}
+      TLS_MODE: ${TLS_MODE:-off}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?set PUBLIC_SITE_URL}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  crm:
+    build:
+      context: .
+      dockerfile: apps/crm/Dockerfile
+    <<: *restart
+    environment:
+      NODE_ENV: production
+      BACKEND_URL: http://api:8080
+      SERVICE_KEY: ${SERVICE_KEY:?set SERVICE_KEY}
+      # Governs the Secure flag on the session cookie. `off` during the IP-based
+      # client test, because a Secure cookie is never sent over plain HTTP and
+      # nobody would be able to log in.
+      TLS_MODE: ${TLS_MODE:-off}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    <<: *restart
+    environment:
+      NODE_ENV: production
+      BACKEND_URL: http://api:8080
+      SERVICE_KEY: ${SERVICE_KEY:?set SERVICE_KEY}
+      # Canonical URLs and hreflang point here. While it is a bare IP,
+      # robots.txt disallows everything — see app/robots.ts.
+      NEXT_PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?set PUBLIC_SITE_URL}
+      NEXT_PUBLIC_MATOMO_URL: ${MATOMO_URL:-}
+      NEXT_PUBLIC_MATOMO_SITE_ID: ${MATOMO_SITE_ID:-}
+    depends_on:
+      api:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    <<: *restart
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      TLS_MODE: ${TLS_MODE:-off}
+      SITE_HOST: ${SITE_HOST:-:80}
+      CRM_HOST: ${CRM_HOST:-:80}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - crm
+      - web
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
