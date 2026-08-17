@@ -52,6 +52,8 @@ type Querier interface {
 	CountListItems(ctx context.Context, arg CountListItemsParams) (int64, error)
 	CountMaintenanceDue(ctx context.Context, days int32) (int32, error)
 	CountManufacturingOrders(ctx context.Context, arg CountManufacturingOrdersParams) (int64, error)
+	CountMedia(ctx context.Context, q_ *string) (int64, error)
+	CountNewsPosts(ctx context.Context, arg CountNewsPostsParams) (int64, error)
 	CountOverdueDeliveries(ctx context.Context) (int32, error)
 	CountOverdueTasks(ctx context.Context) (int32, error)
 	CountPurchaseOrders(ctx context.Context, arg CountPurchaseOrdersParams) (int64, error)
@@ -68,6 +70,7 @@ type Querier interface {
 	CountUsersHoldingPermission(ctx context.Context, arg CountUsersHoldingPermissionParams) (int32, error)
 	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
 	CreateBatch(ctx context.Context, arg CreateBatchParams) (Batch, error)
+	CreateContentPage(ctx context.Context, arg CreateContentPageParams) (ContentPage, error)
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateEmployee(ctx context.Context, arg CreateEmployeeParams) (Employee, error)
@@ -94,6 +97,8 @@ type Querier interface {
 	// Actual output, yield and downtime are SUMS over production_entries, never
 	// columns on the order. There is deliberately no query here that writes them.
 	CreateManufacturingOrder(ctx context.Context, arg CreateManufacturingOrderParams) (ManufacturingOrder, error)
+	CreateMedia(ctx context.Context, arg CreateMediaParams) (Medium, error)
+	CreateNewsPost(ctx context.Context, arg CreateNewsPostParams) (NewsPost, error)
 	CreatePackagingUnit(ctx context.Context, arg CreatePackagingUnitParams) (PackagingUnit, error)
 	CreatePurchaseOrder(ctx context.Context, arg CreatePurchaseOrderParams) (PurchaseOrder, error)
 	CreatePurchaseOrderLine(ctx context.Context, arg CreatePurchaseOrderLineParams) (PurchaseOrderLine, error)
@@ -152,6 +157,8 @@ type Querier interface {
 	GetBatchByNo(ctx context.Context, batchNo string) (Batch, error)
 	// The traceability header: the batch plus enough of the product to name it.
 	GetBatchWithItem(ctx context.Context, id uuid.UUID) (GetBatchWithItemRow, error)
+	GetContentPage(ctx context.Context, id uuid.UUID) (ContentPage, error)
+	GetContentPageByKey(ctx context.Context, key string) (ContentPage, error)
 	GetCurrentItemPrice(ctx context.Context, itemID uuid.UUID) (ItemPrice, error)
 	GetDocument(ctx context.Context, id uuid.UUID) (GetDocumentRow, error)
 	GetEmployee(ctx context.Context, id uuid.UUID) (GetEmployeeRow, error)
@@ -173,6 +180,7 @@ type Querier interface {
 	GetLocationByCode(ctx context.Context, code string) (Location, error)
 	GetLocationByID(ctx context.Context, id uuid.UUID) (Location, error)
 	GetManufacturingOrder(ctx context.Context, id uuid.UUID) (ManufacturingOrder, error)
+	GetNewsPost(ctx context.Context, id uuid.UUID) (NewsPost, error)
 	// The exact balance for one position. Read INSIDE the advisory lock before
 	// posting a negative delta — a value read before the lock is already stale.
 	GetPositionBalance(ctx context.Context, arg GetPositionBalanceParams) (decimal.Decimal, error)
@@ -218,6 +226,12 @@ type Querier interface {
 	// ---------------------------------------------------------------------------
 	// The only way stock changes. qty_delta is signed; there is no other writer.
 	InsertStockMovement(ctx context.Context, arg InsertStockMovementParams) (StockMovement, error)
+	// ---------------------------------------------------------------------------
+	// Workflow history
+	// ---------------------------------------------------------------------------
+	// Immutable evidence of who moved what, and when. No deleted_at and no version:
+	// there is nothing here to edit.
+	InsertWorkflowEvent(ctx context.Context, arg InsertWorkflowEventParams) (ContentWorkflowEvent, error)
 	// Writes the payload and stamps the issue time. Guarded on qr_payload IS NULL:
 	// a wrapper is printed against the issued code, so re-issuing a different one
 	// silently invalidates wrappers that may already be in production. Zero rows
@@ -245,6 +259,19 @@ type Querier interface {
 	// Качество list view. Ordered so the batches that need a decision come first:
 	// quarantine before released, newest before oldest.
 	ListBatchesForQuality(ctx context.Context, arg ListBatchesForQualityParams) ([]ListBatchesForQualityRow, error)
+	// Every block with its translation in one locale. LEFT JOIN, so a block whose
+	// translation is missing still appears — an editor cannot fill in a gap they
+	// cannot see.
+	ListContentBlocks(ctx context.Context, arg ListContentBlocksParams) ([]ListContentBlocksRow, error)
+	// CMS — docs/05-MODULES.md §15.
+	//
+	// The public site renders only `published`; the CRM can preview any state. That
+	// asymmetry is the module's whole reason for existing, so every read here is
+	// explicit about which side it serves.
+	// ---------------------------------------------------------------------------
+	// Pages and blocks
+	// ---------------------------------------------------------------------------
+	ListContentPages(ctx context.Context, status *string) ([]ListContentPagesRow, error)
 	// The price in force today for each of the given items. DISTINCT ON keeps one
 	// row per item; the ORDER BY decides which one.
 	ListCurrentPricesForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemPrice, error)
@@ -290,10 +317,19 @@ type Querier interface {
 	// there is no endpoint that edits one.
 	ListMaintenanceEvents(ctx context.Context, assetID uuid.UUID) ([]MaintenanceEvent, error)
 	ListManufacturingOrders(ctx context.Context, arg ListManufacturingOrdersParams) ([]ListManufacturingOrdersRow, error)
+	// ---------------------------------------------------------------------------
+	// Media
+	// ---------------------------------------------------------------------------
+	ListMedia(ctx context.Context, arg ListMediaParams) ([]Medium, error)
 	ListMovements(ctx context.Context, arg ListMovementsParams) ([]ListMovementsRow, error)
 	// The movement ledger for one position, with a running balance — the detail view
 	// (docs/05-MODULES.md:115).
 	ListMovementsForPosition(ctx context.Context, arg ListMovementsForPositionParams) ([]ListMovementsForPositionRow, error)
+	// ---------------------------------------------------------------------------
+	// News
+	// ---------------------------------------------------------------------------
+	ListNewsPosts(ctx context.Context, arg ListNewsPostsParams) ([]ListNewsPostsRow, error)
+	ListNewsTranslations(ctx context.Context, postID uuid.UUID) ([]NewsPostTranslation, error)
 	// Filtered by the viewer's readable resources at READ time: a notification is
 	// broadcast by resource, not addressed to a user (docs/05-MODULES.md:294).
 	ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]ListNotificationsRow, error)
@@ -346,6 +382,7 @@ type Querier interface {
 	ListSuppliers(ctx context.Context, arg ListSuppliersParams) ([]Supplier, error)
 	ListTranslationsForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemTranslation, error)
 	ListUsersWithRoles(ctx context.Context, arg ListUsersWithRolesParams) ([]ListUsersWithRolesRow, error)
+	ListWorkflowEvents(ctx context.Context, arg ListWorkflowEventsParams) ([]ListWorkflowEventsRow, error)
 	// Serialises writers against one (item, batch, location) for the rest of the
 	// transaction (docs/07-IMPLEMENTATION-PLAN.md I6).
 	//
@@ -393,9 +430,13 @@ type Querier interface {
 	// Guarded on the CURRENT status, so an illegal transition cannot slip through a
 	// read-then-write race. Zero rows means the batch moved underneath us.
 	TransitionBatchStatus(ctx context.Context, arg TransitionBatchStatusParams) (Batch, error)
+	// Guarded on the current status, so a concurrent move cannot slip between the
+	// caller's read and this write.
+	TransitionContentPage(ctx context.Context, arg TransitionContentPageParams) (ContentPage, error)
 	// Guarded on the current status, so a concurrent transition cannot slip between
 	// the caller's read and this write.
 	TransitionDocument(ctx context.Context, arg TransitionDocumentParams) (Document, error)
+	TransitionNewsPost(ctx context.Context, arg TransitionNewsPostParams) (NewsPost, error)
 	UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateEmployee(ctx context.Context, arg UpdateEmployeeParams) (Employee, error)
@@ -403,7 +444,11 @@ type Querier interface {
 	// writing in two statements leaves a window where another request commits in
 	// between. No rows returned means the version was stale.
 	UpdateItem(ctx context.Context, arg UpdateItemParams) (Item, error)
+	UpdateMediaAlt(ctx context.Context, arg UpdateMediaAltParams) (Medium, error)
+	UpsertBlockTranslation(ctx context.Context, arg UpsertBlockTranslationParams) (ContentBlockTranslation, error)
+	UpsertContentBlock(ctx context.Context, arg UpsertContentBlockParams) (ContentBlock, error)
 	UpsertItemTranslation(ctx context.Context, arg UpsertItemTranslationParams) (ItemTranslation, error)
+	UpsertNewsTranslation(ctx context.Context, arg UpsertNewsTranslationParams) (NewsPostTranslation, error)
 }
 
 var _ Querier = (*Queries)(nil)

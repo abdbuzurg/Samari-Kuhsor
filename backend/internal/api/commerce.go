@@ -564,3 +564,110 @@ type AuditEntry struct {
 	Before     any     `json:"before" tstype:"unknown"`
 	After      any     `json:"after" tstype:"unknown"`
 }
+
+// ---------------------------------------------------------------------------
+// CMS
+// ---------------------------------------------------------------------------
+
+type ContentPage struct {
+	ID          string  `json:"id"`
+	Key         string  `json:"key"`
+	BlockCount  int32   `json:"block_count"`
+	PublishedAt *string `json:"published_at" tstype:"string | null"`
+	Status      Status  `json:"status"`
+	Version     int32   `json:"version"`
+	// AllowedTransitions is what this actor may do next on the ladder.
+	AllowedTransitions []string `json:"allowed_transitions"`
+}
+
+type ContentBlock struct {
+	ID        string  `json:"id"`
+	BlockKey  string  `json:"block_key"`
+	SortOrder int32   `json:"sort_order"`
+	Locale    string  `json:"locale"`
+	Heading   *string `json:"heading" tstype:"string | null"`
+	Body      *string `json:"body" tstype:"string | null"`
+	CTALabel  *string `json:"cta_label" tstype:"string | null"`
+}
+
+type ContentBlockWriteRequest struct {
+	BlockKey  string  `json:"block_key"`
+	SortOrder int32   `json:"sort_order"`
+	Locale    string  `json:"locale"`
+	Heading   *string `json:"heading"`
+	Body      *string `json:"body"`
+	CTALabel  *string `json:"cta_label"`
+}
+
+type NewsPost struct {
+	ID          string  `json:"id"`
+	Slug        string  `json:"slug"`
+	Title       *string `json:"title" tstype:"string | null"`
+	Category    *string `json:"category" tstype:"string | null"`
+	PublishedOn *string `json:"published_on" tstype:"string | null"`
+	Status      Status  `json:"status"`
+	Version     int32   `json:"version"`
+	// MissingLocales names the translations still absent. Empty means the post
+	// can be published; the frontend shows the gap rather than letting the
+	// editor discover it when publication is refused.
+	MissingLocales     []string `json:"missing_locales"`
+	AllowedTransitions []string `json:"allowed_transitions"`
+}
+
+type NewsPostWriteRequest struct {
+	Slug        string  `json:"slug"`
+	Category    *string `json:"category"`
+	PublishedOn *string `json:"published_on"`
+}
+
+type NewsTranslation struct {
+	Locale  string  `json:"locale"`
+	Title   string  `json:"title"`
+	Excerpt *string `json:"excerpt" tstype:"string | null"`
+	Body    *string `json:"body" tstype:"string | null"`
+}
+
+type NewsTranslationWriteRequest struct {
+	Locale  string  `json:"locale"`
+	Title   string  `json:"title"`
+	Excerpt *string `json:"excerpt"`
+	Body    *string `json:"body"`
+}
+
+// WorkflowEvent is immutable evidence of who moved content and when. No version
+// and no deleted_at: there is nothing here to edit.
+type WorkflowEvent struct {
+	ID         string  `json:"id"`
+	FromStatus *Status `json:"from_status" tstype:"Status | null"`
+	ToStatus   Status  `json:"to_status"`
+	ActorName  string  `json:"actor_name"`
+	Comment    *string `json:"comment" tstype:"string | null"`
+	OccurredAt string  `json:"occurred_at"`
+}
+
+// CMSTransitionRequest moves content along the ladder. The comment is why: a
+// reviewer sending something back should say what is wrong with it.
+type CMSTransitionRequest struct {
+	To      string  `json:"to"`
+	Comment *string `json:"comment"`
+}
+
+type MediaItem struct {
+	ID        string  `json:"id"`
+	FilePath  string  `json:"file_path"`
+	MimeType  string  `json:"mime_type"`
+	Width     *int32  `json:"width" tstype:"number | null"`
+	Height    *int32  `json:"height" tstype:"number | null"`
+	SizeBytes *int64  `json:"size_bytes" tstype:"number | null"`
+	AltRU     *string `json:"alt_ru" tstype:"string | null"`
+	AltTG     *string `json:"alt_tg" tstype:"string | null"`
+	AltEN     *string `json:"alt_en" tstype:"string | null"`
+	Version   int32   `json:"version"`
+}
+
+type MediaAltWriteRequest struct {
+	AltRU   *string `json:"alt_ru"`
+	AltTG   *string `json:"alt_tg"`
+	AltEN   *string `json:"alt_en"`
+	Version *int32  `json:"version"`
+}

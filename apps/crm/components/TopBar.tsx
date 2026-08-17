@@ -3,7 +3,16 @@
 import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { Search, Bell, Settings, ChevronDown, User, LogOut, ScrollText } from 'lucide-react';
+import {
+  Search,
+  Bell,
+  Settings,
+  ChevronDown,
+  User,
+  LogOut,
+  ScrollText,
+  FileText,
+} from 'lucide-react';
 
 import { locales, localeLabels, type Locale } from '@/i18n/config';
 
@@ -30,6 +39,9 @@ export interface TopBarProps {
    *  different authority from admin:manage: reading the trail and changing who
    *  may do what are not the same power. */
   canAudit?: boolean;
+  /** Shows Контент сайта. The CMS is not one of the prototype's thirteen
+   *  sidebar modules, so like admin it lives in the top bar. */
+  canEditContent?: boolean;
   onLocaleChange: (locale: Locale) => void;
   onLogout: () => void;
   onSearch?: (query: string) => void;
@@ -42,6 +54,7 @@ export function TopBar({
   unreadCount = 0,
   canAdminister = false,
   canAudit = false,
+  canEditContent = false,
   onLocaleChange,
   onLogout,
   onSearch,
@@ -181,6 +194,16 @@ export function TopBar({
               <User size={15} aria-hidden />
               {t('profile')}
             </button>
+            {canEditContent && (
+              <Link
+                href="/cms"
+                role="menuitem"
+                className="w-full flex items-center gap-2 px-3 py-2 text-[13px] hover:bg-black/5"
+              >
+                <FileText size={15} aria-hidden />
+                Контент сайта
+              </Link>
+            )}
             {canAudit && (
               <Link
                 href="/audit"

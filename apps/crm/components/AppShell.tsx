@@ -106,6 +106,7 @@ export function AppShell({
           locale={locale}
           canAdminister={can(user.permissions, 'admin', 'manage')}
           canAudit={can(user.permissions, 'audit', 'read')}
+          canEditContent={can(user.permissions, 'cms', 'read')}
           onLocaleChange={handleLocaleChange}
           onLogout={handleLogout}
         />

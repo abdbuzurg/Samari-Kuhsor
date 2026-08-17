@@ -26,6 +26,7 @@ import (
 	"github.com/qoim/samari/backend/internal/auth"
 	"github.com/qoim/samari/backend/internal/domain/admin"
 	"github.com/qoim/samari/backend/internal/domain/batches"
+	"github.com/qoim/samari/backend/internal/domain/cms"
 	"github.com/qoim/samari/backend/internal/domain/dashboard"
 	"github.com/qoim/samari/backend/internal/domain/inquiries"
 	"github.com/qoim/samari/backend/internal/domain/inventory"
@@ -63,6 +64,7 @@ type Services struct {
 	Sales       *sales.Service
 	Inquiries   *inquiries.Service
 	Registries  *registries.Service
+	CMS         *cms.Service
 	Dashboard   *dashboard.Service
 	Admin       *admin.Service
 	Alerts      *alerts.Service
@@ -295,6 +297,38 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 			rbac.Documents, rbac.Manage, s.handleCreateDocument)
 		v1.Guarded(api, http.MethodPost, "/documents/{id}/transition",
 			rbac.Documents, rbac.Manage, s.handleTransitionDocument)
+
+		// CMS. The transition route is `manage`, not `approve`: moving a draft
+		// into review needs no authority, and only approval and publication do —
+		// which the ladder enforces inside the domain.
+		v1.Guarded(api, http.MethodGet, "/cms/pages",
+			rbac.CMS, rbac.Read, s.handleListContentPages)
+		v1.Guarded(api, http.MethodGet, "/cms/pages/{id}/blocks",
+			rbac.CMS, rbac.Read, s.handleListContentBlocks)
+		v1.Guarded(api, http.MethodPut, "/cms/pages/{id}/blocks",
+			rbac.CMS, rbac.Manage, s.handleSaveContentBlock)
+		v1.Guarded(api, http.MethodPost, "/cms/pages/{id}/transition",
+			rbac.CMS, rbac.Manage, s.handleTransitionContentPage)
+		v1.Guarded(api, http.MethodGet, "/cms/pages/{id}/history",
+			rbac.CMS, rbac.Read, s.handleContentHistory)
+
+		v1.Guarded(api, http.MethodGet, "/cms/news",
+			rbac.CMS, rbac.Read, s.handleListNewsPosts)
+		v1.Guarded(api, http.MethodPost, "/cms/news",
+			rbac.CMS, rbac.Manage, s.handleCreateNewsPost)
+		v1.Guarded(api, http.MethodGet, "/cms/news/{id}/translations",
+			rbac.CMS, rbac.Read, s.handleListNewsTranslations)
+		v1.Guarded(api, http.MethodPut, "/cms/news/{id}/translations",
+			rbac.CMS, rbac.Manage, s.handleSaveNewsTranslation)
+		v1.Guarded(api, http.MethodPost, "/cms/news/{id}/transition",
+			rbac.CMS, rbac.Manage, s.handleTransitionNewsPost)
+		v1.Guarded(api, http.MethodGet, "/cms/news/{id}/history",
+			rbac.CMS, rbac.Read, s.handleContentHistory)
+
+		v1.Guarded(api, http.MethodGet, "/cms/media",
+			rbac.CMS, rbac.Read, s.handleListMedia)
+		v1.Guarded(api, http.MethodPut, "/cms/media/{id}/alt",
+			rbac.CMS, rbac.Manage, s.handleSetMediaAlt)
 
 		// Администрирование. Everything here is admin:manage — there is no
 		// read-only view of the permission system that is worth the surface.

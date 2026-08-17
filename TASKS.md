@@ -514,13 +514,24 @@ see a notification for a resource they cannot `read`.
 **Result:** All seven derived conditions attached; three persisted events emitted on the caller's
 transaction. Feed, badge and mark-read all scoped to the viewer's readable resources.
 
-### T28 · CMS — `todo`
+### T28 · CMS — `done`
 `content_pages`, `content_blocks`, translations, `news_posts`, `media`, `content_workflow_events`.
 Ladder: draft → technical_review → language_review → approved → published.
 
 **Done when:** every illegal transition is refused; `approved`/`published` require `cms:approve`;
 the public API returns only `published`; the CRM can preview any state.
 
+**Result:** Ladder Черновик → Техпроверка → Языковая проверка → Утверждено → Опубликовано, with only
+the last two rungs needing `cms:approve` — publishing is a claim the company makes in public;
+a review is not an act of authority. Steps BACK never need approve, or a reviewer who spots a
+mistake could not report it. Forward moves are one rung at a time, which is what makes the two
+reviews mean anything.
+
+Published content is frozen: an edit landing live without review would make the ladder decorative.
+Publishing a news post refuses unless all three translations exist (D10), and names the missing
+languages rather than only refusing. The UI renders `allowed_transitions` computed by the server
+from the same matrix it enforces — a second copy of the rules in the frontend would offer a button
+that fails the first time they disagreed.
 ### T29 · Website port — `done`
 1:1 translation of the recovered source (I19). CSS verbatim. Content from CMS/`items`.
 

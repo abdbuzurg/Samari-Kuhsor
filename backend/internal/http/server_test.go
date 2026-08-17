@@ -16,6 +16,7 @@ import (
 	"github.com/qoim/samari/backend/internal/auth"
 	"github.com/qoim/samari/backend/internal/domain/admin"
 	"github.com/qoim/samari/backend/internal/domain/batches"
+	"github.com/qoim/samari/backend/internal/domain/cms"
 	"github.com/qoim/samari/backend/internal/domain/dashboard"
 	"github.com/qoim/samari/backend/internal/domain/inquiries"
 	"github.com/qoim/samari/backend/internal/domain/inventory"
@@ -52,6 +53,7 @@ func servicesFor(pool *pgxpool.Pool) samarihttp.Services {
 		Sales:       sales.NewService(pool, inventorySvc),
 		Inquiries:   inquiries.NewService(pool, inquiries.DefaultRateLimit()),
 		Registries:  registries.NewService(pool),
+		CMS:         cms.NewService(pool),
 		Dashboard:   dashboard.NewService(pool),
 		Admin:       admin.NewService(pool),
 		Alerts:      alerts.NewService(pool),

@@ -2,6 +2,8 @@
 
 import type {
   AdminUserRow,
+  ContentBlock,
+  ContentPage,
   Asset,
   AuditEntry,
   BatchDetail,
@@ -12,6 +14,9 @@ import type {
   MaintenanceEvent,
   ManufacturingOrder,
   ManufacturingOrderRow,
+  MediaItem,
+  NewsPost,
+  NewsTranslation,
   PermissionCatalogue,
   PurchaseOrder,
   RoleDetail,
@@ -359,6 +364,138 @@ async function getJSON<T>(path: string): Promise<T> {
 async function putJSON(path: string, payload: unknown): Promise<void> {
   const res = await fetch(path, {
     method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new ApiError(
+      res.status,
+      body?.error?.code ?? 'internal_error',
+      body?.error?.message ?? '',
+      body?.error?.details,
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CMS
+// ---------------------------------------------------------------------------
+
+/** Pages are four fixed keys, not a growing list — no paging. */
+export function useContentPages() {
+  return useQuery<ContentPage[]>({
+    queryKey: ['cms', 'pages'],
+    queryFn: () => getJSON<ContentPage[]>('/api/cms/pages'),
+  });
+}
+
+export function useContentBlocks(pageId: string | undefined, locale: string) {
+  return useQuery<ContentBlock[]>({
+    queryKey: ['cms', 'blocks', pageId, locale],
+    queryFn: () => getJSON<ContentBlock[]>(`/api/cms/pages/${pageId}/blocks?locale=${locale}`),
+    enabled: !!pageId,
+  });
+}
+
+export function useSaveContentBlock(pageId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: unknown) => putJSON(`/api/cms/pages/${pageId}/blocks`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cms', 'blocks', pageId] }),
+  });
+}
+
+/**
+ * Moves content along the ladder.
+ *
+ * Invalidates the WHOLE cms cache, not just the entity: a transition changes
+ * what the list shows, what the history shows, and whether the editor is
+ * writable. Invalidating narrowly here is how a screen ends up showing a
+ * published page with an enabled edit form.
+ */
+export function useCMSTransition(kind: 'pages' | 'news', id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { to: string; comment?: string }) =>
+      postJSON(`/api/cms/${kind}/${id}/transition`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cms'] }),
+  });
+}
+
+export function useNewsPosts(query: StatusQuery) {
+  return useQuery<Collection<NewsPost>>({
+    queryKey: ['cms', 'news', query],
+    queryFn: async () => {
+      const search = toSearchParams({
+        q: query.q,
+        page: query.page,
+        filters: { status: query.status },
+      });
+      const res = await fetch(`/api/cms/news${search}`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new ApiError(
+          res.status,
+          body?.error?.code ?? 'internal_error',
+          body?.error?.message ?? '',
+        );
+      }
+      return { data: body.data ?? [], meta: body.meta };
+    },
+    placeholderData: (previous) => previous,
+  });
+}
+
+export function useCreateNewsPost() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: unknown) => postJSON('/api/cms/news', body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cms'] }),
+  });
+}
+
+export function useNewsTranslations(postId: string | undefined) {
+  return useQuery<NewsTranslation[]>({
+    queryKey: ['cms', 'news-translations', postId],
+    queryFn: () => getJSON<NewsTranslation[]>(`/api/cms/news/${postId}/translations`),
+    enabled: !!postId,
+  });
+}
+
+export function useSaveNewsTranslation(postId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: unknown) => putJSON(`/api/cms/news/${postId}/translations`, body),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['cms'] }),
+  });
+}
+
+export function useMediaLibrary(query: StatusQuery) {
+  return useQuery<Collection<MediaItem>>({
+    queryKey: ['cms', 'media', query],
+    queryFn: async () => {
+      const res = await fetch(`/api/cms/media${toSearchParams({ q: query.q, page: query.page })}`, {
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new ApiError(
+          res.status,
+          body?.error?.code ?? 'internal_error',
+          body?.error?.message ?? '',
+        );
+      }
+      return { data: body.data ?? [], meta: body.meta };
+    },
+  });
+}
+
+async function postJSON(path: string, payload: unknown): Promise<void> {
+  const res = await fetch(path, {
+    method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });

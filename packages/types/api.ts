@@ -516,6 +516,106 @@ export interface AuditEntry {
   before: unknown;
   after: unknown;
 }
+export interface ContentPage {
+  id: string;
+  key: string;
+  block_count: number /* int32 */;
+  published_at?: string | null;
+  status: Status;
+  version: number /* int32 */;
+  /**
+   * AllowedTransitions is what this actor may do next on the ladder.
+   */
+  allowed_transitions: string[];
+}
+export interface ContentBlock {
+  id: string;
+  block_key: string;
+  sort_order: number /* int32 */;
+  locale: string;
+  heading?: string | null;
+  body?: string | null;
+  cta_label?: string | null;
+}
+export interface ContentBlockWriteRequest {
+  block_key: string;
+  sort_order: number /* int32 */;
+  locale: string;
+  heading?: string;
+  body?: string;
+  cta_label?: string;
+}
+export interface NewsPost {
+  id: string;
+  slug: string;
+  title?: string | null;
+  category?: string | null;
+  published_on?: string | null;
+  status: Status;
+  version: number /* int32 */;
+  /**
+   * MissingLocales names the translations still absent. Empty means the post
+   * can be published; the frontend shows the gap rather than letting the
+   * editor discover it when publication is refused.
+   */
+  missing_locales: string[];
+  allowed_transitions: string[];
+}
+export interface NewsPostWriteRequest {
+  slug: string;
+  category?: string;
+  published_on?: string;
+}
+export interface NewsTranslation {
+  locale: string;
+  title: string;
+  excerpt?: string | null;
+  body?: string | null;
+}
+export interface NewsTranslationWriteRequest {
+  locale: string;
+  title: string;
+  excerpt?: string;
+  body?: string;
+}
+/**
+ * WorkflowEvent is immutable evidence of who moved content and when. No version
+ * and no deleted_at: there is nothing here to edit.
+ */
+export interface WorkflowEvent {
+  id: string;
+  from_status?: Status | null;
+  to_status: Status;
+  actor_name: string;
+  comment?: string | null;
+  occurred_at: string;
+}
+/**
+ * CMSTransitionRequest moves content along the ladder. The comment is why: a
+ * reviewer sending something back should say what is wrong with it.
+ */
+export interface CMSTransitionRequest {
+  to: string;
+  comment?: string;
+}
+export interface MediaItem {
+  id: string;
+  file_path: string;
+  mime_type: string;
+  width?: number | null;
+  height?: number | null;
+  size_bytes?: number | null;
+  alt_ru?: string | null;
+  alt_tg?: string | null;
+  alt_en?: string | null;
+  version: number /* int32 */;
+}
+export interface MediaAltWriteRequest {
+  alt_ru?: string;
+  alt_tg?: string;
+  alt_en?: string;
+  version?: number /* int32 */;
+}
 
 //////////
 // source: operations.go
