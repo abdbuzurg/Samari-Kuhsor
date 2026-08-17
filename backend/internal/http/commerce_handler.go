@@ -199,7 +199,7 @@ func (s *Server) handleGetPurchaseOrder(w http.ResponseWriter, r *http.Request) 
 	out.CreatedAt = common.Timestamp(po.CreatedAt)
 	out.AllowedTransitions = procurement.AllowedFrom(po.Status,
 		rbac.NewSet(ident.Permissions).Can(rbac.Procurement, rbac.Approve))
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleCreatePurchaseOrder(w http.ResponseWriter, r *http.Request) {
@@ -281,11 +281,11 @@ func (s *Server) handleTransitionPurchaseOrder(w http.ResponseWriter, r *http.Re
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": api.PurchaseOrderRow{
+	common.JSON(w, http.StatusOK, api.PurchaseOrderRow{
 		ID: po.ID.String(), PONo: po.PoNo, SupplierID: po.SupplierID.String(),
 		Status: poStatus(po.Status), Version: po.Version,
 		CreatedAt: common.Timestamp(po.CreatedAt),
-	}})
+	})
 }
 
 // handleReceivePurchaseOrder records a receipt and posts the stock in one
@@ -418,7 +418,7 @@ func (s *Server) handleGetSalesOrder(w http.ResponseWriter, r *http.Request) {
 	out.Status = soStatus(so.Status)
 	out.Version = so.Version
 	out.CreatedAt = common.Timestamp(so.CreatedAt)
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
@@ -512,11 +512,11 @@ func (s *Server) handleConfirmSalesOrder(w http.ResponseWriter, r *http.Request)
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": api.SalesOrderRow{
+	common.JSON(w, http.StatusOK, api.SalesOrderRow{
 		ID: so.ID.String(), SONo: so.SoNo, CustomerID: so.CustomerID.String(),
 		Status: soStatus(so.Status), Version: so.Version,
 		CreatedAt: common.Timestamp(so.CreatedAt),
-	}})
+	})
 }
 
 // ---------------------------------------------------------------------------

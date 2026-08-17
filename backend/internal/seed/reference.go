@@ -164,6 +164,7 @@ type Result struct {
 	ItemsCreated        int
 	TranslationsCreated int
 	PackagingCreated    int
+	LocationsCreated    int
 	AdminCreated        bool
 	AdminID             uuid.UUID
 }
@@ -186,6 +187,9 @@ func Reference(ctx context.Context, pool *pgxpool.Pool, adminEmail, adminPasswor
 		return res, err
 	}
 	if err := seedItems(ctx, tx, &res); err != nil {
+		return res, err
+	}
+	if err := seedLocations(ctx, tx, &res); err != nil {
 		return res, err
 	}
 	if adminEmail != "" {
@@ -323,6 +327,39 @@ func seedAdmin(ctx context.Context, tx pgx.Tx, email, passwordHash, name string,
 		INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)
 		ON CONFLICT DO NOTHING`, userID, roleID); err != nil {
 		return fmt.Errorf("seed: assign admin role: %w", err)
+	}
+	return nil
+}
+
+// warehouseZones are the storage areas the factory operates.
+//
+// Reference data, not demo data: production completion posts its output to the
+// quarantine zone and fails without one (docs/05-MODULES.md §7), so a system
+// seeded without these cannot complete a manufacturing order at all. That was a
+// real gap — the first end-to-end run against a freshly seeded database found
+// an empty locations list and nowhere for output to go.
+var warehouseZones = []struct {
+	code, name, zone string
+}{
+	{"RAW-1", "Склад сырья", "raw"},
+	{"PKG-1", "Склад упаковки", "packaging"},
+	{"QUAR-1", "Карантин", "quarantine"},
+	{"FG-1", "Склад готовой продукции", "finished_goods"},
+}
+
+// seedLocations creates the four storage zones. Idempotent: ON CONFLICT DO
+// NOTHING, so running the seed twice changes nothing.
+func seedLocations(ctx context.Context, tx pgx.Tx, res *Result) error {
+	for _, l := range warehouseZones {
+		tag, err := tx.Exec(ctx, `
+			INSERT INTO locations (code, name, zone)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (code) WHERE deleted_at IS NULL DO NOTHING`,
+			l.code, l.name, l.zone)
+		if err != nil {
+			return fmt.Errorf("seed: location %s: %w", l.code, err)
+		}
+		res.LocationsCreated += int(tag.RowsAffected())
 	}
 	return nil
 }

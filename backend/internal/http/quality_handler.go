@@ -164,7 +164,7 @@ func (s *Server) handleBatchDetail(w http.ResponseWriter, r *http.Request) {
 	detail.AllowedTransitions = quality.AllowedFrom(
 		batch.Batch.Status, perms.Can(rbac.Quality, rbac.Approve))
 
-	common.JSON(w, http.StatusOK, map[string]any{"data": detail})
+	common.JSON(w, http.StatusOK, detail)
 }
 
 func (s *Server) handleRecordQualityTest(w http.ResponseWriter, r *http.Request) {
@@ -243,5 +243,5 @@ func (s *Server) handleTransitionBatch(w http.ResponseWriter, r *http.Request) {
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": batchResponse(batch)})
+	common.JSON(w, http.StatusOK, batchResponse(batch))
 }

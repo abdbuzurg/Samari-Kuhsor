@@ -97,6 +97,7 @@ func runReference(ctx context.Context, pool *pgxpool.Pool) error {
 		"items_created", res.ItemsCreated,
 		"translations_created", res.TranslationsCreated,
 		"packaging_created", res.PackagingCreated,
+		"locations_created", res.LocationsCreated,
 		"admin_created", res.AdminCreated,
 	)
 

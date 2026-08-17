@@ -75,7 +75,7 @@ func (s *Server) handleListContentPages(w http.ResponseWriter, r *http.Request) 
 			AllowedTransitions: cms.AllowedFrom(p.Status, hasApprove),
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleListContentBlocks(w http.ResponseWriter, r *http.Request) {
@@ -98,7 +98,7 @@ func (s *Server) handleListContentBlocks(w http.ResponseWriter, r *http.Request)
 			Heading: b.Heading, Body: b.Body, CTALabel: b.CtaLabel,
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleSaveContentBlock(w http.ResponseWriter, r *http.Request) {
@@ -125,11 +125,11 @@ func (s *Server) handleSaveContentBlock(w http.ResponseWriter, r *http.Request) 
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": api.ContentBlock{
+	common.JSON(w, http.StatusOK, api.ContentBlock{
 		ID: block.BlockID.String(), BlockKey: req.BlockKey, SortOrder: req.SortOrder,
 		Locale: block.Locale, Heading: block.Heading, Body: block.Body,
 		CTALabel: block.CtaLabel,
-	}})
+	})
 }
 
 func (s *Server) handleTransitionContentPage(w http.ResponseWriter, r *http.Request) {
@@ -169,10 +169,10 @@ func (s *Server) transitionCMS(w http.ResponseWriter, r *http.Request, entityTyp
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": map[string]any{
+	common.JSON(w, http.StatusOK, map[string]any{
 		"status":              cmsStatus(status),
 		"allowed_transitions": cms.AllowedFrom(status, hasApprove),
-	}})
+	})
 }
 
 func (s *Server) handleContentHistory(w http.ResponseWriter, r *http.Request) {
@@ -206,7 +206,7 @@ func (s *Server) handleContentHistory(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, event)
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 // ---------------------------------------------------------------------------
@@ -299,7 +299,7 @@ func (s *Server) handleListNewsTranslations(w http.ResponseWriter, r *http.Reque
 			Locale: t.Locale, Title: t.Title, Excerpt: t.Excerpt, Body: t.Body,
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleSaveNewsTranslation(w http.ResponseWriter, r *http.Request) {
@@ -327,10 +327,10 @@ func (s *Server) handleSaveNewsTranslation(w http.ResponseWriter, r *http.Reques
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": api.NewsTranslation{
+	common.JSON(w, http.StatusOK, api.NewsTranslation{
 		Locale: translation.Locale, Title: translation.Title,
 		Excerpt: translation.Excerpt, Body: translation.Body,
-	}})
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -383,7 +383,7 @@ func (s *Server) handleSetMediaAlt(w http.ResponseWriter, r *http.Request) {
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": mediaResponse(updated)})
+	common.JSON(w, http.StatusOK, mediaResponse(updated))
 }
 
 func mediaResponse(m db.Medium) api.MediaItem {

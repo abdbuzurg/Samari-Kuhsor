@@ -95,7 +95,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			Day: p.Day, Revenue: p.Revenue.StringFixed(2), OrderCount: p.OrderCount,
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 var _ = decimal.Zero

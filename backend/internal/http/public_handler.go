@@ -44,7 +44,7 @@ func (s *Server) handlePublicProducts(w http.ResponseWriter, r *http.Request) {
 			Description: row.Description, Category: row.Category,
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handlePublicProduct(w http.ResponseWriter, r *http.Request) {
@@ -54,10 +54,10 @@ func (s *Server) handlePublicProduct(w http.ResponseWriter, r *http.Request) {
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": api.PublicProduct{
+	common.JSON(w, http.StatusOK, api.PublicProduct{
 		ID: row.ID.String(), SKU: row.Sku, Name: row.Name,
 		Description: row.Description, Category: row.Category,
-	}})
+	})
 }
 
 func (s *Server) handlePublicNews(w http.ResponseWriter, r *http.Request) {
@@ -80,5 +80,5 @@ func (s *Server) handlePublicNews(w http.ResponseWriter, r *http.Request) {
 			Title:       row.Title, Excerpt: row.Excerpt,
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }

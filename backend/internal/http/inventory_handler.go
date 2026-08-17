@@ -296,7 +296,7 @@ func (s *Server) handleListLocations(w http.ResponseWriter, r *http.Request) {
 			ID: l.ID.String(), Code: l.Code, Name: l.Name, Zone: l.Zone,
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 // positionFromQuery reads item_id / batch_id / location_id, which together

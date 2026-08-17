@@ -157,7 +157,7 @@ func (s *Server) handleGetManufacturingOrder(w http.ResponseWriter, r *http.Requ
 		}
 		detail.Entries = append(detail.Entries, entry)
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": detail})
+	common.JSON(w, http.StatusOK, detail)
 }
 
 func (s *Server) handleCreateManufacturingOrder(w http.ResponseWriter, r *http.Request) {
@@ -279,7 +279,7 @@ func (s *Server) handleCompleteManufacturingOrder(w http.ResponseWriter, r *http
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": api.ManufacturingOrderRow{
+	common.JSON(w, http.StatusOK, api.ManufacturingOrderRow{
 		ID:         mo.ID.String(),
 		MONo:       mo.MoNo,
 		ItemID:     mo.ItemID.String(),
@@ -287,5 +287,5 @@ func (s *Server) handleCompleteManufacturingOrder(w http.ResponseWriter, r *http
 		Status:     moStatus(mo.Status),
 		Version:    mo.Version,
 		CreatedAt:  common.Timestamp(mo.CreatedAt),
-	}})
+	})
 }

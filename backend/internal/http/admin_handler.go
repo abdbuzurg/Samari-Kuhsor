@@ -200,7 +200,7 @@ func (s *Server) handleAlerts(w http.ResponseWriter, r *http.Request) {
 			Level: string(c.Level), Count: c.Count,
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleMarkAlertsRead(w http.ResponseWriter, r *http.Request) {
@@ -240,7 +240,7 @@ func (s *Server) handleListRoles(w http.ResponseWriter, r *http.Request) {
 			Permissions: perms, UserCount: int64(role.UserCount), Version: role.Version,
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleCreateRole(w http.ResponseWriter, r *http.Request) {
@@ -397,10 +397,10 @@ func (s *Server) handleSetUserActive(w http.ResponseWriter, r *http.Request) {
 	if !user.IsActive {
 		status = api.Status{Key: "inactive", Label: "Отключён", Level: string(common.LevelNeutral)}
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": api.AdminUserRow{
+	common.JSON(w, http.StatusOK, api.AdminUserRow{
 		ID: user.ID.String(), Email: user.Email, FullName: user.FullName,
 		IsActive: user.IsActive, Status: status, Roles: []string{}, Version: user.Version,
-	}})
+	})
 }
 
 // handlePermissionCatalogue serves the role editor its checkbox list.
@@ -419,7 +419,7 @@ func (s *Server) handlePermissionCatalogue(w http.ResponseWriter, r *http.Reques
 	for _, res := range rbac.Resources {
 		out.Resources = append(out.Resources, api.PermissionResource{Key: res, Actions: actions})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 // handleAuditLog serves the audit viewer (docs/04-RBAC.md §6).

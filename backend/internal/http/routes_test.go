@@ -459,3 +459,64 @@ func mustServer(t *testing.T, pool *pgxpool.Pool) *samarihttp.Server {
 	}
 	return srv
 }
+
+// Every successful response is a single {data} envelope.
+//
+// This exists because 27 handlers double-wrapped it. common.JSON already builds
+// the envelope, so passing it `map[string]any{"data": x}` produced
+// `{"data":{"data":x}}` — valid JSON, correct status, and unusable by every
+// consumer. Nothing caught it: the route tests asserted status codes, the
+// component tests mocked the BFF directly, and the shape is only wrong one
+// level down. It took running the stack.
+func TestEverySuccessfulResponseIsASingleDataEnvelope(t *testing.T) {
+	t.Parallel()
+	handler, pool := newServer(t)
+
+	perms := make([]string, 0, len(everyGuardedRoute))
+	seen := map[string]bool{}
+	for _, tc := range everyGuardedRoute {
+		if tc.needs != "" && !seen[tc.needs] {
+			seen[tc.needs] = true
+			perms = append(perms, tc.needs)
+		}
+	}
+	seedUser(t, pool, "shapes@samari-kuhsor.tj", perms...)
+	token := loginAs(t, handler, "shapes@samari-kuhsor.tj")
+
+	for _, tc := range everyGuardedRoute {
+		if tc.method != http.MethodGet {
+			continue // reads are enough; they are where the envelope is consumed
+		}
+		t.Run(tc.path, func(t *testing.T) {
+			res := do(t, handler, tc.method, tc.path, token, nil)
+			if res.Code != http.StatusOK {
+				return // 404 on a fabricated id is a correct answer, not a shape
+			}
+			var env map[string]json.RawMessage
+			if err := json.Unmarshal(res.Body.Bytes(), &env); err != nil {
+				t.Fatalf("response is not a JSON object: %s", res.Body.String())
+			}
+			raw, ok := env["data"]
+			if !ok {
+				t.Fatalf("no `data` key: %s", res.Body.String())
+			}
+
+			// The payload must not itself be an object whose ONLY key is `data`.
+			var nested map[string]json.RawMessage
+			if err := json.Unmarshal(raw, &nested); err == nil {
+				if _, doubled := nested["data"]; doubled && len(nested) == 1 {
+					t.Errorf("double-wrapped: data.data is the only key. "+
+						"common.JSON already builds the envelope — pass the payload "+
+						"directly. Body: %s", truncate(res.Body.String()))
+				}
+			}
+		})
+	}
+}
+
+func truncate(s string) string {
+	if len(s) > 200 {
+		return s[:200] + "…"
+	}
+	return s
+}

@@ -156,7 +156,7 @@ func (s *Server) handleUpdateEmployee(w http.ResponseWriter, r *http.Request) {
 		common.Fail(w, r, err)
 		return
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": employeeResponse(employee, nil, nil)})
+	common.JSON(w, http.StatusOK, employeeResponse(employee, nil, nil))
 }
 
 func employeeInput(req api.EmployeeWriteRequest) (registries.EmployeeInput, error) {
@@ -325,7 +325,7 @@ func (s *Server) handleAssetMaintenance(w http.ResponseWriter, r *http.Request) 
 			Notes:       e.Notes,
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{"data": out})
+	common.JSON(w, http.StatusOK, out)
 }
 
 // ---------------------------------------------------------------------------

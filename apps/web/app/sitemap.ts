@@ -5,6 +5,20 @@ import { CATALOGUE_ORDER } from '@/lib/catalogue';
 import { siteUrl } from '@/lib/site';
 
 /**
+ * Rendered per request, not at build time.
+ *
+ * Next prerenders both robots.txt and the sitemap as static files by default,
+ * which would freeze the site's address into the image. The deploy sequence
+ * changes it twice WITHOUT rebuilding — bare IP for the client test, then the
+ * real domain once DNS resolves — so a build-time value would serve the wrong
+ * address for the whole first stage. This was a real defect: robots.txt served
+ * `Allow: /` under a bare IP because it had been baked at build time.
+ *
+ * The cost is one trivial render per request for two rarely-fetched files.
+ */
+export const dynamic = 'force-dynamic';
+
+/**
  * The sitemap.
  *
  * Every page appears once per locale, each entry carrying the alternates for the

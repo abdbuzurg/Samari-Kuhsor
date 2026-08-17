@@ -89,9 +89,12 @@ services:
       NODE_ENV: production
       BACKEND_URL: http://api:8080
       SERVICE_KEY: ${SERVICE_KEY:?set SERVICE_KEY}
-      # Canonical URLs and hreflang point here. While it is a bare IP,
-      # robots.txt disallows everything — see app/robots.ts.
-      NEXT_PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?set PUBLIC_SITE_URL}
+      # Canonical URLs, hreflang, the sitemap and robots.txt point here. NOT
+      # prefixed NEXT_PUBLIC_: Next inlines those at BUILD time, so a runtime
+      # value would never reach them — and the address is deliberately not known
+      # when the image is built. While it is a bare IP, robots.txt disallows
+      # everything (app/robots.ts).
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?set PUBLIC_SITE_URL}
       NEXT_PUBLIC_MATOMO_URL: ${MATOMO_URL:-}
       NEXT_PUBLIC_MATOMO_SITE_ID: ${MATOMO_SITE_ID:-}
     depends_on:
