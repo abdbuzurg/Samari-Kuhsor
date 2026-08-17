@@ -12,6 +12,22 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type Asset struct {
+	ID             uuid.UUID
+	AssetNo        string
+	Name           string
+	AssetType      *string
+	Line           *string
+	CommissionedOn pgtype.Date
+	WarrantyUntil  pgtype.Date
+	Status         string
+	CreatedAt      pgtype.Timestamptz
+	UpdatedAt      pgtype.Timestamptz
+	DeletedAt      pgtype.Timestamptz
+	Version        int32
+	CreatedBy      uuid.NullUUID
+}
+
 type AuditLog struct {
 	ID         uuid.UUID
 	ActorID    uuid.NullUUID
@@ -38,6 +54,231 @@ type Batch struct {
 	DeletedAt  pgtype.Timestamptz
 	Version    int32
 	CreatedBy  uuid.NullUUID
+}
+
+type BatchStatusEvent struct {
+	ID         uuid.UUID
+	BatchID    uuid.UUID
+	FromStatus *string
+	ToStatus   string
+	DecidedBy  uuid.UUID
+	Reason     *string
+	OccurredAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+}
+
+type Contact struct {
+	ID         uuid.UUID
+	CustomerID uuid.UUID
+	FullName   string
+	Role       *string
+	Email      *string
+	Phone      *string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type ContentBlock struct {
+	ID        uuid.UUID
+	PageID    uuid.UUID
+	BlockKey  string
+	SortOrder int32
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+	Version   int32
+	CreatedBy uuid.NullUUID
+}
+
+type ContentBlockTranslation struct {
+	ID        uuid.UUID
+	BlockID   uuid.UUID
+	Locale    string
+	Heading   *string
+	Body      *string
+	CtaLabel  *string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+	Version   int32
+	CreatedBy uuid.NullUUID
+}
+
+type ContentPage struct {
+	ID          uuid.UUID
+	Key         string
+	Status      string
+	PublishedAt pgtype.Timestamptz
+	PublishedBy uuid.NullUUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	DeletedAt   pgtype.Timestamptz
+	Version     int32
+	CreatedBy   uuid.NullUUID
+}
+
+type ContentWorkflowEvent struct {
+	ID         uuid.UUID
+	EntityType string
+	EntityID   uuid.UUID
+	FromStatus *string
+	ToStatus   string
+	ActorID    uuid.UUID
+	Comment    *string
+	OccurredAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+}
+
+type Customer struct {
+	ID           uuid.UUID
+	Name         string
+	CustomerType *string
+	Region       *string
+	Contact      *string
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	DeletedAt    pgtype.Timestamptz
+	Version      int32
+	CreatedBy    uuid.NullUUID
+}
+
+type Deal struct {
+	ID            uuid.UUID
+	CustomerID    uuid.UUID
+	Amount        decimal.NullDecimal
+	Stage         string
+	OwnerID       uuid.NullUUID
+	ExpectedClose pgtype.Date
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	DeletedAt     pgtype.Timestamptz
+	Version       int32
+	CreatedBy     uuid.NullUUID
+}
+
+type DealStageEvent struct {
+	ID         uuid.UUID
+	DealID     uuid.UUID
+	FromStage  *string
+	ToStage    string
+	ChangedBy  uuid.UUID
+	Note       *string
+	OccurredAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+}
+
+type Department struct {
+	ID        uuid.UUID
+	Name      string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+	Version   int32
+	CreatedBy uuid.NullUUID
+}
+
+type Document struct {
+	ID         uuid.UUID
+	DocNo      string
+	Title      string
+	DocType    *string
+	OwnerID    uuid.NullUUID
+	ValidUntil pgtype.Date
+	Status     string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type DocumentVersion struct {
+	ID         uuid.UUID
+	DocumentID uuid.UUID
+	VersionNo  int32
+	FilePath   string
+	MimeType   *string
+	SizeBytes  *int64
+	UploadedBy uuid.NullUUID
+	UploadedAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type Driver struct {
+	ID         uuid.UUID
+	EmployeeID uuid.UUID
+	LicenceNo  *string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type Employee struct {
+	ID            uuid.UUID
+	FullName      string
+	PositionID    uuid.NullUUID
+	Shift         *string
+	HiredOn       pgtype.Date
+	ContractUntil pgtype.Date
+	Status        string
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	DeletedAt     pgtype.Timestamptz
+	Version       int32
+	CreatedBy     uuid.NullUUID
+}
+
+type GoodsReceipt struct {
+	ID         uuid.UUID
+	PoID       uuid.UUID
+	LocationID uuid.UUID
+	ReceivedAt pgtype.Timestamptz
+	ReceivedBy uuid.NullUUID
+	Note       *string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type GoodsReceiptLine struct {
+	ID        uuid.UUID
+	ReceiptID uuid.UUID
+	PoLineID  uuid.UUID
+	Qty       decimal.Decimal
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+	Version   int32
+	CreatedBy uuid.NullUUID
+}
+
+type Inquiry struct {
+	ID          uuid.UUID
+	ReferenceNo string
+	InquiryType string
+	Name        string
+	Company     *string
+	Contact     string
+	Message     *string
+	BatchID     uuid.NullUUID
+	Status      string
+	SourceIp    *netip.Addr
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	DeletedAt   pgtype.Timestamptz
+	Version     int32
+	CreatedBy   uuid.NullUUID
 }
 
 type Item struct {
@@ -88,6 +329,131 @@ type ItemTranslation struct {
 	CreatedBy         uuid.NullUUID
 }
 
+type Lead struct {
+	ID         uuid.UUID
+	CustomerID uuid.NullUUID
+	InquiryID  uuid.NullUUID
+	Source     *string
+	Status     string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type Location struct {
+	ID        uuid.UUID
+	Code      string
+	Name      string
+	Zone      string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+	Version   int32
+	CreatedBy uuid.NullUUID
+}
+
+type MaintenanceEvent struct {
+	ID          uuid.UUID
+	AssetID     uuid.UUID
+	EventType   *string
+	PerformedAt pgtype.Timestamptz
+	NextDueOn   pgtype.Date
+	Notes       *string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	DeletedAt   pgtype.Timestamptz
+	Version     int32
+	CreatedBy   uuid.NullUUID
+}
+
+type ManufacturingOrder struct {
+	ID           uuid.UUID
+	MoNo         string
+	ItemID       uuid.UUID
+	BatchID      uuid.NullUUID
+	Line         *string
+	PlannedQty   decimal.Decimal
+	ScheduledFor pgtype.Date
+	Status       string
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	DeletedAt    pgtype.Timestamptz
+	Version      int32
+	CreatedBy    uuid.NullUUID
+}
+
+type Medium struct {
+	ID         uuid.UUID
+	FilePath   string
+	MimeType   string
+	Width      *int32
+	Height     *int32
+	SizeBytes  *int64
+	AltRu      *string
+	AltTg      *string
+	AltEn      *string
+	UploadedBy uuid.NullUUID
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type NewsPost struct {
+	ID           uuid.UUID
+	Slug         string
+	Category     *string
+	PublishedOn  pgtype.Date
+	CoverMediaID uuid.NullUUID
+	Status       string
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	DeletedAt    pgtype.Timestamptz
+	Version      int32
+	CreatedBy    uuid.NullUUID
+}
+
+type NewsPostTranslation struct {
+	ID        uuid.UUID
+	PostID    uuid.UUID
+	Locale    string
+	Title     string
+	Excerpt   *string
+	Body      *string
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+	Version   int32
+	CreatedBy uuid.NullUUID
+}
+
+type Notification struct {
+	ID         uuid.UUID
+	Kind       string
+	Resource   string
+	ResourceID uuid.NullUUID
+	Level      string
+	Title      string
+	Body       *string
+	OccurredAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type NotificationRead struct {
+	ID             uuid.UUID
+	NotificationID uuid.UUID
+	UserID         uuid.UUID
+	ReadAt         pgtype.Timestamptz
+	CreatedAt      pgtype.Timestamptz
+}
+
 type PackagingUnit struct {
 	ID        uuid.UUID
 	ItemID    uuid.UUID
@@ -99,6 +465,75 @@ type PackagingUnit struct {
 	DeletedAt pgtype.Timestamptz
 	Version   int32
 	CreatedBy uuid.NullUUID
+}
+
+type Position struct {
+	ID           uuid.UUID
+	DepartmentID uuid.UUID
+	Title        string
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	DeletedAt    pgtype.Timestamptz
+	Version      int32
+	CreatedBy    uuid.NullUUID
+}
+
+type ProductionEntry struct {
+	ID          uuid.UUID
+	MoID        uuid.UUID
+	GoodQty     decimal.Decimal
+	ScrapQty    decimal.Decimal
+	DowntimeMin int32
+	Note        *string
+	RecordedAt  pgtype.Timestamptz
+	RecordedBy  uuid.NullUUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	DeletedAt   pgtype.Timestamptz
+	Version     int32
+	CreatedBy   uuid.NullUUID
+}
+
+type PurchaseOrder struct {
+	ID         uuid.UUID
+	PoNo       string
+	SupplierID uuid.UUID
+	ExpectedAt pgtype.Date
+	Status     string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type PurchaseOrderLine struct {
+	ID        uuid.UUID
+	PoID      uuid.UUID
+	ItemID    uuid.UUID
+	Qty       decimal.Decimal
+	UnitPrice decimal.Decimal
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+	Version   int32
+	CreatedBy uuid.NullUUID
+}
+
+type QualityTest struct {
+	ID          uuid.UUID
+	BatchID     uuid.UUID
+	TestType    string
+	ResultValue *string
+	Passed      *bool
+	InspectorID uuid.NullUUID
+	TestedAt    pgtype.Timestamptz
+	Notes       *string
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	DeletedAt   pgtype.Timestamptz
+	Version     int32
+	CreatedBy   uuid.NullUUID
 }
 
 type Role struct {
@@ -127,6 +562,33 @@ type RolePermission struct {
 	CreatedBy uuid.NullUUID
 }
 
+type SalesOrder struct {
+	ID         uuid.UUID
+	SoNo       string
+	CustomerID uuid.UUID
+	OrderedOn  pgtype.Date
+	Status     string
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type SalesOrderLine struct {
+	ID           uuid.UUID
+	SalesOrderID uuid.UUID
+	ItemID       uuid.UUID
+	BatchID      uuid.NullUUID
+	Qty          decimal.Decimal
+	UnitPrice    decimal.Decimal
+	CreatedAt    pgtype.Timestamptz
+	UpdatedAt    pgtype.Timestamptz
+	DeletedAt    pgtype.Timestamptz
+	Version      int32
+	CreatedBy    uuid.NullUUID
+}
+
 type Session struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -140,6 +602,92 @@ type Session struct {
 	DeletedAt pgtype.Timestamptz
 	Version   int32
 	CreatedBy uuid.NullUUID
+}
+
+type Shipment struct {
+	ID            uuid.UUID
+	TripNo        string
+	RouteFrom     *string
+	RouteTo       *string
+	DriverID      uuid.NullUUID
+	VehicleID     uuid.NullUUID
+	TransportCost decimal.NullDecimal
+	Status        string
+	DepartedAt    pgtype.Timestamptz
+	DeliveredAt   pgtype.Timestamptz
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	DeletedAt     pgtype.Timestamptz
+	Version       int32
+	CreatedBy     uuid.NullUUID
+}
+
+type ShipmentLine struct {
+	ID         uuid.UUID
+	ShipmentID uuid.UUID
+	ItemID     uuid.UUID
+	BatchID    uuid.UUID
+	Qty        decimal.Decimal
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type StockBalance struct {
+	ItemID         uuid.UUID
+	BatchID        uuid.NullUUID
+	LocationID     uuid.UUID
+	OnHand         int64
+	LastMovementAt interface{}
+}
+
+type StockMovement struct {
+	ID         uuid.UUID
+	ItemID     uuid.UUID
+	BatchID    uuid.NullUUID
+	LocationID uuid.UUID
+	QtyDelta   decimal.Decimal
+	Reason     string
+	RefType    *string
+	RefID      uuid.NullUUID
+	Note       *string
+	OccurredAt pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
+	DeletedAt  pgtype.Timestamptz
+	Version    int32
+	CreatedBy  uuid.NullUUID
+}
+
+type Supplier struct {
+	ID        uuid.UUID
+	Name      string
+	TaxID     *string
+	Contact   *string
+	Region    *string
+	Rating    *int32
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+	Version   int32
+	CreatedBy uuid.NullUUID
+}
+
+type Task struct {
+	ID          uuid.UUID
+	Title       string
+	AssigneeID  uuid.NullUUID
+	DueOn       pgtype.Date
+	Status      string
+	RelatedType *string
+	RelatedID   uuid.NullUUID
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	DeletedAt   pgtype.Timestamptz
+	Version     int32
+	CreatedBy   uuid.NullUUID
 }
 
 type User struct {
@@ -162,6 +710,18 @@ type UserRole struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
 	RoleID    uuid.UUID
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
+	DeletedAt pgtype.Timestamptz
+	Version   int32
+	CreatedBy uuid.NullUUID
+}
+
+type Vehicle struct {
+	ID        uuid.UUID
+	Plate     string
+	Model     *string
+	Capacity  decimal.NullDecimal
 	CreatedAt pgtype.Timestamptz
 	UpdatedAt pgtype.Timestamptz
 	DeletedAt pgtype.Timestamptz

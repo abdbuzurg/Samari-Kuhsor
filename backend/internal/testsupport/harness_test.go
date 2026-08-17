@@ -28,8 +28,24 @@ func TestTemplateCarriesTheSchema(t *testing.T) {
 	if err != nil {
 		t.Fatalf("count tables: %v", err)
 	}
-	if n != 11 {
-		t.Fatalf("cloned database has %d tables, expected the 11 from migration 00001", n)
+	// Asserted as a floor rather than an exact count: this test exists to prove
+	// the clone carries the schema at all, and pinning the number would make
+	// every new migration fail here for no reason.
+	if n < 11 {
+		t.Fatalf("cloned database has %d tables; migration 00001 alone creates 11", n)
+	}
+
+	// The tables the harness's own fixtures depend on must be present.
+	for _, table := range []string{"users", "roles", "items", "batches", "audit_log", "stock_movements"} {
+		var exists bool
+		if err := pool.QueryRow(context.Background(), `
+			SELECT EXISTS (SELECT 1 FROM information_schema.tables
+			               WHERE table_schema='public' AND table_name=$1)`, table).Scan(&exists); err != nil {
+			t.Fatal(err)
+		}
+		if !exists {
+			t.Errorf("the cloned database is missing %s", table)
+		}
 	}
 }
 

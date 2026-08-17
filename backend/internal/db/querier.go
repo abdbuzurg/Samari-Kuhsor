@@ -9,9 +9,13 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/shopspring/decimal"
 )
 
 type Querier interface {
+	AssignRole(ctx context.Context, arg AssignRoleParams) error
+	ClearRolePermissions(ctx context.Context, roleID uuid.UUID) error
+	ClearUserRoles(ctx context.Context, userID uuid.UUID) error
 	// A new price supersedes the open one rather than replacing it: price history is
 	// evidence, and the detail view shows it. Closes the day before the new price
 	// starts so the two never overlap.
@@ -19,19 +23,82 @@ type Querier interface {
 	CountAudit(ctx context.Context, arg CountAuditParams) (int64, error)
 	CountAuditForResource(ctx context.Context, arg CountAuditForResourceParams) (int64, error)
 	CountBatchesAwaitingQR(ctx context.Context) (int64, error)
+	CountBatchesByStatus(ctx context.Context, status string) (int32, error)
+	CountBatchesExpiringWithin(ctx context.Context, days int32) (int32, error)
+	CountFailedTests(ctx context.Context) (int32, error)
+	CountInquiries(ctx context.Context, arg CountInquiriesParams) (int64, error)
+	// Rate limiting by IP (docs/03-API-CONTRACT.md:249).
+	CountInquiriesSince(ctx context.Context, arg CountInquiriesSinceParams) (int32, error)
+	CountInquiriesToday(ctx context.Context) (int32, error)
 	CountItems(ctx context.Context) (int64, error)
+	// ---------------------------------------------------------------------------
+	// Alerts — derived standing conditions (docs/07-IMPLEMENTATION-PLAN.md I15)
+	// ---------------------------------------------------------------------------
+	// Self-healing by construction: a goods receipt pushes the total back above the
+	// threshold and the alert disappears with no retraction logic.
+	CountItemsBelowMinimum(ctx context.Context) (int32, error)
 	CountItemsByStatus(ctx context.Context, status string) (int64, error)
 	// Must apply exactly the same filters as ListItems, or the pagination metadata
 	// describes a different collection from the one returned.
 	CountListItems(ctx context.Context, arg CountListItemsParams) (int64, error)
+	CountManufacturingOrders(ctx context.Context, arg CountManufacturingOrdersParams) (int64, error)
+	CountOverdueDeliveries(ctx context.Context) (int32, error)
+	CountOverdueTasks(ctx context.Context) (int32, error)
+	CountPurchaseOrders(ctx context.Context, arg CountPurchaseOrdersParams) (int64, error)
+	CountPurchaseOrdersAwaitingApproval(ctx context.Context) (int32, error)
+	CountQualityTestsPaged(ctx context.Context, arg CountQualityTestsPagedParams) (int64, error)
+	CountSalesOrders(ctx context.Context, arg CountSalesOrdersParams) (int64, error)
+	CountShipments(ctx context.Context, arg CountShipmentsParams) (int64, error)
+	CountStockBalances(ctx context.Context, arg CountStockBalancesParams) (int64, error)
+	CountSuppliers(ctx context.Context, q_ *string) (int64, error)
+	CountUsers(ctx context.Context, q_ *string) (int64, error)
+	// The last-admin guard (docs/04-RBAC.md:147). Counts ACTIVE, non-deleted users
+	// holding a permission, because a deactivated administrator cannot rescue anyone.
+	CountUsersHoldingPermission(ctx context.Context, arg CountUsersHoldingPermissionParams) (int32, error)
 	CreateBatch(ctx context.Context, arg CreateBatchParams) (Batch, error)
+	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
+	CreateGoodsReceipt(ctx context.Context, arg CreateGoodsReceiptParams) (GoodsReceipt, error)
+	CreateGoodsReceiptLine(ctx context.Context, arg CreateGoodsReceiptLineParams) (GoodsReceiptLine, error)
+	// Интеграция с сайтом — docs/05-MODULES.md §8.
+	// Written by the PUBLIC website through the same backend.
+	CreateInquiry(ctx context.Context, arg CreateInquiryParams) (Inquiry, error)
 	// ---------------------------------------------------------------------------
 	// Mutations
 	// ---------------------------------------------------------------------------
 	CreateItem(ctx context.Context, arg CreateItemParams) (Item, error)
 	CreateItemPrice(ctx context.Context, arg CreateItemPriceParams) (ItemPrice, error)
+	CreateLead(ctx context.Context, arg CreateLeadParams) (Lead, error)
+	// Склад и запасы — the append-only ledger. docs/02-SCHEMA.md §5.
+	//
+	// Note what is absent from this entire file: any UPDATE of qty_delta, and any
+	// query that sets a quantity. Corrections are compensating INSERTs. The original
+	// row is evidence and is never edited (docs/02-SCHEMA.md:240).
+	CreateLocation(ctx context.Context, arg CreateLocationParams) (Location, error)
+	// Производство — docs/02-SCHEMA.md §6.
+	//
+	// Actual output, yield and downtime are SUMS over production_entries, never
+	// columns on the order. There is deliberately no query here that writes them.
+	CreateManufacturingOrder(ctx context.Context, arg CreateManufacturingOrderParams) (ManufacturingOrder, error)
 	CreatePackagingUnit(ctx context.Context, arg CreatePackagingUnitParams) (PackagingUnit, error)
+	CreatePurchaseOrder(ctx context.Context, arg CreatePurchaseOrderParams) (PurchaseOrder, error)
+	CreatePurchaseOrderLine(ctx context.Context, arg CreatePurchaseOrderLineParams) (PurchaseOrderLine, error)
+	// Качество и безопасность — docs/02-SCHEMA.md §7. The regulatory heart.
+	//
+	// batches.status is changed ONLY through here, and only by a batch_status_events
+	// row that names the deciding user. That table is the evidence trail behind the
+	// website's laboratory-control claim.
+	CreateQualityTest(ctx context.Context, arg CreateQualityTestParams) (QualityTest, error)
+	CreateRole(ctx context.Context, arg CreateRoleParams) (Role, error)
+	// CRM и продажи, Логистика. Both enforce the released-batch rule.
+	CreateSalesOrder(ctx context.Context, arg CreateSalesOrderParams) (SalesOrder, error)
+	CreateSalesOrderLine(ctx context.Context, arg CreateSalesOrderLineParams) (SalesOrderLine, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
+	CreateShipment(ctx context.Context, arg CreateShipmentParams) (Shipment, error)
+	CreateShipmentLine(ctx context.Context, arg CreateShipmentLineParams) (ShipmentLine, error)
+	// Закупки и поставщики — docs/05-MODULES.md §10.
+	// Goods receipt posts goods_receipt movements: this is how raw material enters
+	// inventory, and the two must happen in one transaction.
+	CreateSupplier(ctx context.Context, arg CreateSupplierParams) (Supplier, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredSessions(ctx context.Context, retain pgtype.Interval) error
 	// ---------------------------------------------------------------------------
@@ -40,6 +107,7 @@ type Querier interface {
 	GetBatchByID(ctx context.Context, id uuid.UUID) (Batch, error)
 	GetBatchByNo(ctx context.Context, batchNo string) (Batch, error)
 	GetCurrentItemPrice(ctx context.Context, itemID uuid.UUID) (ItemPrice, error)
+	GetInquiry(ctx context.Context, id uuid.UUID) (Inquiry, error)
 	// Товары и цены — the product master. docs/05-MODULES.md §4.
 	//
 	// This is the reference slice: every module after it copies these patterns, so
@@ -50,9 +118,29 @@ type Querier interface {
 	// the UI must never offer "set stock to X" (docs/05-MODULES.md:112).
 	GetItemByID(ctx context.Context, id uuid.UUID) (Item, error)
 	GetItemBySKU(ctx context.Context, sku string) (Item, error)
+	// Total across every location and batch for one item. Used by the low-stock
+	// alert, which compares it against items.min_qty.
+	GetItemTotalOnHand(ctx context.Context, itemID uuid.UUID) (decimal.Decimal, error)
+	GetLeadForInquiry(ctx context.Context, inquiryID uuid.NullUUID) (Lead, error)
+	GetLocationByCode(ctx context.Context, code string) (Location, error)
+	GetLocationByID(ctx context.Context, id uuid.UUID) (Location, error)
+	GetManufacturingOrder(ctx context.Context, id uuid.UUID) (ManufacturingOrder, error)
+	// The exact balance for one position. Read INSIDE the advisory lock before
+	// posting a negative delta — a value read before the lock is already stale.
+	GetPositionBalance(ctx context.Context, arg GetPositionBalanceParams) (decimal.Decimal, error)
+	// Yield is a computation, not a column (docs/02-SCHEMA.md:274).
+	GetProductionTotals(ctx context.Context, moID uuid.UUID) (GetProductionTotalsRow, error)
+	GetPurchaseOrder(ctx context.Context, id uuid.UUID) (PurchaseOrder, error)
+	GetPurchaseOrderLine(ctx context.Context, id uuid.UUID) (PurchaseOrderLine, error)
+	// Production output lands here and only a quality decision moves it out (§7).
+	GetQuarantineLocation(ctx context.Context) (Location, error)
+	GetRole(ctx context.Context, id uuid.UUID) (Role, error)
+	GetSalesOrder(ctx context.Context, id uuid.UUID) (SalesOrder, error)
 	// Deliberately does not filter on expiry or revocation: the domain layer
 	// distinguishes "unknown token" from "expired" from "revoked".
 	GetSessionByTokenHash(ctx context.Context, tokenHash string) (GetSessionByTokenHashRow, error)
+	GetShipment(ctx context.Context, id uuid.UUID) (Shipment, error)
+	GetSupplier(ctx context.Context, id uuid.UUID) (Supplier, error)
 	// Identity and session queries. Consumed by internal/auth (T05).
 	//
 	// Every read filters deleted_at IS NULL (CLAUDE.md §4.3). The one exception is
@@ -64,10 +152,19 @@ type Querier interface {
 	// (docs/04-RBAC.md §1). Resolved per request and never cached (04-RBAC.md:148).
 	GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]GetUserPermissionsRow, error)
 	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, error)
+	GrantPermission(ctx context.Context, arg GrantPermissionParams) error
 	// Audit log. Append-only: there is no update and no delete, by design
 	// (docs/02-SCHEMA.md:123). Every mutation in the system writes one row, inside
 	// the mutating transaction (docs/07-IMPLEMENTATION-PLAN.md I4).
 	InsertAuditEntry(ctx context.Context, arg InsertAuditEntryParams) (AuditLog, error)
+	// Append-only and immutable: no deleted_at, no version. This row is the evidence.
+	InsertBatchStatusEvent(ctx context.Context, arg InsertBatchStatusEventParams) (BatchStatusEvent, error)
+	InsertProductionEntry(ctx context.Context, arg InsertProductionEntryParams) (ProductionEntry, error)
+	// ---------------------------------------------------------------------------
+	// Movements
+	// ---------------------------------------------------------------------------
+	// The only way stock changes. qty_delta is signed; there is no other writer.
+	InsertStockMovement(ctx context.Context, arg InsertStockMovementParams) (StockMovement, error)
 	// Writes the payload and stamps the issue time. Guarded on qr_payload IS NULL:
 	// a wrapper is printed against the issued code, so re-issuing a different one
 	// silently invalidates wrappers that may already be in production. Zero rows
@@ -78,6 +175,7 @@ type Querier interface {
 	ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLog, error)
 	// Powers the activity panel on every detail view (docs/05-MODULES.md §2).
 	ListAuditForResource(ctx context.Context, arg ListAuditForResourceParams) ([]AuditLog, error)
+	ListBatchStatusEvents(ctx context.Context, batchID uuid.UUID) ([]ListBatchStatusEventsRow, error)
 	// Related records on the detail view (docs/05-MODULES.md §2).
 	ListBatchesForItem(ctx context.Context, arg ListBatchesForItemParams) ([]Batch, error)
 	// Batches whose codes go to the printer. NULL filters mean "no filter".
@@ -85,6 +183,8 @@ type Querier interface {
 	// The price in force today for each of the given items. DISTINCT ON keeps one
 	// row per item; the ORDER BY decides which one.
 	ListCurrentPricesForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemPrice, error)
+	ListGoodsReceipts(ctx context.Context, poID uuid.UUID) ([]GoodsReceipt, error)
+	ListInquiries(ctx context.Context, arg ListInquiriesParams) ([]ListInquiriesRow, error)
 	// Full price history, newest first — the detail view shows it (docs/05-MODULES.md:90).
 	ListItemPrices(ctx context.Context, itemID uuid.UUID) ([]ItemPrice, error)
 	ListItemTranslations(ctx context.Context, itemID uuid.UUID) ([]ItemTranslation, error)
@@ -105,13 +205,55 @@ type Querier interface {
 	// field is already whitelisted in Go, but building an ORDER BY by concatenation
 	// is how whitelists get bypassed later, when someone adds a field and forgets.
 	ListItems(ctx context.Context, arg ListItemsParams) ([]ListItemsRow, error)
+	ListLocations(ctx context.Context) ([]Location, error)
+	ListLowStockItems(ctx context.Context) ([]ListLowStockItemsRow, error)
+	ListManufacturingOrders(ctx context.Context, arg ListManufacturingOrdersParams) ([]ListManufacturingOrdersRow, error)
+	ListMovements(ctx context.Context, arg ListMovementsParams) ([]ListMovementsRow, error)
+	// The movement ledger for one position, with a running balance — the detail view
+	// (docs/05-MODULES.md:115).
+	ListMovementsForPosition(ctx context.Context, arg ListMovementsForPositionParams) ([]ListMovementsForPositionRow, error)
 	// ---------------------------------------------------------------------------
 	// Detail
 	// ---------------------------------------------------------------------------
 	ListPackagingUnits(ctx context.Context, itemID uuid.UUID) ([]PackagingUnit, error)
 	// One query for a whole page, not one per row.
 	ListPackagingUnitsForItems(ctx context.Context, itemIds []uuid.UUID) ([]PackagingUnit, error)
+	ListProductionEntries(ctx context.Context, moID uuid.UUID) ([]ProductionEntry, error)
+	ListPurchaseOrderLines(ctx context.Context, poID uuid.UUID) ([]ListPurchaseOrderLinesRow, error)
+	ListPurchaseOrders(ctx context.Context, arg ListPurchaseOrdersParams) ([]ListPurchaseOrdersRow, error)
+	ListQualityTests(ctx context.Context, batchID uuid.UUID) ([]ListQualityTestsRow, error)
+	ListQualityTestsPaged(ctx context.Context, arg ListQualityTestsPagedParams) ([]ListQualityTestsPagedRow, error)
+	ListRolePermissions(ctx context.Context, roleID uuid.UUID) ([]RolePermission, error)
+	// Role management and the audit viewer — docs/04-RBAC.md §6.
+	ListRoles(ctx context.Context) ([]ListRolesRow, error)
+	ListSalesOrderLines(ctx context.Context, salesOrderID uuid.UUID) ([]ListSalesOrderLinesRow, error)
+	ListSalesOrders(ctx context.Context, arg ListSalesOrdersParams) ([]ListSalesOrdersRow, error)
+	ListShipmentLines(ctx context.Context, shipmentID uuid.UUID) ([]ListShipmentLinesRow, error)
+	ListShipments(ctx context.Context, arg ListShipmentsParams) ([]Shipment, error)
+	// ---------------------------------------------------------------------------
+	// Balances — derived, never stored
+	// ---------------------------------------------------------------------------
+	// The Склад list view. Every quantity here is a SUM computed at read time.
+	//
+	// Positions that have netted to zero are excluded: a row reading "0" is not a
+	// stock position, it is the absence of one, and showing it would fill the
+	// warehouse list with everything that ever passed through.
+	ListStockBalances(ctx context.Context, arg ListStockBalancesParams) ([]ListStockBalancesRow, error)
+	ListSuppliers(ctx context.Context, arg ListSuppliersParams) ([]Supplier, error)
 	ListTranslationsForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemTranslation, error)
+	ListUsersWithRoles(ctx context.Context, arg ListUsersWithRolesParams) ([]ListUsersWithRolesRow, error)
+	// Serialises writers against one (item, batch, location) for the rest of the
+	// transaction (docs/07-IMPLEMENTATION-PLAN.md I6).
+	//
+	// Taken only when posting a NEGATIVE delta: two receipts cannot oversell, so
+	// locking them would serialise the warehouse for nothing. The lock key hashes
+	// the position; batch_id is nullable, so it is coalesced to a fixed sentinel
+	// rather than left to hash NULL.
+	LockStockPosition(ctx context.Context, arg LockStockPositionParams) error
+	// A sequence per prefix. SELECT ... FOR UPDATE on the max row would still race on
+	// an empty table, so the uniqueness is guaranteed by the partial unique index and
+	// this is only a hint for the next number.
+	NextInquirySequence(ctx context.Context, prefix string) (int32, error)
 	// Increments the counter and locks the account once the threshold is reached.
 	// Returning the row lets the caller report the resulting state without a re-read.
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (User, error)
@@ -119,13 +261,30 @@ type Querier interface {
 	// Logout everywhere, required on password change (docs/03-API-CONTRACT.md:193).
 	RevokeAllUserSessions(ctx context.Context, userID uuid.UUID) error
 	RevokeSession(ctx context.Context, id uuid.UUID) error
+	SetInquiryStatus(ctx context.Context, arg SetInquiryStatusParams) (Inquiry, error)
+	SetManufacturingOrderStatus(ctx context.Context, arg SetManufacturingOrderStatusParams) (ManufacturingOrder, error)
 	SetPasswordHash(ctx context.Context, arg SetPasswordHashParams) error
+	// Guarded on the current status so a concurrent transition cannot slip through.
+	SetPurchaseOrderStatus(ctx context.Context, arg SetPurchaseOrderStatusParams) (PurchaseOrder, error)
+	SetSalesOrderStatus(ctx context.Context, arg SetSalesOrderStatusParams) (SalesOrder, error)
+	SetShipmentStatus(ctx context.Context, arg SetShipmentStatusParams) (Shipment, error)
+	SetUserActive(ctx context.Context, arg SetUserActiveParams) (User, error)
+	// The dashboard's Выручка. Sourced from CONFIRMED sales orders only
+	// (docs/05-MODULES.md:65) — there is no finance module to ask.
+	SumConfirmedSalesRevenue(ctx context.Context) (decimal.Decimal, error)
+	SumReceivedForLine(ctx context.Context, poLineID uuid.UUID) (decimal.Decimal, error)
 	// No hard deletes (CLAUDE.md §4.3). Also version-guarded: deleting a record
 	// someone else just edited should fail the same way updating it would.
 	TombstoneItem(ctx context.Context, arg TombstoneItemParams) (Item, error)
 	TombstonePackagingUnit(ctx context.Context, arg TombstonePackagingUnitParams) error
+	// Seed roles are is_system and cannot be deleted (D9); the guard is in the WHERE
+	// clause so it holds regardless of caller.
+	TombstoneRole(ctx context.Context, id uuid.UUID) (Role, error)
 	// Idle-timeout support: slides the expiry window on activity.
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
+	// Guarded on the CURRENT status, so an illegal transition cannot slip through a
+	// read-then-write race. Zero rows means the batch moved underneath us.
+	TransitionBatchStatus(ctx context.Context, arg TransitionBatchStatusParams) (Batch, error)
 	// The version guard is in the WHERE clause, not a prior read: checking then
 	// writing in two statements leaves a window where another request commits in
 	// between. No rows returned means the version was stale.
