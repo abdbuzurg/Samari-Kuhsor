@@ -345,3 +345,98 @@ type AlertCondition struct {
 	Level    string `json:"level"`
 	Count    int    `json:"count"`
 }
+
+// ---------------------------------------------------------------------------
+// Персонал, Оборудование и ТО, Документы
+// ---------------------------------------------------------------------------
+
+type Employee struct {
+	ID            string  `json:"id"`
+	FullName      string  `json:"full_name"`
+	PositionID    *string `json:"position_id" tstype:"string | null"`
+	PositionTitle *string `json:"position_title" tstype:"string | null"`
+	Department    *string `json:"department" tstype:"string | null"`
+	Shift         *string `json:"shift" tstype:"string | null"`
+	HiredOn       *string `json:"hired_on" tstype:"string | null"`
+	ContractUntil *string `json:"contract_until" tstype:"string | null"`
+	Status        Status  `json:"status"`
+	Version       int32   `json:"version"`
+}
+
+// Version is a POINTER on every write request: an absent version must be a
+// validation error, not a silent zero that overwrites whatever the record now
+// holds. See common.RequireVersion.
+type EmployeeWriteRequest struct {
+	FullName      string  `json:"full_name"`
+	PositionID    *string `json:"position_id"`
+	Shift         *string `json:"shift"`
+	HiredOn       *string `json:"hired_on"`
+	ContractUntil *string `json:"contract_until"`
+	Status        string  `json:"status"`
+	Version       *int32  `json:"version"`
+}
+
+type Asset struct {
+	ID             string  `json:"id"`
+	AssetNo        string  `json:"asset_no"`
+	Name           string  `json:"name"`
+	AssetType      *string `json:"asset_type" tstype:"string | null"`
+	Line           *string `json:"line" tstype:"string | null"`
+	CommissionedOn *string `json:"commissioned_on" tstype:"string | null"`
+	WarrantyUntil  *string `json:"warranty_until" tstype:"string | null"`
+	NextDueOn      *string `json:"next_due_on" tstype:"string | null"`
+	LastServiceAt  *string `json:"last_service_at" tstype:"string | null"`
+	Status         Status  `json:"status"`
+	Version        int32   `json:"version"`
+}
+
+type AssetWriteRequest struct {
+	AssetNo        string  `json:"asset_no"`
+	Name           string  `json:"name"`
+	AssetType      *string `json:"asset_type"`
+	Line           *string `json:"line"`
+	CommissionedOn *string `json:"commissioned_on"`
+	WarrantyUntil  *string `json:"warranty_until"`
+	Status         string  `json:"status"`
+	Version        *int32  `json:"version"`
+}
+
+type MaintenanceEvent struct {
+	ID          string  `json:"id"`
+	AssetID     string  `json:"asset_id"`
+	EventType   *string `json:"event_type" tstype:"string | null"`
+	PerformedAt *string `json:"performed_at" tstype:"string | null"`
+	NextDueOn   *string `json:"next_due_on" tstype:"string | null"`
+	Notes       *string `json:"notes" tstype:"string | null"`
+}
+
+type MaintenanceWriteRequest struct {
+	EventType   *string `json:"event_type"`
+	PerformedAt *string `json:"performed_at"`
+	NextDueOn   *string `json:"next_due_on"`
+	Notes       *string `json:"notes"`
+}
+
+type Document struct {
+	ID         string  `json:"id"`
+	DocNo      string  `json:"doc_no"`
+	Title      string  `json:"title"`
+	DocType    *string `json:"doc_type" tstype:"string | null"`
+	OwnerID    *string `json:"owner_id" tstype:"string | null"`
+	OwnerName  *string `json:"owner_name" tstype:"string | null"`
+	ValidUntil *string `json:"valid_until" tstype:"string | null"`
+	Status     Status  `json:"status"`
+	Version    int32   `json:"version"`
+	// AllowedTransitions is what this actor may do next. Activation needs
+	// documents:approve, so the button set differs per user.
+	AllowedTransitions []string `json:"allowed_transitions"`
+}
+
+type DocumentWriteRequest struct {
+	DocNo      string  `json:"doc_no"`
+	Title      string  `json:"title"`
+	DocType    *string `json:"doc_type"`
+	OwnerID    *string `json:"owner_id"`
+	ValidUntil *string `json:"valid_until"`
+	Version    *int32  `json:"version"`
+}

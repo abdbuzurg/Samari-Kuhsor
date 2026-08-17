@@ -32,6 +32,7 @@ import (
 	"github.com/qoim/samari/backend/internal/domain/procurement"
 	"github.com/qoim/samari/backend/internal/domain/production"
 	"github.com/qoim/samari/backend/internal/domain/quality"
+	"github.com/qoim/samari/backend/internal/domain/registries"
 	"github.com/qoim/samari/backend/internal/domain/sales"
 	"github.com/qoim/samari/backend/internal/http/common"
 	"github.com/qoim/samari/backend/internal/rbac"
@@ -60,6 +61,7 @@ type Services struct {
 	Procurement *procurement.Service
 	Sales       *sales.Service
 	Inquiries   *inquiries.Service
+	Registries  *registries.Service
 	Admin       *admin.Service
 	Alerts      *alerts.Service
 }
@@ -244,6 +246,34 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 		v1.Public(api, http.MethodPost, "/alerts/read",
 			"marks read only what this caller was already permitted to see",
 			s.handleMarkAlertsRead)
+
+		// Персонал.
+		v1.Guarded(api, http.MethodGet, "/employees",
+			rbac.HR, rbac.Read, s.handleListEmployees)
+		v1.Guarded(api, http.MethodPost, "/employees",
+			rbac.HR, rbac.Manage, s.handleCreateEmployee)
+		v1.Guarded(api, http.MethodPatch, "/employees/{id}",
+			rbac.HR, rbac.Manage, s.handleUpdateEmployee)
+
+		// Оборудование и ТО.
+		v1.Guarded(api, http.MethodGet, "/assets",
+			rbac.Equipment, rbac.Read, s.handleListAssets)
+		v1.Guarded(api, http.MethodPost, "/assets",
+			rbac.Equipment, rbac.Manage, s.handleCreateAsset)
+		v1.Guarded(api, http.MethodGet, "/assets/{id}/maintenance",
+			rbac.Equipment, rbac.Read, s.handleAssetMaintenance)
+		v1.Guarded(api, http.MethodPost, "/assets/{id}/maintenance",
+			rbac.Equipment, rbac.Manage, s.handleRecordMaintenance)
+
+		// Документы. The transition route is `manage`, not `approve`: sending a
+		// draft for review needs no authority, and only activation does — which
+		// the transition matrix enforces inside the domain.
+		v1.Guarded(api, http.MethodGet, "/documents",
+			rbac.Documents, rbac.Read, s.handleListDocuments)
+		v1.Guarded(api, http.MethodPost, "/documents",
+			rbac.Documents, rbac.Manage, s.handleCreateDocument)
+		v1.Guarded(api, http.MethodPost, "/documents/{id}/transition",
+			rbac.Documents, rbac.Manage, s.handleTransitionDocument)
 
 		// Администрирование. Everything here is admin:manage — there is no
 		// read-only view of the permission system that is worth the surface.

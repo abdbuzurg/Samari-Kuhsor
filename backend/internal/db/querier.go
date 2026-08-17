@@ -20,6 +20,7 @@ type Querier interface {
 	// evidence, and the detail view shows it. Closes the day before the new price
 	// starts so the two never overlap.
 	CloseOpenItemPrices(ctx context.Context, arg CloseOpenItemPricesParams) error
+	CountAssets(ctx context.Context, arg CountAssetsParams) (int64, error)
 	CountAudit(ctx context.Context, arg CountAuditParams) (int64, error)
 	CountAuditForResource(ctx context.Context, arg CountAuditForResourceParams) (int64, error)
 	CountBatchesAwaitingQR(ctx context.Context) (int64, error)
@@ -27,10 +28,12 @@ type Querier interface {
 	CountBatchesExpiringWithin(ctx context.Context, days int32) (int32, error)
 	CountBatchesForQuality(ctx context.Context, arg CountBatchesForQualityParams) (int64, error)
 	CountContractsExpiringWithin(ctx context.Context, days int32) (int32, error)
+	CountDocuments(ctx context.Context, arg CountDocumentsParams) (int64, error)
 	// ---------------------------------------------------------------------------
 	// Derived standing conditions — the other seven (docs/07 I15)
 	// ---------------------------------------------------------------------------
 	CountDocumentsExpiringWithin(ctx context.Context, days int32) (int32, error)
+	CountEmployees(ctx context.Context, arg CountEmployeesParams) (int64, error)
 	CountFailedTests(ctx context.Context) (int32, error)
 	CountInquiries(ctx context.Context, arg CountInquiriesParams) (int64, error)
 	// Rate limiting by IP (docs/03-API-CONTRACT.md:249).
@@ -63,8 +66,11 @@ type Querier interface {
 	// The last-admin guard (docs/04-RBAC.md:147). Counts ACTIVE, non-deleted users
 	// holding a permission, because a deactivated administrator cannot rescue anyone.
 	CountUsersHoldingPermission(ctx context.Context, arg CountUsersHoldingPermissionParams) (int32, error)
+	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
 	CreateBatch(ctx context.Context, arg CreateBatchParams) (Batch, error)
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
+	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
+	CreateEmployee(ctx context.Context, arg CreateEmployeeParams) (Employee, error)
 	CreateGoodsReceipt(ctx context.Context, arg CreateGoodsReceiptParams) (GoodsReceipt, error)
 	CreateGoodsReceiptLine(ctx context.Context, arg CreateGoodsReceiptLineParams) (GoodsReceiptLine, error)
 	// Интеграция с сайтом — docs/05-MODULES.md §8.
@@ -82,6 +88,7 @@ type Querier interface {
 	// query that sets a quantity. Corrections are compensating INSERTs. The original
 	// row is evidence and is never edited (docs/02-SCHEMA.md:240).
 	CreateLocation(ctx context.Context, arg CreateLocationParams) (Location, error)
+	CreateMaintenanceEvent(ctx context.Context, arg CreateMaintenanceEventParams) (MaintenanceEvent, error)
 	// Производство — docs/02-SCHEMA.md §6.
 	//
 	// Actual output, yield and downtime are SUMS over production_entries, never
@@ -109,6 +116,7 @@ type Querier interface {
 	CreateSupplier(ctx context.Context, arg CreateSupplierParams) (Supplier, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteExpiredSessions(ctx context.Context, retain pgtype.Interval) error
+	GetAsset(ctx context.Context, id uuid.UUID) (Asset, error)
 	// ---------------------------------------------------------------------------
 	// Batches and QR — docs/01-DECISIONS.md D11
 	// ---------------------------------------------------------------------------
@@ -117,6 +125,8 @@ type Querier interface {
 	// The traceability header: the batch plus enough of the product to name it.
 	GetBatchWithItem(ctx context.Context, id uuid.UUID) (GetBatchWithItemRow, error)
 	GetCurrentItemPrice(ctx context.Context, itemID uuid.UUID) (ItemPrice, error)
+	GetDocument(ctx context.Context, id uuid.UUID) (GetDocumentRow, error)
+	GetEmployee(ctx context.Context, id uuid.UUID) (GetEmployeeRow, error)
 	GetInquiry(ctx context.Context, id uuid.UUID) (Inquiry, error)
 	// Товары и цены — the product master. docs/05-MODULES.md §4.
 	//
@@ -184,6 +194,10 @@ type Querier interface {
 	// silently invalidates wrappers that may already be in production. Zero rows
 	// means it was already issued.
 	IssueBatchQR(ctx context.Context, arg IssueBatchQRParams) (Batch, error)
+	// ---------------------------------------------------------------------------
+	// Оборудование и ТО
+	// ---------------------------------------------------------------------------
+	ListAssets(ctx context.Context, arg ListAssetsParams) ([]ListAssetsRow, error)
 	// The audit viewer (docs/04-RBAC.md §6), filterable by actor, resource and date
 	// range. NULL means "no filter" for each dimension.
 	ListAudit(ctx context.Context, arg ListAuditParams) ([]AuditLog, error)
@@ -200,6 +214,20 @@ type Querier interface {
 	// The price in force today for each of the given items. DISTINCT ON keeps one
 	// row per item; the ORDER BY decides which one.
 	ListCurrentPricesForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemPrice, error)
+	// ---------------------------------------------------------------------------
+	// Документы
+	// ---------------------------------------------------------------------------
+	ListDocuments(ctx context.Context, arg ListDocumentsParams) ([]ListDocumentsRow, error)
+	// Персонал, Оборудование и ТО, Документы — docs/05-MODULES.md §12, §13, §14.
+	//
+	// These three are registries rather than transaction flows: rows are created,
+	// kept current, and watched for expiry. What they share is a date that runs out
+	// — a contract, a service interval, a certificate — which is why all three feed
+	// standing conditions in the alerts service rather than firing events.
+	// ---------------------------------------------------------------------------
+	// Персонал
+	// ---------------------------------------------------------------------------
+	ListEmployees(ctx context.Context, arg ListEmployeesParams) ([]ListEmployeesRow, error)
 	ListGoodsReceipts(ctx context.Context, poID uuid.UUID) ([]GoodsReceipt, error)
 	ListInquiries(ctx context.Context, arg ListInquiriesParams) ([]ListInquiriesRow, error)
 	// Full price history, newest first — the detail view shows it (docs/05-MODULES.md:90).
@@ -224,6 +252,9 @@ type Querier interface {
 	ListItems(ctx context.Context, arg ListItemsParams) ([]ListItemsRow, error)
 	ListLocations(ctx context.Context) ([]Location, error)
 	ListLowStockItems(ctx context.Context) ([]ListLowStockItemsRow, error)
+	// Append-only in practice: a service record is what someone did on a date, and
+	// there is no endpoint that edits one.
+	ListMaintenanceEvents(ctx context.Context, assetID uuid.UUID) ([]MaintenanceEvent, error)
 	ListManufacturingOrders(ctx context.Context, arg ListManufacturingOrdersParams) ([]ListManufacturingOrdersRow, error)
 	ListMovements(ctx context.Context, arg ListMovementsParams) ([]ListMovementsRow, error)
 	// The movement ledger for one position, with a running balance — the detail view
@@ -238,6 +269,7 @@ type Querier interface {
 	ListPackagingUnits(ctx context.Context, itemID uuid.UUID) ([]PackagingUnit, error)
 	// One query for a whole page, not one per row.
 	ListPackagingUnitsForItems(ctx context.Context, itemIds []uuid.UUID) ([]PackagingUnit, error)
+	ListPositions(ctx context.Context) ([]ListPositionsRow, error)
 	ListProductionEntries(ctx context.Context, moID uuid.UUID) ([]ProductionEntry, error)
 	ListPurchaseOrderLines(ctx context.Context, poID uuid.UUID) ([]ListPurchaseOrderLinesRow, error)
 	ListPurchaseOrders(ctx context.Context, arg ListPurchaseOrdersParams) ([]ListPurchaseOrdersRow, error)
@@ -294,6 +326,9 @@ type Querier interface {
 	// (docs/05-MODULES.md:65) — there is no finance module to ask.
 	SumConfirmedSalesRevenue(ctx context.Context) (decimal.Decimal, error)
 	SumReceivedForLine(ctx context.Context, poLineID uuid.UUID) (decimal.Decimal, error)
+	TombstoneAsset(ctx context.Context, arg TombstoneAssetParams) (Asset, error)
+	TombstoneDocument(ctx context.Context, arg TombstoneDocumentParams) (Document, error)
+	TombstoneEmployee(ctx context.Context, arg TombstoneEmployeeParams) (Employee, error)
 	// No hard deletes (CLAUDE.md §4.3). Also version-guarded: deleting a record
 	// someone else just edited should fail the same way updating it would.
 	TombstoneItem(ctx context.Context, arg TombstoneItemParams) (Item, error)
@@ -306,6 +341,12 @@ type Querier interface {
 	// Guarded on the CURRENT status, so an illegal transition cannot slip through a
 	// read-then-write race. Zero rows means the batch moved underneath us.
 	TransitionBatchStatus(ctx context.Context, arg TransitionBatchStatusParams) (Batch, error)
+	// Guarded on the current status, so a concurrent transition cannot slip between
+	// the caller's read and this write.
+	TransitionDocument(ctx context.Context, arg TransitionDocumentParams) (Document, error)
+	UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset, error)
+	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
+	UpdateEmployee(ctx context.Context, arg UpdateEmployeeParams) (Employee, error)
 	// The version guard is in the WHERE clause, not a prior read: checking then
 	// writing in two statements leaves a window where another request commits in
 	// between. No rows returned means the version was stale.

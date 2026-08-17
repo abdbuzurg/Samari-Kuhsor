@@ -83,6 +83,16 @@ var everyGuardedRoute = []routeCase{
 	{"POST", "/api/v1/shipments/" + zeroUUID + "/lines", "logistics:manage", `{"item_id":"` + zeroUUID + `","batch_id":"` + zeroUUID + `","qty":"1"}`},
 	{"GET", "/api/v1/inquiries", "inquiries:read", ""},
 	{"POST", "/api/v1/inquiries/" + zeroUUID + "/convert", "inquiries:manage", ""},
+	{"GET", "/api/v1/employees", "hr:read", ""},
+	{"POST", "/api/v1/employees", "hr:manage", `{"full_name":"Тест","version":0}`},
+	{"PATCH", "/api/v1/employees/" + zeroUUID, "hr:manage", `{"full_name":"Тест","version":1}`},
+	{"GET", "/api/v1/assets", "equipment:read", ""},
+	{"POST", "/api/v1/assets", "equipment:manage", `{"asset_no":"EQ-1","name":"Линия","version":0}`},
+	{"GET", "/api/v1/assets/" + zeroUUID + "/maintenance", "equipment:read", ""},
+	{"POST", "/api/v1/assets/" + zeroUUID + "/maintenance", "equipment:manage", `{"event_type":"planned"}`},
+	{"GET", "/api/v1/documents", "documents:read", ""},
+	{"POST", "/api/v1/documents", "documents:manage", `{"doc_no":"D-1","title":"Тест","version":0}`},
+	{"POST", "/api/v1/documents/" + zeroUUID + "/transition", "documents:manage", `{"to":"approval"}`},
 	{"GET", "/api/v1/admin/roles", "admin:read", ""},
 	{"POST", "/api/v1/admin/roles", "admin:manage", `{"key":"test","name":"Тест"}`},
 	{"PUT", "/api/v1/admin/roles/" + zeroUUID + "/permissions", "admin:manage", `{"permissions":[]}`},
@@ -101,17 +111,24 @@ func TestEveryGuardedRouteRefusesTheWrongPermission(t *testing.T) {
 	t.Parallel()
 	handler, pool := newServer(t)
 
-	// One user with a broad but deliberately irrelevant grant: they can manage
-	// documents and nothing else. If any route below answers them, that route is
-	// either unguarded or guarded on the wrong resource.
-	seedUser(t, pool, "outsider@samari-kuhsor.tj", "documents:manage")
+	// One user holding a grant that no route in the table demands. If any route
+	// below answers them, that route is either unguarded or guarded on the wrong
+	// resource.
+	//
+	// The grant is DERIVED rather than hard-coded: an earlier version used
+	// documents:manage, which was irrelevant until Документы was built, at which
+	// point three routes correctly admitted the "outsider" and the test failed for
+	// the wrong reason.
+	outsider := irrelevantPermission(t)
+	seedUser(t, pool, "outsider@samari-kuhsor.tj", outsider)
 	token := loginAs(t, handler, "outsider@samari-kuhsor.tj")
 
 	for _, tc := range everyGuardedRoute {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
 			res := do(t, handler, tc.method, tc.path, token, bodyOf(tc.body))
 			if res.Code != http.StatusForbidden {
-				t.Errorf("status = %d, want 403 (needs %s)", res.Code, tc.needs)
+				t.Errorf("status = %d holding only %s, want 403 (needs %s)",
+					res.Code, outsider, tc.needs)
 			}
 			// And the refusal uses the documented envelope, so the BFF can branch
 			// on it without parsing prose.
@@ -261,6 +278,30 @@ func TestRouteTableMatchesTheDeclaredPermissions(t *testing.T) {
 			t.Errorf("%s: table says %s, router declares %s", key, tc.needs, got)
 		}
 	}
+}
+
+// irrelevantPermission returns a manage grant on a resource that no route in the
+// table demands.
+//
+// It fails rather than guessing if every resource is now routed: at that point
+// the refusal test needs a real answer — probably a resource invented for the
+// purpose — and silently falling back to something admitted by three routes
+// would make the whole suite pass while enforcing nothing.
+func irrelevantPermission(t *testing.T) string {
+	t.Helper()
+	demanded := map[string]bool{}
+	for _, tc := range everyGuardedRoute {
+		res, _, _ := strings.Cut(tc.needs, ":")
+		demanded[res] = true
+	}
+	for _, res := range rbac.Resources {
+		if !demanded[res] {
+			return res + ":manage"
+		}
+	}
+	t.Fatal("every resource is now demanded by some route; the refusal test needs " +
+		"a resource that no route uses")
+	return ""
 }
 
 // normalisePattern turns a concrete test path back into the chi pattern, so the

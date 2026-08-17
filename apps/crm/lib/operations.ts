@@ -1,9 +1,13 @@
 'use client';
 
 import type {
+  Asset,
   BatchDetail,
   BatchListRow,
+  Document,
+  Employee,
   Inquiry,
+  MaintenanceEvent,
   ManufacturingOrder,
   ManufacturingOrderRow,
   PurchaseOrder,
@@ -209,4 +213,35 @@ export function useInquiries(query: InquiryQuery) {
 
 export function useConvertInquiry(id: string) {
   return inquiries.useAction(id, 'convert');
+}
+
+// ---------------------------------------------------------------------------
+// Персонал, Оборудование и ТО, Документы
+// ---------------------------------------------------------------------------
+
+const employees = createResourceHooks<Employee, Employee>('employees');
+export function useEmployees(query: StatusQuery) {
+  return employees.useList(withStatus(query));
+}
+export const useCreateEmployee = employees.useCreate;
+export const useUpdateEmployee = employees.useUpdate;
+
+const assets = createResourceHooks<Asset, Asset>('assets');
+export function useAssets(query: StatusQuery) {
+  return assets.useList(withStatus(query));
+}
+export const useCreateAsset = assets.useCreate;
+
+/** Records a service. Go clears the maintenance-due flag as part of it. */
+export function useRecordMaintenance(id: string) {
+  return assets.useAction<MaintenanceEvent>(id, 'maintenance');
+}
+
+const documents = createResourceHooks<Document, Document>('documents');
+export function useDocuments(query: StatusQuery) {
+  return documents.useList(withStatus(query));
+}
+export const useCreateDocument = documents.useCreate;
+export function useTransitionDocument(id: string) {
+  return documents.useAction<Document>(id, 'transition');
 }

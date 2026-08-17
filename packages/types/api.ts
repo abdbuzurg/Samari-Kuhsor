@@ -319,6 +319,93 @@ export interface AlertCondition {
   level: string;
   count: number /* int */;
 }
+export interface Employee {
+  id: string;
+  full_name: string;
+  position_id?: string | null;
+  position_title?: string | null;
+  department?: string | null;
+  shift?: string | null;
+  hired_on?: string | null;
+  contract_until?: string | null;
+  status: Status;
+  version: number /* int32 */;
+}
+/**
+ * Version is a POINTER on every write request: an absent version must be a
+ * validation error, not a silent zero that overwrites whatever the record now
+ * holds. See common.RequireVersion.
+ */
+export interface EmployeeWriteRequest {
+  full_name: string;
+  position_id?: string;
+  shift?: string;
+  hired_on?: string;
+  contract_until?: string;
+  status: string;
+  version?: number /* int32 */;
+}
+export interface Asset {
+  id: string;
+  asset_no: string;
+  name: string;
+  asset_type?: string | null;
+  line?: string | null;
+  commissioned_on?: string | null;
+  warranty_until?: string | null;
+  next_due_on?: string | null;
+  last_service_at?: string | null;
+  status: Status;
+  version: number /* int32 */;
+}
+export interface AssetWriteRequest {
+  asset_no: string;
+  name: string;
+  asset_type?: string;
+  line?: string;
+  commissioned_on?: string;
+  warranty_until?: string;
+  status: string;
+  version?: number /* int32 */;
+}
+export interface MaintenanceEvent {
+  id: string;
+  asset_id: string;
+  event_type?: string | null;
+  performed_at?: string | null;
+  next_due_on?: string | null;
+  notes?: string | null;
+}
+export interface MaintenanceWriteRequest {
+  event_type?: string;
+  performed_at?: string;
+  next_due_on?: string;
+  notes?: string;
+}
+export interface Document {
+  id: string;
+  doc_no: string;
+  title: string;
+  doc_type?: string | null;
+  owner_id?: string | null;
+  owner_name?: string | null;
+  valid_until?: string | null;
+  status: Status;
+  version: number /* int32 */;
+  /**
+   * AllowedTransitions is what this actor may do next. Activation needs
+   * documents:approve, so the button set differs per user.
+   */
+  allowed_transitions: string[];
+}
+export interface DocumentWriteRequest {
+  doc_no: string;
+  title: string;
+  doc_type?: string;
+  owner_id?: string;
+  valid_until?: string;
+  version?: number /* int32 */;
+}
 
 //////////
 // source: operations.go

@@ -13,10 +13,16 @@ import SalesPage from '@/app/crm/page';
 import LogisticsPage from '@/app/logistics/page';
 import InquiriesPage from '@/app/inquiries/page';
 import QualityPage from '@/app/quality/page';
+import HRPage from '@/app/hr/page';
+import EquipmentPage from '@/app/equipment/page';
+import DocumentsPage from '@/app/documents/page';
 import { server, session, adminUser } from '@/test/msw';
 import messages from '@/messages/ru.json';
 import type {
+  Asset,
   BatchListRow,
+  Document,
+  Employee,
   Inquiry,
   ManufacturingOrderRow,
   PurchaseOrderRow,
@@ -203,6 +209,46 @@ const COMPLAINT: Inquiry = {
   version: 1,
 };
 
+const EMPLOYEE: Employee = {
+  id: '018f3c9e-0000-7000-8000-000000000131',
+  full_name: 'Ф. Давлатова',
+  position_id: null,
+  position_title: 'Оператор линии',
+  department: 'Производство',
+  shift: 'day',
+  hired_on: '2026-08-01',
+  contract_until: '2026-09-01',
+  status: { key: 'active', label: 'Работает', level: 'ok' },
+  version: 1,
+};
+
+const ASSET: Asset = {
+  id: '018f3c9e-0000-7000-8000-000000000141',
+  asset_no: 'EQ-047',
+  name: 'Линия розлива',
+  asset_type: 'filling_line',
+  line: 'Линия 1',
+  commissioned_on: '2026-07-01',
+  warranty_until: '2029-07-01',
+  next_due_on: '2026-11-17',
+  last_service_at: '2026-08-17T10:00:00Z',
+  status: { key: 'maintenance_due', label: 'Требует ТО', level: 'warn' },
+  version: 1,
+};
+
+const DOCUMENT: Document = {
+  id: '018f3c9e-0000-7000-8000-000000000151',
+  doc_no: 'СЕРТ-001',
+  title: 'Сертификат соответствия',
+  doc_type: 'certificate',
+  owner_id: null,
+  owner_name: 'Ф. Давлатова',
+  valid_until: '2027-08-17',
+  status: { key: 'active', label: 'Действует', level: 'ok' },
+  version: 1,
+  allowed_transitions: ['archived'],
+};
+
 // Every module, with the endpoint it reads and a row to render. The four-state
 // tests below run over this table so a new module cannot be added without them.
 // `search` is the module toolbar's placeholder. It is needed because the app
@@ -235,6 +281,18 @@ const MODULES = [
   {
     name: 'Качество', path: '/api/quality/batches', Page: QualityPage, row: BATCH,
     cell: 'B-2617', search: 'Поиск по номеру партии и продукции',
+  },
+  {
+    name: 'Персонал', path: '/api/employees', Page: HRPage, row: EMPLOYEE,
+    cell: 'Ф. Давлатова', search: 'Поиск по ФИО и должности',
+  },
+  {
+    name: 'Оборудование', path: '/api/assets', Page: EquipmentPage, row: ASSET,
+    cell: 'EQ-047', search: 'Поиск по инвентарному номеру, названию и линии',
+  },
+  {
+    name: 'Документы', path: '/api/documents', Page: DocumentsPage, row: DOCUMENT,
+    cell: 'СЕРТ-001', search: 'Поиск по номеру и названию',
   },
 ] as const;
 
@@ -422,6 +480,83 @@ describe('Качество', () => {
     await screen.findByText('B-2618');
     expect(screen.getByText('3')).toBeInTheDocument();
     expect(screen.queryByText(/не соотв/)).not.toBeInTheDocument();
+  });
+});
+
+describe('Персонал', () => {
+  it('renders the shift in Russian rather than the stored key', async () => {
+    server.use(session.loaded(adminUser), collection('/api/employees', [EMPLOYEE]));
+    wrap(<HRPage />);
+    await screen.findByText('Ф. Давлатова');
+    expect(screen.getByText('Дневная')).toBeInTheDocument();
+    expect(screen.queryByText('day')).not.toBeInTheDocument();
+  });
+
+  it('shows «уточняется» for an employee not on a rota', async () => {
+    // null shift is not "no shift" — many staff are simply not on a rota — so it
+    // renders like any other unknown rather than as an empty cell.
+    const office: Employee = { ...EMPLOYEE, full_name: 'Н. Сафарова', shift: null };
+    server.use(session.loaded(adminUser), collection('/api/employees', [office]));
+    wrap(<HRPage />);
+    await screen.findByText('Н. Сафарова');
+    expect(screen.getAllByText('уточняется').length).toBeGreaterThan(0);
+  });
+});
+
+describe('Оборудование', () => {
+  it('shows the next service date, so the register answers «when next»', async () => {
+    server.use(session.loaded(adminUser), collection('/api/assets', [ASSET]));
+    wrap(<EquipmentPage />);
+    await screen.findByText('EQ-047');
+    expect(screen.getByText('2026-11-17')).toBeInTheDocument();
+  });
+
+  it('flags broken equipment as danger, because it stops the line', async () => {
+    const broken: Asset = {
+      ...ASSET,
+      asset_no: 'EQ-048',
+      status: { key: 'broken', label: 'Неисправно', level: 'danger' },
+    };
+    server.use(session.loaded(adminUser), collection('/api/assets', [broken]));
+    wrap(<EquipmentPage />);
+    await screen.findByText('EQ-048');
+
+    const tag = screen.getAllByTestId('status-tag').find((el) => el.dataset.status === 'broken');
+    expect(tag).toHaveAttribute('data-level', 'danger');
+    expect(screen.getByText('линия остановлена')).toBeInTheDocument();
+  });
+
+  it('does not raise the line-stopped banner when nothing is broken', async () => {
+    server.use(session.loaded(adminUser), collection('/api/assets', [ASSET]));
+    wrap(<EquipmentPage />);
+    await screen.findByText('EQ-047');
+    expect(screen.queryByText('линия остановлена')).not.toBeInTheDocument();
+  });
+});
+
+describe('Документы', () => {
+  it('marks an expired certificate as danger', async () => {
+    const expired: Document = {
+      ...DOCUMENT,
+      doc_no: 'СЕРТ-002',
+      status: { key: 'expired', label: 'Истёк', level: 'danger' },
+    };
+    server.use(session.loaded(adminUser), collection('/api/documents', [expired]));
+    wrap(<DocumentsPage />);
+    await screen.findByText('СЕРТ-002');
+
+    const tag = screen.getAllByTestId('status-tag').find((el) => el.dataset.status === 'expired');
+    expect(tag).toHaveAttribute('data-level', 'danger');
+    // An expired certificate is a regulatory exposure, not a filing inconvenience.
+    expect(screen.getByText('требуют продления')).toBeInTheDocument();
+  });
+
+  it('shows an active document as ok', async () => {
+    server.use(session.loaded(adminUser), collection('/api/documents', [DOCUMENT]));
+    wrap(<DocumentsPage />);
+    await screen.findByText('СЕРТ-001');
+    const tag = screen.getAllByTestId('status-tag').find((el) => el.dataset.status === 'active');
+    expect(tag).toHaveAttribute('data-level', 'ok');
   });
 });
 
