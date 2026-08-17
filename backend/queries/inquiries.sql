@@ -8,12 +8,11 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *;
 -- name: GetInquiry :one
 SELECT * FROM inquiries WHERE id=$1 AND deleted_at IS NULL;
 
--- name: NextInquirySequence :one
--- A sequence per prefix. SELECT ... FOR UPDATE on the max row would still race on
--- an empty table, so the uniqueness is guaranteed by the partial unique index and
--- this is only a hint for the next number.
-SELECT COALESCE(MAX(SUBSTRING(reference_no FROM '[0-9]+$')::int), 0)::int + 1 AS next
-FROM inquiries WHERE reference_no LIKE sqlc.arg(prefix)::text || '%';
+-- name: NextInquiryReference :one
+-- Allocated from a per-type sequence (migration 00006). Contention-free: two
+-- concurrent submissions can never receive the same number, which MAX()+1 could
+-- not guarantee because it reads only committed rows.
+SELECT next_inquiry_reference(sqlc.arg(prefix)::text) AS reference_no;
 
 -- name: SetInquiryStatus :one
 UPDATE inquiries SET status=$2 WHERE id=$1 AND deleted_at IS NULL RETURNING *;

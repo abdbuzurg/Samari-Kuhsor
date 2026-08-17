@@ -199,6 +199,303 @@ func (q *Queries) CreateLocation(ctx context.Context, arg CreateLocationParams) 
 	return i, err
 }
 
+const dashboardOpenOrders = `-- name: DashboardOpenOrders :one
+SELECT count(*)::int FROM sales_orders
+WHERE deleted_at IS NULL AND status IN ('confirmed','picking')
+`
+
+func (q *Queries) DashboardOpenOrders(ctx context.Context) (int32, error) {
+	row := q.db.QueryRow(ctx, dashboardOpenOrders)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const dashboardOverduePurchases = `-- name: DashboardOverduePurchases :one
+SELECT count(*)::int FROM purchase_orders
+WHERE deleted_at IS NULL
+  AND status IN ('confirmed','in_transit')
+  AND expected_at IS NOT NULL AND expected_at < CURRENT_DATE
+`
+
+func (q *Queries) DashboardOverduePurchases(ctx context.Context) (int32, error) {
+	row := q.db.QueryRow(ctx, dashboardOverduePurchases)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const dashboardPipeline = `-- name: DashboardPipeline :many
+SELECT stage, count(*)::int AS deal_count,
+  COALESCE(SUM(amount), 0)::numeric(14,2) AS amount
+FROM deals WHERE deleted_at IS NULL AND stage NOT IN ('won','lost')
+GROUP BY stage ORDER BY stage
+`
+
+type DashboardPipelineRow struct {
+	Stage     string
+	DealCount int32
+	Amount    decimal.Decimal
+}
+
+// Воронка продаж by deal stage.
+func (q *Queries) DashboardPipeline(ctx context.Context) ([]DashboardPipelineRow, error) {
+	rows, err := q.db.Query(ctx, dashboardPipeline)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DashboardPipelineRow{}
+	for rows.Next() {
+		var i DashboardPipelineRow
+		if err := rows.Scan(&i.Stage, &i.DealCount, &i.Amount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const dashboardProductionToday = `-- name: DashboardProductionToday :one
+SELECT
+  COALESCE(SUM(e.good_qty), 0)::numeric(14,3)  AS good_qty,
+  COALESCE(SUM(e.scrap_qty), 0)::numeric(14,3) AS scrap_qty,
+  COALESCE(SUM(mo.planned_qty), 0)::numeric(14,3) AS planned_qty
+FROM manufacturing_orders mo
+LEFT JOIN production_entries e
+  ON e.mo_id = mo.id AND e.deleted_at IS NULL
+  AND e.recorded_at >= date_trunc('day', now())
+WHERE mo.deleted_at IS NULL AND mo.status = 'in_progress'
+`
+
+type DashboardProductionTodayRow struct {
+	GoodQty    decimal.Decimal
+	ScrapQty   decimal.Decimal
+	PlannedQty decimal.Decimal
+}
+
+func (q *Queries) DashboardProductionToday(ctx context.Context) (DashboardProductionTodayRow, error) {
+	row := q.db.QueryRow(ctx, dashboardProductionToday)
+	var i DashboardProductionTodayRow
+	err := row.Scan(&i.GoodQty, &i.ScrapQty, &i.PlannedQty)
+	return i, err
+}
+
+const dashboardQuarantinedBatches = `-- name: DashboardQuarantinedBatches :one
+SELECT count(*)::int FROM batches
+WHERE deleted_at IS NULL AND status = 'quarantine'
+`
+
+func (q *Queries) DashboardQuarantinedBatches(ctx context.Context) (int32, error) {
+	row := q.db.QueryRow(ctx, dashboardQuarantinedBatches)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const dashboardRecentAudit = `-- name: DashboardRecentAudit :many
+SELECT a.id, a.action, a.resource, a.resource_id, a.occurred_at, u.full_name AS actor_name
+FROM audit_log a
+LEFT JOIN users u ON u.id = a.actor_id
+WHERE a.resource = ANY($2::text[])
+ORDER BY a.occurred_at DESC
+LIMIT $1
+`
+
+type DashboardRecentAuditParams struct {
+	Limit     int32
+	Resources []string
+}
+
+type DashboardRecentAuditRow struct {
+	ID         uuid.UUID
+	Action     string
+	Resource   string
+	ResourceID uuid.NullUUID
+	OccurredAt pgtype.Timestamptz
+	ActorName  *string
+}
+
+// Лента событий. Read from the audit log rather than a second feed table: the
+// audit trail is already the record of everything that happened, and a parallel
+// feed would be a second thing to keep in step.
+func (q *Queries) DashboardRecentAudit(ctx context.Context, arg DashboardRecentAuditParams) ([]DashboardRecentAuditRow, error) {
+	rows, err := q.db.Query(ctx, dashboardRecentAudit, arg.Limit, arg.Resources)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DashboardRecentAuditRow{}
+	for rows.Next() {
+		var i DashboardRecentAuditRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Action,
+			&i.Resource,
+			&i.ResourceID,
+			&i.OccurredAt,
+			&i.ActorName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const dashboardRecentOrders = `-- name: DashboardRecentOrders :many
+SELECT so.id, so.so_no, c.name AS customer_name, so.status, so.created_at,
+  COALESCE((SELECT SUM(l.qty * l.unit_price) FROM sales_order_lines l
+            WHERE l.sales_order_id = so.id AND l.deleted_at IS NULL), 0)::numeric(14,2) AS total
+FROM sales_orders so
+JOIN customers c ON c.id = so.customer_id
+WHERE so.deleted_at IS NULL
+ORDER BY so.created_at DESC
+LIMIT $1
+`
+
+type DashboardRecentOrdersRow struct {
+	ID           uuid.UUID
+	SoNo         string
+	CustomerName string
+	Status       string
+	CreatedAt    pgtype.Timestamptz
+	Total        decimal.Decimal
+}
+
+func (q *Queries) DashboardRecentOrders(ctx context.Context, limit int32) ([]DashboardRecentOrdersRow, error) {
+	rows, err := q.db.Query(ctx, dashboardRecentOrders, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DashboardRecentOrdersRow{}
+	for rows.Next() {
+		var i DashboardRecentOrdersRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.SoNo,
+			&i.CustomerName,
+			&i.Status,
+			&i.CreatedAt,
+			&i.Total,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const dashboardRevenueByDay = `-- name: DashboardRevenueByDay :many
+SELECT
+  d::date AS day,
+  COALESCE(SUM(l.qty * l.unit_price), 0)::numeric(14,2) AS revenue,
+  count(DISTINCT so.id)::int AS order_count
+FROM generate_series(
+  date_trunc('day', now()) - (($1::int - 1) || ' days')::interval,
+  date_trunc('day', now()),
+  '1 day'
+) AS d
+LEFT JOIN sales_orders so
+  ON date_trunc('day', so.created_at) = d
+  AND so.deleted_at IS NULL AND so.status NOT IN ('draft','cancelled')
+LEFT JOIN sales_order_lines l ON l.sales_order_id = so.id AND l.deleted_at IS NULL
+GROUP BY d
+ORDER BY d
+`
+
+type DashboardRevenueByDayRow struct {
+	Day        pgtype.Date
+	Revenue    decimal.Decimal
+	OrderCount int32
+}
+
+// The revenue sparkline. Uses generate_series so days with no orders appear as
+// zero rather than being skipped — a gap in the axis would misread as a spike.
+func (q *Queries) DashboardRevenueByDay(ctx context.Context, days int32) ([]DashboardRevenueByDayRow, error) {
+	rows, err := q.db.Query(ctx, dashboardRevenueByDay, days)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DashboardRevenueByDayRow{}
+	for rows.Next() {
+		var i DashboardRevenueByDayRow
+		if err := rows.Scan(&i.Day, &i.Revenue, &i.OrderCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const dashboardSalesTotals = `-- name: DashboardSalesTotals :one
+
+SELECT
+  COALESCE(SUM(l.qty * l.unit_price), 0)::numeric(14,2) AS revenue,
+  count(DISTINCT so.id)::int AS order_count
+FROM sales_orders so
+JOIN sales_order_lines l ON l.sales_order_id = so.id AND l.deleted_at IS NULL
+WHERE so.deleted_at IS NULL
+  AND so.status <> 'draft' AND so.status <> 'cancelled'
+  AND so.created_at >= now() - ($1::int || ' days')::interval
+`
+
+type DashboardSalesTotalsRow struct {
+	Revenue    decimal.Decimal
+	OrderCount int32
+}
+
+// ---------------------------------------------------------------------------
+// Панель управления — docs/05-MODULES.md §2
+// ---------------------------------------------------------------------------
+//
+// Every figure here is computed from what actually happened. On opening day the
+// factory has produced nothing, so these all return zero — and that is the
+// correct answer. 05-MODULES.md:70 is explicit that the prototype's sample
+// numbers must not be carried into production.
+// Revenue and order count over a window. Confirmed onwards only: a draft is a
+// quotation, and counting it as revenue would overstate the month.
+func (q *Queries) DashboardSalesTotals(ctx context.Context, days int32) (DashboardSalesTotalsRow, error) {
+	row := q.db.QueryRow(ctx, dashboardSalesTotals, days)
+	var i DashboardSalesTotalsRow
+	err := row.Scan(&i.Revenue, &i.OrderCount)
+	return i, err
+}
+
+const dashboardStockValue = `-- name: DashboardStockValue :one
+SELECT COALESCE(SUM(b.on_hand * COALESCE(p.unit_price, 0)), 0)::numeric(14,2) AS value
+FROM stock_balances b
+LEFT JOIN LATERAL (
+  SELECT l.unit_price FROM purchase_order_lines l
+  WHERE l.item_id = b.item_id AND l.deleted_at IS NULL
+  ORDER BY l.created_at DESC LIMIT 1
+) p ON true
+WHERE b.on_hand > 0
+`
+
+// Stock at its most recent purchase price. Valued at cost, not at sale price:
+// unsold stock is money spent, not money earned.
+func (q *Queries) DashboardStockValue(ctx context.Context) (decimal.Decimal, error) {
+	row := q.db.QueryRow(ctx, dashboardStockValue)
+	var value decimal.Decimal
+	err := row.Scan(&value)
+	return value, err
+}
+
 const getItemTotalOnHand = `-- name: GetItemTotalOnHand :one
 SELECT COALESCE(SUM(on_hand), 0)::numeric AS on_hand
 FROM stock_balances WHERE item_id = $1

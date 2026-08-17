@@ -41,6 +41,7 @@ type routeCase struct {
 // uniformly. TestRouteTableCoversEveryDeclaredRoute asserts this list has not
 // fallen behind the router.
 var everyGuardedRoute = []routeCase{
+	{"GET", "/api/v1/dashboard", "dashboard:read", ""},
 	{"GET", "/api/v1/items", "items:read", ""},
 	{"GET", "/api/v1/items/" + zeroUUID, "items:read", ""},
 	{"POST", "/api/v1/items", "items:manage", `{"sku":"X","item_type":"finished_good","base_uom":"bottle","translations":[]}`},

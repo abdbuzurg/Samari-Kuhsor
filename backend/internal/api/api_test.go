@@ -50,6 +50,9 @@ func allDTOs() []any {
 		api.Asset{}, api.AssetWriteRequest{},
 		api.MaintenanceEvent{}, api.MaintenanceWriteRequest{},
 		api.Document{}, api.DocumentWriteRequest{},
+		api.Dashboard{}, api.DashboardSales{}, api.DashboardStock{},
+		api.DashboardQuality{}, api.DashboardProduction{}, api.DashboardStage{},
+		api.DashboardOrder{}, api.DashboardEvent{}, api.DashboardRevenue{},
 	}
 }
 
@@ -233,7 +236,7 @@ func TestDetailPayloadsAreFlat(t *testing.T) {
 // fails the build until it is registered.
 func TestDTOListCoversThePackage(t *testing.T) {
 	t.Parallel()
-	const registered = 79
+	const registered = 88
 	if got := len(allDTOs()); got != registered {
 		t.Errorf("allDTOs() has %d entries, expected %d — if you added a DTO, add it "+
 			"to allDTOs() and update this count", got, registered)

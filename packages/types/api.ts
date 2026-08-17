@@ -406,6 +406,77 @@ export interface DocumentWriteRequest {
   valid_until?: string;
   version?: number /* int32 */;
 }
+/**
+ * Dashboard is the landing page.
+ * Every panel is a POINTER, and null means "you may not read this module" — not
+ * "this figure is zero". The two look identical rendered and mean completely
+ * different things, so the distinction is carried on the wire rather than
+ * flattened to 0 (docs/05-MODULES.md §2).
+ */
+export interface Dashboard {
+  period: string;
+  sales?: DashboardSales | null;
+  stock?: DashboardStock | null;
+  quality?: DashboardQuality | null;
+  production?: DashboardProduction | null;
+  pipeline: DashboardStage[];
+  recent_orders: DashboardOrder[];
+  feed: DashboardEvent[];
+  revenue: DashboardRevenue[];
+}
+export interface DashboardSales {
+  revenue: string;
+  order_count: number /* int */;
+  open_orders: number /* int */;
+  overdue_purchase_orders: number /* int */;
+}
+export interface DashboardStock {
+  value: string;
+  below_minimum: number /* int */;
+}
+export interface DashboardQuality {
+  quarantined: number /* int */;
+}
+export interface DashboardProduction {
+  good_qty: string;
+  scrap_qty: string;
+  planned_qty: string;
+  /**
+   * Progress is good ÷ planned as a whole percentage, capped at 100 for display.
+   */
+  progress: number /* int */;
+}
+export interface DashboardStage {
+  stage: Status;
+  count: number /* int */;
+  amount: string;
+}
+export interface DashboardOrder {
+  id: string;
+  so_no: string;
+  customer_name: string;
+  total: string;
+  status: Status;
+  created_at: string;
+}
+/**
+ * DashboardEvent is one line of Лента событий, read from the audit log.
+ * `action` and `resource` are keys, not sentences: the frontend renders them
+ * through its own dictionary in the reader's locale (docs/07 C3).
+ */
+export interface DashboardEvent {
+  id: string;
+  action: string;
+  resource: string;
+  resource_id: string;
+  actor_name: string;
+  occurred_at: string;
+}
+export interface DashboardRevenue {
+  day: string;
+  revenue: string;
+  order_count: number /* int */;
+}
 
 //////////
 // source: operations.go

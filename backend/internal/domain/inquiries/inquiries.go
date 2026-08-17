@@ -149,53 +149,30 @@ func (s *Service) Submit(ctx context.Context, in SubmitInput) (db.Inquiry, error
 		}
 	}
 
-	// Reference numbers are allocated by retrying on collision rather than by
-	// locking a counter: submissions are rare, collisions rarer, and a lock held
-	// across a public endpoint is a denial-of-service surface.
+	// The reference number comes from a per-type sequence (migration 00006).
 	//
-	// Each attempt runs inside a SAVEPOINT. A unique violation aborts the whole
-	// Postgres transaction, so retrying in place would fail every subsequent
-	// statement with 25P02 — which is exactly what happened before the
-	// concurrency test caught it.
-	var inquiry db.Inquiry
-	prefix := Prefixes[in.Type]
-	allocated := false
-
-	for attempt := range 8 {
-		sp, err := tx.Begin(ctx) // nested transaction = SAVEPOINT
-		if err != nil {
-			return db.Inquiry{}, fmt.Errorf("inquiries: savepoint: %w", err)
-		}
-		sq := db.New(sp)
-
-		next, err := sq.NextInquirySequence(ctx, prefix)
-		if err != nil {
-			_ = sp.Rollback(ctx)
-			return db.Inquiry{}, fmt.Errorf("inquiries: sequence: %w", err)
-		}
-		ref := fmt.Sprintf("%s%04d", prefix, int(next)+attempt)
-
-		inquiry, err = sq.CreateInquiry(ctx, db.CreateInquiryParams{
-			ReferenceNo: ref, InquiryType: in.Type, Name: strings.TrimSpace(in.Name),
-			Company: in.Company, Contact: strings.TrimSpace(in.Contact), Message: in.Message,
-			BatchID: in.BatchID, SourceIp: in.IP,
-		})
-		if err == nil {
-			if err := sp.Commit(ctx); err != nil {
-				return db.Inquiry{}, fmt.Errorf("inquiries: release savepoint: %w", err)
-			}
-			allocated = true
-			break
-		}
-
-		// Roll back to the savepoint so the outer transaction stays usable.
-		_ = sp.Rollback(ctx)
-		if !strings.Contains(err.Error(), "inquiries_reference_key") {
-			return db.Inquiry{}, fmt.Errorf("inquiries: create: %w", err)
-		}
+	// It replaced a retry-on-collision loop over MAX(reference_no)+1. That could
+	// not work under concurrency for a reason the retry count could not fix: MAX
+	// reads only committed rows, so N concurrent submissions all read the same
+	// maximum and then walk the same candidates in lockstep. The collisions are
+	// systematic, not random. A sequence never hands the same value to two
+	// callers, so there is nothing left to retry.
+	//
+	// Sequences leave gaps when a transaction rolls back. A reference number is
+	// an identifier the visitor quotes back to QOIM, not a count of anything, so
+	// a gap costs nothing.
+	ref, err := q.NextInquiryReference(ctx, Prefixes[in.Type])
+	if err != nil {
+		return db.Inquiry{}, fmt.Errorf("inquiries: reference: %w", err)
 	}
-	if !allocated {
-		return db.Inquiry{}, fmt.Errorf("inquiries: could not allocate a reference number")
+
+	inquiry, err := q.CreateInquiry(ctx, db.CreateInquiryParams{
+		ReferenceNo: ref, InquiryType: in.Type, Name: strings.TrimSpace(in.Name),
+		Company: in.Company, Contact: strings.TrimSpace(in.Contact), Message: in.Message,
+		BatchID: in.BatchID, SourceIp: in.IP,
+	})
+	if err != nil {
+		return db.Inquiry{}, fmt.Errorf("inquiries: create: %w", err)
 	}
 
 	// Audited with a nil actor: the submitter is a member of the public, not a

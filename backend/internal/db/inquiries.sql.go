@@ -321,19 +321,18 @@ func (q *Queries) ListInquiries(ctx context.Context, arg ListInquiriesParams) ([
 	return items, nil
 }
 
-const nextInquirySequence = `-- name: NextInquirySequence :one
-SELECT COALESCE(MAX(SUBSTRING(reference_no FROM '[0-9]+$')::int), 0)::int + 1 AS next
-FROM inquiries WHERE reference_no LIKE $1::text || '%'
+const nextInquiryReference = `-- name: NextInquiryReference :one
+SELECT next_inquiry_reference($1::text) AS reference_no
 `
 
-// A sequence per prefix. SELECT ... FOR UPDATE on the max row would still race on
-// an empty table, so the uniqueness is guaranteed by the partial unique index and
-// this is only a hint for the next number.
-func (q *Queries) NextInquirySequence(ctx context.Context, prefix string) (int32, error) {
-	row := q.db.QueryRow(ctx, nextInquirySequence, prefix)
-	var next int32
-	err := row.Scan(&next)
-	return next, err
+// Allocated from a per-type sequence (migration 00006). Contention-free: two
+// concurrent submissions can never receive the same number, which MAX()+1 could
+// not guarantee because it reads only committed rows.
+func (q *Queries) NextInquiryReference(ctx context.Context, prefix string) (string, error) {
+	row := q.db.QueryRow(ctx, nextInquiryReference, prefix)
+	var reference_no string
+	err := row.Scan(&reference_no)
+	return reference_no, err
 }
 
 const setInquiryStatus = `-- name: SetInquiryStatus :one

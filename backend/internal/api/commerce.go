@@ -440,3 +440,83 @@ type DocumentWriteRequest struct {
 	ValidUntil *string `json:"valid_until"`
 	Version    *int32  `json:"version"`
 }
+
+// ---------------------------------------------------------------------------
+// Панель управления
+// ---------------------------------------------------------------------------
+
+// Dashboard is the landing page.
+//
+// Every panel is a POINTER, and null means "you may not read this module" — not
+// "this figure is zero". The two look identical rendered and mean completely
+// different things, so the distinction is carried on the wire rather than
+// flattened to 0 (docs/05-MODULES.md §2).
+type Dashboard struct {
+	Period     string               `json:"period"`
+	Sales      *DashboardSales      `json:"sales" tstype:"DashboardSales | null"`
+	Stock      *DashboardStock      `json:"stock" tstype:"DashboardStock | null"`
+	Quality    *DashboardQuality    `json:"quality" tstype:"DashboardQuality | null"`
+	Production *DashboardProduction `json:"production" tstype:"DashboardProduction | null"`
+	Pipeline   []DashboardStage     `json:"pipeline"`
+	Recent     []DashboardOrder     `json:"recent_orders"`
+	Feed       []DashboardEvent     `json:"feed"`
+	Revenue    []DashboardRevenue   `json:"revenue"`
+}
+
+type DashboardSales struct {
+	Revenue    string `json:"revenue"`
+	OrderCount int    `json:"order_count"`
+	OpenOrders int    `json:"open_orders"`
+	OverduePOs int    `json:"overdue_purchase_orders"`
+}
+
+type DashboardStock struct {
+	Value        string `json:"value"`
+	BelowMinimum int    `json:"below_minimum"`
+}
+
+type DashboardQuality struct {
+	Quarantined int `json:"quarantined"`
+}
+
+type DashboardProduction struct {
+	GoodQty    string `json:"good_qty"`
+	ScrapQty   string `json:"scrap_qty"`
+	PlannedQty string `json:"planned_qty"`
+	// Progress is good ÷ planned as a whole percentage, capped at 100 for display.
+	Progress int `json:"progress"`
+}
+
+type DashboardStage struct {
+	Stage  Status `json:"stage"`
+	Count  int    `json:"count"`
+	Amount string `json:"amount"`
+}
+
+type DashboardOrder struct {
+	ID           string `json:"id"`
+	SONo         string `json:"so_no"`
+	CustomerName string `json:"customer_name"`
+	Total        string `json:"total"`
+	Status       Status `json:"status"`
+	CreatedAt    string `json:"created_at"`
+}
+
+// DashboardEvent is one line of Лента событий, read from the audit log.
+//
+// `action` and `resource` are keys, not sentences: the frontend renders them
+// through its own dictionary in the reader's locale (docs/07 C3).
+type DashboardEvent struct {
+	ID         string `json:"id"`
+	Action     string `json:"action"`
+	Resource   string `json:"resource"`
+	ResourceID string `json:"resource_id"`
+	ActorName  string `json:"actor_name"`
+	OccurredAt string `json:"occurred_at"`
+}
+
+type DashboardRevenue struct {
+	Day        string `json:"day"`
+	Revenue    string `json:"revenue"`
+	OrderCount int    `json:"order_count"`
+}

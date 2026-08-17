@@ -26,6 +26,7 @@ import (
 	"github.com/qoim/samari/backend/internal/auth"
 	"github.com/qoim/samari/backend/internal/domain/admin"
 	"github.com/qoim/samari/backend/internal/domain/batches"
+	"github.com/qoim/samari/backend/internal/domain/dashboard"
 	"github.com/qoim/samari/backend/internal/domain/inquiries"
 	"github.com/qoim/samari/backend/internal/domain/inventory"
 	"github.com/qoim/samari/backend/internal/domain/items"
@@ -62,6 +63,7 @@ type Services struct {
 	Sales       *sales.Service
 	Inquiries   *inquiries.Service
 	Registries  *registries.Service
+	Dashboard   *dashboard.Service
 	Admin       *admin.Service
 	Alerts      *alerts.Service
 }
@@ -150,6 +152,12 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 			rbac.Items, rbac.Read, s.handleBatchQRSVG)
 		v1.Guarded(api, http.MethodGet, "/batches/qr-export",
 			rbac.Items, rbac.Read, s.handleExportQR)
+
+		// Панель управления. Guarded on dashboard:read; each PANEL is additionally
+		// filtered by the module it summarises, inside the service — the landing
+		// page is the one screen that would otherwise leak every module at once.
+		v1.Guarded(api, http.MethodGet, "/dashboard",
+			rbac.Dashboard, rbac.Read, s.handleDashboard)
 
 		// Склад и запасы. Everything read here is a SUM computed at read time; the
 		// only write is an append to the ledger.

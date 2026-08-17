@@ -24,6 +24,7 @@ import (
 	"github.com/qoim/samari/backend/internal/auth"
 	"github.com/qoim/samari/backend/internal/domain/admin"
 	"github.com/qoim/samari/backend/internal/domain/batches"
+	"github.com/qoim/samari/backend/internal/domain/dashboard"
 	"github.com/qoim/samari/backend/internal/domain/inquiries"
 	"github.com/qoim/samari/backend/internal/domain/inventory"
 	"github.com/qoim/samari/backend/internal/domain/items"
@@ -121,6 +122,7 @@ func run() error {
 		Sales:       sales.NewService(pool, inventorySvc),
 		Inquiries:   inquiries.NewService(pool, inquiries.DefaultRateLimit()),
 		Registries:  registries.NewService(pool),
+		Dashboard:   dashboard.NewService(pool),
 		Admin:       admin.NewService(pool),
 		Alerts:      alerts.NewService(pool),
 	}, samarihttp.Config{ServiceKey: os.Getenv("SERVICE_KEY")})

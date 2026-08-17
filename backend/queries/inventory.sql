@@ -235,3 +235,108 @@ WHERE a.deleted_at IS NULL AND a.status <> 'retired'
               WHERE m.asset_id=a.id AND m.deleted_at IS NULL
                 AND m.next_due_on IS NOT NULL
                 AND m.next_due_on <= CURRENT_DATE + sqlc.arg(days)::int);
+
+-- ---------------------------------------------------------------------------
+-- Панель управления — docs/05-MODULES.md §2
+-- ---------------------------------------------------------------------------
+--
+-- Every figure here is computed from what actually happened. On opening day the
+-- factory has produced nothing, so these all return zero — and that is the
+-- correct answer. 05-MODULES.md:70 is explicit that the prototype's sample
+-- numbers must not be carried into production.
+
+-- name: DashboardSalesTotals :one
+-- Revenue and order count over a window. Confirmed onwards only: a draft is a
+-- quotation, and counting it as revenue would overstate the month.
+SELECT
+  COALESCE(SUM(l.qty * l.unit_price), 0)::numeric(14,2) AS revenue,
+  count(DISTINCT so.id)::int AS order_count
+FROM sales_orders so
+JOIN sales_order_lines l ON l.sales_order_id = so.id AND l.deleted_at IS NULL
+WHERE so.deleted_at IS NULL
+  AND so.status <> 'draft' AND so.status <> 'cancelled'
+  AND so.created_at >= now() - (sqlc.arg(days)::int || ' days')::interval;
+
+-- name: DashboardOpenOrders :one
+SELECT count(*)::int FROM sales_orders
+WHERE deleted_at IS NULL AND status IN ('confirmed','picking');
+
+-- name: DashboardStockValue :one
+-- Stock at its most recent purchase price. Valued at cost, not at sale price:
+-- unsold stock is money spent, not money earned.
+SELECT COALESCE(SUM(b.on_hand * COALESCE(p.unit_price, 0)), 0)::numeric(14,2) AS value
+FROM stock_balances b
+LEFT JOIN LATERAL (
+  SELECT l.unit_price FROM purchase_order_lines l
+  WHERE l.item_id = b.item_id AND l.deleted_at IS NULL
+  ORDER BY l.created_at DESC LIMIT 1
+) p ON true
+WHERE b.on_hand > 0;
+
+-- name: DashboardQuarantinedBatches :one
+SELECT count(*)::int FROM batches
+WHERE deleted_at IS NULL AND status = 'quarantine';
+
+-- name: DashboardOverduePurchases :one
+SELECT count(*)::int FROM purchase_orders
+WHERE deleted_at IS NULL
+  AND status IN ('confirmed','in_transit')
+  AND expected_at IS NOT NULL AND expected_at < CURRENT_DATE;
+
+-- name: DashboardProductionToday :one
+SELECT
+  COALESCE(SUM(e.good_qty), 0)::numeric(14,3)  AS good_qty,
+  COALESCE(SUM(e.scrap_qty), 0)::numeric(14,3) AS scrap_qty,
+  COALESCE(SUM(mo.planned_qty), 0)::numeric(14,3) AS planned_qty
+FROM manufacturing_orders mo
+LEFT JOIN production_entries e
+  ON e.mo_id = mo.id AND e.deleted_at IS NULL
+  AND e.recorded_at >= date_trunc('day', now())
+WHERE mo.deleted_at IS NULL AND mo.status = 'in_progress';
+
+-- name: DashboardRecentOrders :many
+SELECT so.id, so.so_no, c.name AS customer_name, so.status, so.created_at,
+  COALESCE((SELECT SUM(l.qty * l.unit_price) FROM sales_order_lines l
+            WHERE l.sales_order_id = so.id AND l.deleted_at IS NULL), 0)::numeric(14,2) AS total
+FROM sales_orders so
+JOIN customers c ON c.id = so.customer_id
+WHERE so.deleted_at IS NULL
+ORDER BY so.created_at DESC
+LIMIT $1;
+
+-- name: DashboardRevenueByDay :many
+-- The revenue sparkline. Uses generate_series so days with no orders appear as
+-- zero rather than being skipped — a gap in the axis would misread as a spike.
+SELECT
+  d::date AS day,
+  COALESCE(SUM(l.qty * l.unit_price), 0)::numeric(14,2) AS revenue,
+  count(DISTINCT so.id)::int AS order_count
+FROM generate_series(
+  date_trunc('day', now()) - ((sqlc.arg(days)::int - 1) || ' days')::interval,
+  date_trunc('day', now()),
+  '1 day'
+) AS d
+LEFT JOIN sales_orders so
+  ON date_trunc('day', so.created_at) = d
+  AND so.deleted_at IS NULL AND so.status NOT IN ('draft','cancelled')
+LEFT JOIN sales_order_lines l ON l.sales_order_id = so.id AND l.deleted_at IS NULL
+GROUP BY d
+ORDER BY d;
+
+-- name: DashboardPipeline :many
+-- Воронка продаж by deal stage.
+SELECT stage, count(*)::int AS deal_count,
+  COALESCE(SUM(amount), 0)::numeric(14,2) AS amount
+FROM deals WHERE deleted_at IS NULL AND stage NOT IN ('won','lost')
+GROUP BY stage ORDER BY stage;
+
+-- name: DashboardRecentAudit :many
+-- Лента событий. Read from the audit log rather than a second feed table: the
+-- audit trail is already the record of everything that happened, and a parallel
+-- feed would be a second thing to keep in step.
+SELECT a.id, a.action, a.resource, a.resource_id, a.occurred_at, u.full_name AS actor_name
+FROM audit_log a
+LEFT JOIN users u ON u.id = a.actor_id
+WHERE a.resource = ANY(sqlc.arg(resources)::text[])
+ORDER BY a.occurred_at DESC
+LIMIT $1;

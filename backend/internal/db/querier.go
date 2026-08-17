@@ -115,6 +115,34 @@ type Querier interface {
 	// inventory, and the two must happen in one transaction.
 	CreateSupplier(ctx context.Context, arg CreateSupplierParams) (Supplier, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DashboardOpenOrders(ctx context.Context) (int32, error)
+	DashboardOverduePurchases(ctx context.Context) (int32, error)
+	// Воронка продаж by deal stage.
+	DashboardPipeline(ctx context.Context) ([]DashboardPipelineRow, error)
+	DashboardProductionToday(ctx context.Context) (DashboardProductionTodayRow, error)
+	DashboardQuarantinedBatches(ctx context.Context) (int32, error)
+	// Лента событий. Read from the audit log rather than a second feed table: the
+	// audit trail is already the record of everything that happened, and a parallel
+	// feed would be a second thing to keep in step.
+	DashboardRecentAudit(ctx context.Context, arg DashboardRecentAuditParams) ([]DashboardRecentAuditRow, error)
+	DashboardRecentOrders(ctx context.Context, limit int32) ([]DashboardRecentOrdersRow, error)
+	// The revenue sparkline. Uses generate_series so days with no orders appear as
+	// zero rather than being skipped — a gap in the axis would misread as a spike.
+	DashboardRevenueByDay(ctx context.Context, days int32) ([]DashboardRevenueByDayRow, error)
+	// ---------------------------------------------------------------------------
+	// Панель управления — docs/05-MODULES.md §2
+	// ---------------------------------------------------------------------------
+	//
+	// Every figure here is computed from what actually happened. On opening day the
+	// factory has produced nothing, so these all return zero — and that is the
+	// correct answer. 05-MODULES.md:70 is explicit that the prototype's sample
+	// numbers must not be carried into production.
+	// Revenue and order count over a window. Confirmed onwards only: a draft is a
+	// quotation, and counting it as revenue would overstate the month.
+	DashboardSalesTotals(ctx context.Context, days int32) (DashboardSalesTotalsRow, error)
+	// Stock at its most recent purchase price. Valued at cost, not at sale price:
+	// unsold stock is money spent, not money earned.
+	DashboardStockValue(ctx context.Context) (decimal.Decimal, error)
 	DeleteExpiredSessions(ctx context.Context, retain pgtype.Interval) error
 	GetAsset(ctx context.Context, id uuid.UUID) (Asset, error)
 	// ---------------------------------------------------------------------------
@@ -303,10 +331,10 @@ type Querier interface {
 	// rather than left to hash NULL.
 	LockStockPosition(ctx context.Context, arg LockStockPositionParams) error
 	MarkNotificationsRead(ctx context.Context, arg MarkNotificationsReadParams) error
-	// A sequence per prefix. SELECT ... FOR UPDATE on the max row would still race on
-	// an empty table, so the uniqueness is guaranteed by the partial unique index and
-	// this is only a hint for the next number.
-	NextInquirySequence(ctx context.Context, prefix string) (int32, error)
+	// Allocated from a per-type sequence (migration 00006). Contention-free: two
+	// concurrent submissions can never receive the same number, which MAX()+1 could
+	// not guarantee because it reads only committed rows.
+	NextInquiryReference(ctx context.Context, prefix string) (string, error)
 	// Increments the counter and locks the account once the threshold is reached.
 	// Returning the row lets the caller report the resulting state without a re-read.
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (User, error)

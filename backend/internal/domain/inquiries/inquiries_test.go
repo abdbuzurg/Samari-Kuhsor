@@ -103,12 +103,19 @@ func TestEachTypeGetsItsDocumentedPrefix(t *testing.T) {
 }
 
 // Reference numbers are the visitor's only receipt. Two visitors sharing one
-// would make the client's correspondence ambiguous.
+// would make the client's correspondence ambiguous — and a visitor whose
+// submission is refused because the system could not allocate one is worse.
+//
+// n is deliberately far above any plausible retry bound. The previous
+// implementation retried MAX(reference_no)+1 eight times, which looked fine at
+// low concurrency and failed outright at twelve: MAX reads only committed rows,
+// so every concurrent submission reads the same maximum and walks the same
+// candidates in lockstep. A sequence has no such ceiling, and this asserts it.
 func TestReferenceNumbersAreUniqueUnderConcurrency(t *testing.T) {
 	t.Parallel()
 	f := setup(t)
 
-	const n = 12
+	const n = 40
 	var wg sync.WaitGroup
 	refs := make(chan string, n)
 	errs := make(chan error, n)
@@ -143,6 +150,43 @@ func TestReferenceNumbersAreUniqueUnderConcurrency(t *testing.T) {
 	}
 	if len(seen) != n {
 		t.Errorf("%d distinct references for %d submissions", len(seen), n)
+	}
+}
+
+// Each type numbers independently: WR-0001 and CF-0001 are both valid and are
+// different enquiries (docs/05-MODULES.md:160). One shared counter would make
+// the reference number look like a global id and break that.
+func TestEachTypeNumbersIndependently(t *testing.T) {
+	t.Parallel()
+	f := setup(t)
+	ctx := context.Background()
+
+	first := map[string]string{}
+	for _, kind := range []string{inquiries.TypeWholesale, inquiries.TypeContact} {
+		inq, err := f.svc.Submit(ctx, inquiries.SubmitInput{
+			Type: kind, Name: "Тест", Contact: "x",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		first[kind] = inq.ReferenceNo
+	}
+	if first[inquiries.TypeWholesale] != "WR-0001" {
+		t.Errorf("first wholesale = %s, want WR-0001", first[inquiries.TypeWholesale])
+	}
+	if first[inquiries.TypeContact] != "CF-0001" {
+		t.Errorf("first contact = %s, want CF-0001", first[inquiries.TypeContact])
+	}
+
+	// And the second of a type continues its own run.
+	second, err := f.svc.Submit(ctx, inquiries.SubmitInput{
+		Type: inquiries.TypeWholesale, Name: "Тест", Contact: "x",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ReferenceNo != "WR-0002" {
+		t.Errorf("second wholesale = %s, want WR-0002", second.ReferenceNo)
 	}
 }
 
