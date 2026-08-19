@@ -154,10 +154,19 @@ describe('Assembly line', () => {
     expect(list.style.gridTemplateColumns).toContain('repeat(4');
   });
 
-  it('links each slot to its product page', async () => {
+  it('opens the quick-look from a slot rather than navigating away', async () => {
     wrap(<AssemblyLine products={PRODUCTS} />);
-    const link = (await screen.findByText('Яблочный сок')).closest('a') as HTMLAnchorElement;
-    expect(link.getAttribute('href')).toContain('/catalogue/APJ-1000');
+    // The design opens a modal here. Navigating to a detail page on the first
+    // click is a heavier answer than browsing five products deserved.
+    const slot = (await screen.findByText('Яблочный сок')).closest('button');
+    expect(slot).not.toBeNull();
+    expect(screen.getByText('Яблочный сок').closest('a')).toBeNull();
+  });
+
+  it('still links out to the full catalogue', async () => {
+    wrap(<AssemblyLine products={PRODUCTS} />);
+    const all = await screen.findByRole('link', { name: messages.cta.allProducts });
+    expect(all.getAttribute('href')).toContain('/catalogue');
   });
 });
 
@@ -212,6 +221,28 @@ describe('Catalogue', () => {
 // The enquiry form
 // ---------------------------------------------------------------------------
 
+/**
+ * Fills every required field. The design's form has five, not two.
+ *
+ * Labels are matched by prefix because a required field renders its label with a
+ * trailing asterisk — "Email *" — and an exact match would miss every one of the
+ * fields this helper exists to fill.
+ */
+function labelled(label: string) {
+  return screen.getByLabelText(new RegExp(`^${label}`));
+}
+
+async function fillRequired(
+  over: { name?: string; email?: string; phone?: string; country?: string; message?: string } = {},
+) {
+  await userEvent.type(labelled(messages.contact.name), over.name ?? 'Тест');
+  await userEvent.type(labelled(messages.contact.email), over.email ?? 'a@b.tj');
+  await userEvent.type(labelled(messages.contact.phone), over.phone ?? '+992 000');
+  await userEvent.type(labelled(messages.contact.country), over.country ?? 'Таджикистан');
+  await userEvent.type(labelled(messages.contact.message), over.message ?? 'Здравствуйте');
+  await userEvent.click(screen.getByRole('checkbox'));
+}
+
 describe('Contact form', () => {
   it('shows the reference number after a successful submission', async () => {
     server.use(
@@ -221,8 +252,7 @@ describe('Contact form', () => {
     );
     wrap(<ContactForm />);
 
-    await userEvent.type(screen.getByLabelText(/Имя/), 'Ориён Маркет');
-    await userEvent.type(screen.getByLabelText(/Телефон или e-mail/), '+992 000 00 00');
+    await fillRequired({ name: 'Ориён Маркет' });
     await userEvent.click(screen.getByRole('button', { name: messages.contact.submit }));
 
     const sent = await screen.findByTestId('contact-sent');
@@ -250,10 +280,12 @@ describe('Contact form', () => {
     );
     wrap(<ContactForm />);
 
-    await userEvent.type(screen.getByLabelText(/Имя/), 'Тест');
+    await fillRequired({ name: 'Тест' });
     await userEvent.click(screen.getByRole('button', { name: messages.contact.submit }));
 
-    expect(await screen.findByTestId('error-contact')).toHaveTextContent('Укажите контакт');
+    // The server names `contact`; the form shows it against the email field,
+    // which is the first half of what it submits.
+    expect(await screen.findByTestId('error-email')).toHaveTextContent('Укажите контакт');
     // The form stays on screen so the visitor can fix it.
     expect(screen.getByRole('button', { name: messages.contact.submit })).toBeInTheDocument();
   });
@@ -268,8 +300,7 @@ describe('Contact form', () => {
       ),
     );
     wrap(<ContactForm />);
-    await userEvent.type(screen.getByLabelText(/Имя/), 'Тест');
-    await userEvent.type(screen.getByLabelText(/Телефон или e-mail/), 'x');
+    await fillRequired({ name: 'Тест' });
     await userEvent.click(screen.getByRole('button', { name: messages.contact.submit }));
 
     expect(await screen.findByTestId('contact-error')).toBeInTheDocument();
@@ -277,13 +308,37 @@ describe('Contact form', () => {
     expect(screen.queryByTestId('error-name')).not.toBeInTheDocument();
   });
 
-  it('offers every enquiry type the backend accepts', () => {
+  it('offers the six reasons the design lists', () => {
     wrap(<ContactForm />);
-    const select = screen.getByLabelText(messages.contact.type) as HTMLSelectElement;
+    const select = labelled(messages.contact.type) as HTMLSelectElement;
     const values = Array.from(select.options).map((o) => o.value);
-    // The five types in docs/05-MODULES.md:160. A type the frontend cannot send
-    // is a type the client cannot receive.
-    expect(values).toEqual(['wholesale', 'distributor', 'contact', 'complaint', 'job']);
+    // Six reasons on the form; the API knows five types. `supplier` and `media`
+    // submit as `contact` with the reason named in the message rather than
+    // adding enum values to a live CHECK constraint for a distinction nobody
+    // filters on.
+    expect(values).toEqual([
+      'wholesale', 'distributor', 'contact', 'supplier', 'job', 'media',
+    ]);
+  });
+
+  it('maps a reason with no backend type onto contact, and says so in the message', async () => {
+    let body: Record<string, unknown> | null = null;
+    server.use(
+      http.post('/api/inquiries', async ({ request }) => {
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ data: { reference_no: 'CF-0001' } }, { status: 201 });
+      }),
+    );
+    wrap(<ContactForm />);
+
+    await fillRequired({ name: 'Журналист', message: 'Запрос комментария' });
+    await userEvent.selectOptions(labelled(messages.contact.type), 'media');
+    await userEvent.click(screen.getByRole('button', { name: messages.contact.submit }));
+    await screen.findByTestId('contact-sent');
+
+    expect(body).toMatchObject({ type: 'contact' });
+    // Otherwise the recipient cannot tell a journalist from a general enquiry.
+    expect(String((body as unknown as Record<string, string>).message)).toContain('media');
   });
 
   it('sends the trimmed payload and omits empty optional fields', async () => {
@@ -296,14 +351,16 @@ describe('Contact form', () => {
     );
     wrap(<ContactForm />);
 
-    await userEvent.type(screen.getByLabelText(/Имя/), '  Гость  ');
-    await userEvent.type(screen.getByLabelText(/Телефон или e-mail/), 'x@example.tj');
+    await fillRequired({ name: '  Гость  ', email: 'x@example.tj', phone: '+992 000 00 00' });
     await userEvent.click(screen.getByRole('button', { name: messages.contact.submit }));
     await screen.findByTestId('contact-sent');
 
     // An empty company is null, not "" — the column is nullable and an empty
     // string would look like a company whose name is blank.
-    expect(body).toMatchObject({ company: null, message: null, type: 'wholesale' });
+    expect(body).toMatchObject({ company: null, type: 'wholesale', name: 'Гость' });
+    // Email and phone are two fields on the form and one column in the API.
+    // Both are kept: nobody should have to guess which the visitor meant.
+    expect(body).toMatchObject({ contact: 'x@example.tj · +992 000 00 00' });
   });
 });
 

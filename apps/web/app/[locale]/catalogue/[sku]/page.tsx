@@ -5,10 +5,9 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Section } from '@/components/Section';
 import { Link } from '@/i18n/routing';
 import { CATALOGUE_ORDER, loadCatalogue } from '@/lib/catalogue';
+import { specsFor } from '@/lib/specs';
 import { locales } from '@/i18n/config';
 import { palette } from '@/lib/palette';
-
-const TBC = 'Уточняется';
 
 /**
  * Prerender the approved five.
@@ -56,28 +55,7 @@ export default async function ProductPage({
   const product = (await loadCatalogue(locale)).find((p) => p.sku === sku);
   if (!product) notFound();
 
-  const isWater = product.line === 'Вода';
-  const specs: { k: string; v: string }[] = [
-    { k: 'Артикул / SKU', v: product.sku },
-    { k: 'Объём / нетто', v: product.volume || TBC },
-    { k: 'Упаковка', v: product.pack || TBC },
-    { k: 'Материал упаковки', v: isWater ? 'ПЭТ' : 'Стекло' },
-    {
-      k: 'Тип укупорки',
-      v: isWater
-        ? 'Винтовая пробка'
-        : product.sku === 'APJ-1000'
-          ? 'Металлическая крышка'
-          : 'Крышка Twist-off',
-    },
-    { k: 'Состав', v: 'Уточняется после утверждения рецептуры' },
-    { k: 'Пищевая ценность', v: 'Уточняется после лабораторного контроля' },
-    { k: 'Условия хранения', v: 'В сухом прохладном месте, вдали от света' },
-    { k: 'Срок годности', v: 'Уточняется после испытаний' },
-    { k: 'После вскрытия', v: 'Хранить в холодильнике' },
-    { k: 'Адрес производства', v: 'Тем, Хорог, ГБАО, Республика Таджикистан' },
-    { k: 'Статус сертификации', v: 'На согласовании' },
-  ];
+  const specs = specsFor(product);
 
   return (
     <Section>

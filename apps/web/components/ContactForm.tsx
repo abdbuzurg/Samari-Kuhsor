@@ -25,7 +25,23 @@ type State =
   | { status: 'sent'; reference: string }
   | { status: 'error'; fields: Record<string, string> };
 
-const TYPES = ['wholesale', 'distributor', 'contact', 'complaint', 'job'] as const;
+/**
+ * The six reasons the design offers, mapped to the five types the API accepts.
+ *
+ * `supplier` and `media` have no backend type of their own — the enquiry table's
+ * CHECK constraint knows five. Rather than invent two, both submit as `contact`
+ * with the reason named in the message, which is where a salesperson reads it
+ * anyway. Adding enum values to a live constraint for a distinction nobody
+ * filters on would be the more expensive answer.
+ */
+const REASONS = [
+  { key: 'wholesale', type: 'wholesale', label: 'typeWholesale' },
+  { key: 'distributor', type: 'distributor', label: 'typeDistributor' },
+  { key: 'contact', type: 'contact', label: 'typeContact' },
+  { key: 'supplier', type: 'contact', label: 'typeSupplier' },
+  { key: 'job', type: 'job', label: 'typeJobShort' },
+  { key: 'media', type: 'contact', label: 'typeMedia' },
+] as const;
 
 export function ContactForm() {
   const t = useTranslations('contact');
@@ -40,13 +56,7 @@ export function ContactForm() {
       const res = await fetch('/api/inquiries', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: String(form.get('type') ?? 'contact'),
-          name: String(form.get('name') ?? ''),
-          company: emptyToNull(form.get('company')),
-          contact: String(form.get('contact') ?? ''),
-          message: emptyToNull(form.get('message')),
-        }),
+        body: JSON.stringify(payloadFrom(form)),
       });
       const body = await res.json().catch(() => null);
 
@@ -114,18 +124,11 @@ export function ContactForm() {
         </p>
       )}
 
-      <Field label={t('type')} htmlFor="type" error={fieldErrors.type}>
-        <select id="type" name="type" defaultValue="wholesale" style={controlStyle}>
-          {TYPES.map((key) => (
-            <option key={key} value={key}>
-              {t(
-                `type${key.charAt(0).toUpperCase()}${key.slice(1)}` as
-                  | 'typeWholesale'
-                  | 'typeDistributor'
-                  | 'typeContact'
-                  | 'typeComplaint'
-                  | 'typeJob',
-              )}
+      <Field label={t('type')} htmlFor="reason" error={fieldErrors.type}>
+        <select id="reason" name="reason" defaultValue="wholesale" style={controlStyle}>
+          {REASONS.map((r) => (
+            <option key={r.key} value={r.key}>
+              {t(r.label)}
             </option>
           ))}
         </select>
@@ -139,13 +142,68 @@ export function ContactForm() {
         <input id="company" name="company" style={controlStyle} autoComplete="organization" />
       </Field>
 
-      <Field label={t('contactField')} htmlFor="contact" error={fieldErrors.contact} required>
-        <input id="contact" name="contact" required style={controlStyle} autoComplete="email tel" />
+      {/* Email and phone are separate fields in the design, and they submit as
+          one `contact` string. The backend stores a single contact because that
+          is what a salesperson calls back on — but asking for "телефон или
+          e-mail" in one box gets you half of each. */}
+      <Field label={t('email')} htmlFor="email" error={fieldErrors.contact} required>
+        <input
+          id="email"
+          name="email"
+          type="email"
+          required
+          style={controlStyle}
+          autoComplete="email"
+        />
       </Field>
 
-      <Field label={t('message')} htmlFor="message" error={fieldErrors.message}>
-        <textarea id="message" name="message" rows={4} style={controlStyle} />
+      <Field label={t('phone')} htmlFor="phone" error={fieldErrors.phone} required>
+        <input id="phone" name="phone" required style={controlStyle} autoComplete="tel" />
       </Field>
+
+      <Field label={t('country')} htmlFor="country" error={fieldErrors.country} required>
+        <input
+          id="country"
+          name="country"
+          required
+          style={controlStyle}
+          autoComplete="country-name"
+        />
+      </Field>
+
+      <Field label={t('instagram')} htmlFor="instagram" error={fieldErrors.instagram}>
+        <input
+          id="instagram"
+          name="instagram"
+          type="url"
+          placeholder="https://instagram.com/…"
+          style={controlStyle}
+        />
+      </Field>
+
+      <Field label={t('facebook')} htmlFor="facebook" error={fieldErrors.facebook}>
+        <input
+          id="facebook"
+          name="facebook"
+          type="url"
+          placeholder="https://facebook.com/…"
+          style={controlStyle}
+        />
+      </Field>
+
+      <Field label={t('message')} htmlFor="message" error={fieldErrors.message} required>
+        <textarea id="message" name="message" rows={4} required style={controlStyle} />
+      </Field>
+
+      {/* Required, and unticked by default. A pre-ticked consent box is not
+          consent, and this is the one field on the page that has to survive a
+          regulator reading it. */}
+      <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13 }}>
+        <input type="checkbox" name="consent" required style={{ marginTop: 3 }} />
+        <span>
+          {t('consent')} <span aria-hidden style={{ color: palette.accent }}>*</span>
+        </span>
+      </label>
 
       <button
         type="submit"
@@ -219,6 +277,48 @@ function Field({
       )}
     </div>
   );
+}
+
+/**
+ * Builds the API payload from the form.
+ *
+ * Everything the design collects but the API has no column for — country, the
+ * two social URLs, and the reason when it is one of the two that map onto
+ * `contact` — is appended to the message rather than dropped. A field the
+ * visitor filled in and nobody ever reads is worse than not asking.
+ */
+function payloadFrom(form: FormData): Record<string, unknown> {
+  const reasonKey = String(form.get('reason') ?? 'contact');
+  const reason = REASONS.find((r) => r.key === reasonKey) ?? REASONS[2];
+
+  const email = str(form.get('email'));
+  const phone = str(form.get('phone'));
+
+  const extras: string[] = [];
+  const country = str(form.get('country'));
+  const instagram = str(form.get('instagram'));
+  const facebook = str(form.get('facebook'));
+  if (country) extras.push(`Страна: ${country}`);
+  if (instagram) extras.push(`Instagram: ${instagram}`);
+  if (facebook) extras.push(`Facebook: ${facebook}`);
+  // Named explicitly when the reason does not survive the type mapping, so the
+  // recipient still knows a supplier or a journalist wrote in.
+  if (reason.type !== reason.key) extras.push(`Тип обращения: ${reasonKey}`);
+
+  const body = [str(form.get('message')), ...extras].filter(Boolean).join('\n\n');
+
+  return {
+    type: reason.type,
+    name: str(form.get('name')),
+    company: emptyToNull(form.get('company')),
+    // Both, so nobody has to guess which one the visitor meant.
+    contact: [email, phone].filter(Boolean).join(' · '),
+    message: body || null,
+  };
+}
+
+function str(value: FormDataEntryValue | null): string {
+  return typeof value === 'string' ? value.trim() : '';
 }
 
 function emptyToNull(value: FormDataEntryValue | null): string | null {

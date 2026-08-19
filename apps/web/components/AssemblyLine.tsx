@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 
+import { ProductModal } from '@/components/ProductModal';
 import { Link } from '@/i18n/routing';
 import { palette } from '@/lib/palette';
 import type { PublicProduct } from '@/lib/catalogue';
@@ -33,6 +34,10 @@ export function AssemblyLine({ products }: { products: PublicProduct[] }) {
   const [batch, setBatch] = useState(0);
   const [started, setStarted] = useState(false);
   const [reduced, setReduced] = useState(false);
+  // The quick-look. Clicking a slot opens it rather than navigating away: the
+  // visitor came to browse, and a full page load for a five-product catalogue is
+  // a heavier answer than the question deserved.
+  const [selected, setSelected] = useState<PublicProduct | null>(null);
 
   const totalBatches = Math.max(1, Math.ceil(products.length / BATCH_SIZE));
   const multiBatch = totalBatches > 1;
@@ -169,10 +174,17 @@ export function AssemblyLine({ products }: { products: PublicProduct[] }) {
                   ...slotAnimation(started, reduced, i),
                 }}
               >
-                <Link
-                  href={`/catalogue/${product.sku}`}
+                <button
+                  type="button"
+                  onClick={() => setSelected(product)}
+                  className="skc-slot-button"
                   style={{
-                    textDecoration: 'none',
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    font: 'inherit',
+                    color: 'inherit',
+                    cursor: 'pointer',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -204,12 +216,24 @@ export function AssemblyLine({ products }: { products: PublicProduct[] }) {
                   <span style={{ color: '#EAF1DD', fontSize: 11.5, opacity: 0.7 }}>
                     {product.volume}
                   </span>
-                </Link>
+                </button>
               </li>
             ))}
           </ul>
         </div>
       </div>
+
+      {selected && (
+        <ProductModal
+          product={selected}
+          onClose={() => setSelected(null)}
+          labels={{
+            requestPrice: t('cta.requestPrice'),
+            learnMore: t('cta.learnMore'),
+            close: t('a11y.close'),
+          }}
+        />
+      )}
 
       <div style={{ marginTop: 18, textAlign: 'right' }}>
         <Link

@@ -24,9 +24,10 @@
     "catalogueLead": "Пять позиций в четырёх линиях. Составы и пищевая ценность публикуются после утверждения рецептур.",
     "geographyTitle": "География поставок",
     "ecoTitle": "Ответственное производство",
-    "processTitle": "Как это делается",
+    "processTitle": "Production & quality",
     "newsTitle": "Новости",
-    "retailersTitle": "Где купить"
+    "retailersTitle": "Trusted by leading retailers",
+    "retailersCaption": "Logos are shown as a layout example."
   },
   "catalogue": {
     "title": "Продукция",
@@ -52,9 +53,8 @@
     "lead": "Оптовые поставки, дистрибуция и сотрудничество.",
     "address": "Тем, Хорог, ГБАО, Республика Таджикистан",
     "formTitle": "Оставить заявку",
-    "name": "Имя",
+    "name": "Full name",
     "company": "Компания",
-    "contactField": "Телефон или e-mail",
     "message": "Сообщение",
     "type": "Тип обращения",
     "submit": "Отправить",
@@ -68,7 +68,18 @@
     "typeDistributor": "Дистрибуция",
     "typeContact": "Общий вопрос",
     "typeComplaint": "Жалоба на продукцию",
-    "typeJob": "Вакансии"
+    "typeJob": "Вакансии",
+    "country": "Country",
+    "instagram": "Instagram (URL)",
+    "facebook": "Facebook (URL)",
+    "email": "Email",
+    "phone": "Phone / WhatsApp",
+    "consent": "I consent to the processing of personal data under the privacy policy.",
+    "typeSupplier": "Supplier",
+    "typeMedia": "Press",
+    "typeJobShort": "Careers",
+    "reqDetails": "Company details",
+    "hours": "Mon–Fri, 09:00–18:00"
   },
   "footer": {
     "rights": "All rights reserved.",

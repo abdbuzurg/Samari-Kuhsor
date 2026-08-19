@@ -6,6 +6,7 @@ import { usePathname as useRawPathname } from 'next/navigation';
 
 import { Link, usePathname } from '@/i18n/routing';
 import { locales, localeLabels, type Locale } from '@/i18n/config';
+import { BRAND } from '@/lib/content';
 import { palette } from '@/lib/palette';
 
 /**
@@ -67,8 +68,24 @@ export function SiteHeader() {
             priority
             style={{ display: 'block', height: 38, width: 'auto' }}
           />
-          <span style={{ fontWeight: 800, fontSize: 16, letterSpacing: '-.02em' }}>
-            {t('brand')}
+          <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+            <span className="disp" style={{ fontWeight: 800, fontSize: 18, color: palette.deep }}>
+              {BRAND.name}
+            </span>
+            {/* "Roof of the World · Pamir" — the regional framing the design
+                established. Not a translated string: it is a wordmark, and it
+                reads the same in all three locales. */}
+            <span
+              style={{
+                fontSize: 9,
+                letterSpacing: '.34em',
+                textTransform: 'uppercase',
+                color: palette.primary,
+                marginTop: 5,
+              }}
+            >
+              {BRAND.subtitle}
+            </span>
           </span>
         </Link>
 
