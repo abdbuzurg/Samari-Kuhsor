@@ -98,6 +98,14 @@ func run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// Before the pool, and before serving. A schema the code does not understand
+	// fails later, further from the cause, and possibly after writing something.
+	if envOr("MIGRATE_ON_START", "true") != "false" {
+		if err := applyMigrations(ctx, dbURL); err != nil {
+			return err
+		}
+	}
+
 	pool, err := newPool(ctx, dbURL)
 	if err != nil {
 		return err

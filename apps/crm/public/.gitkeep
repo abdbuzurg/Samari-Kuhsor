@@ -1,0 +1,6 @@
+Next serves this directory as static files at the site root.
+
+It is empty because the CRM has no static assets: the fonts come from next/font
+and the icons from lucide-react, both bundled. The directory is kept because
+apps/crm/Dockerfile copies it — without it the image build fails, which is how
+this file came to exist.

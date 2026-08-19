@@ -19,6 +19,27 @@ and fails if any service other than `caddy` publishes a port.
 
 ---
 
+## Testing it locally first
+
+Before any of the below, the whole platform runs on a workstation:
+
+```sh
+docker compose up --build          # docker-compose.yml, not the .prod one
+```
+
+| | |
+|---|---|
+| Website | http://localhost:3001 |
+| CRM | http://localhost:3000 — `admin@samari-kuhsor.tj` / `DevPass!2026` |
+
+That stack is deliberately NOT this topology: every service publishes a port, the
+service key is a literal that says `not-for-production`, and the admin password
+is written in the compose file. It exists so the thing can be seen working before
+it goes anywhere. None of it may be copied to a server — `.env.example` and the
+stages below are the real configuration.
+
+---
+
 ## Stage 1 — client test over an IP
 
 The domains are not registered yet, so this is where the client sees it first.
@@ -41,8 +62,17 @@ leave `TLS_MODE=off`.
 
 ```sh
 docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml exec api /app/seed
+
+# Roles, permissions, the five products, the warehouse zones, and the first
+# administrator. Idempotent. ADMIN_PASSWORD is read once, here, and never stored.
+docker compose -f docker-compose.prod.yml exec \
+  -e ADMIN_EMAIL=admin@samari-kuhsor.tj \
+  -e ADMIN_PASSWORD='<pick one>' \
+  api /app/seed reference
 ```
+
+The schema is already in place by this point: the API applies its migrations on
+start, so `up -d` above has done it.
 
 Then:
 
@@ -144,8 +174,17 @@ git pull
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-Migrations are applied by the API on start and ship inside its image, so a
-deploy cannot be half-migrated because somebody's laptop lost its connection.
+Migrations are applied by the API on start. They are **embedded in the binary**,
+not read from disk, so there is no directory to forget to copy and a deploy
+cannot be half-applied because somebody's laptop lost its connection mid-command.
+
+A Postgres advisory lock guards the run, so a second process starting
+concurrently waits rather than racing. Failure to migrate is fatal: a server that
+starts against a schema it does not understand fails later, further from the
+cause, and possibly after writing something.
+
+To inspect a migration before it runs, set `MIGRATE_ON_START=false` and apply it
+by hand.
 
 Roll back by checking out the previous tag and rebuilding. Note that a migration
 is not automatically reversed — check whether the release added one before

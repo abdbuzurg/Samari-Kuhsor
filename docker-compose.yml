@@ -1,13 +1,27 @@
-# Development stack.
+# Development stack — the whole platform, on your machine, in one command.
 #
-# Only Postgres runs here for now; api / crm / web are added as they are built.
-# Production topology lives in docker-compose.prod.yml (I18) — there, only `caddy`
-# publishes ports and `api` is unreachable from outside the compose network.
+#   docker compose up --build
 #
-# Host port 5433, not 5432: the workstation already runs a Postgres 17 on 5432 and
-# this stack must never be confused with it.
+#   Website   http://localhost:3001
+#   CRM       http://localhost:3000   admin@samari-kuhsor.tj / DevPass!2026
+#   API       http://localhost:8080   (dev only — see the note below)
+#   Postgres  localhost:5433
+#
+# This is NOT the production topology. Production is docker-compose.prod.yml,
+# where Caddy is the only service with a host port and the api has none at all
+# (I18). Here every service publishes one, because being able to curl the API and
+# psql the database directly is the point of a development stack. `make check`
+# asserts the production file's topology, not this one.
+#
+# Host port 5433, not 5432: the workstation already runs a Postgres 17 on 5432
+# and this stack must never be confused with it.
+#
+# Everything is bound to 127.0.0.1. A dev stack with a blank service key and a
+# known admin password should not be reachable from the office network.
 
 name: samari-dev
+
+x-service-key: &service-key "dev-service-key-not-for-production"
 
 services:
   db:
@@ -35,6 +49,103 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: samari-dev-api
+    restart: unless-stopped
+    environment:
+      APP_ENV: development
+      # Development only. Production refuses to start unless TLS_MODE=auto (I24),
+      # and with `off` the session cookie is not Secure — which is required here,
+      # because a Secure cookie is never sent over plain HTTP and nobody could
+      # log in.
+      TLS_MODE: "off"
+      LISTEN_ADDR: ":8080"
+      DB_URL: postgres://samari:samari_dev_only@db:5432/samari?sslmode=disable
+      SERVICE_KEY: *service-key
+      # QR payloads embed this. Pointed at the local website so a code scanned
+      # from a dev export resolves to something running.
+      PUBLIC_SITE_URL: http://localhost:3001
+    ports:
+      # Dev only, and deliberately: production publishes NO port for this service,
+      # which is what makes "the browser never calls Go directly" a fact about the
+      # network rather than a convention (CLAUDE.md §3).
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- --header=\"X-Service-Key: $$SERVICE_KEY\" http://127.0.0.1:8080/api/v1/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      start_period: 20s
+      retries: 10
+
+  # One-shot. Loads roles, permissions, the five products, the warehouse zones and
+  # a development administrator, then exits. Idempotent — re-running it creates
+  # nothing the second time, so `docker compose up` is safe to repeat.
+  seed:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: samari-dev-seed
+    entrypoint: ["/app/seed", "reference"]
+    environment:
+      DB_URL: postgres://samari:samari_dev_only@db:5432/samari?sslmode=disable
+      ADMIN_EMAIL: admin@samari-kuhsor.tj
+      # A KNOWN password, printed in the header of this file. That is correct for
+      # a stack bound to 127.0.0.1 with a service key that says
+      # "not-for-production" in its own value, and it is why none of this may be
+      # copied to a server.
+      ADMIN_PASSWORD: "DevPass!2026"
+      ADMIN_NAME: Администратор
+    depends_on:
+      # After the API, because the API is what applies the migrations. Seeding an
+      # unmigrated database fails on the first missing table.
+      api:
+        condition: service_healthy
+    restart: "no"
+
+  crm:
+    build:
+      context: .
+      dockerfile: apps/crm/Dockerfile
+    container_name: samari-dev-crm
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      BACKEND_URL: http://api:8080
+      SERVICE_KEY: *service-key
+      TLS_MODE: "off"
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    container_name: samari-dev-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      BACKEND_URL: http://api:8080
+      SERVICE_KEY: *service-key
+      # Not NEXT_PUBLIC_: Next inlines those at BUILD time, so a runtime value
+      # would never reach robots.txt or the canonical tags. Under a localhost
+      # address robots.txt disallows everything, which is correct — see
+      # apps/web/app/robots.ts.
+      PUBLIC_SITE_URL: http://localhost:3001
+    ports:
+      - "127.0.0.1:3001:3001"
+    depends_on:
+      api:
+        condition: service_healthy
 
 volumes:
   pgdata:

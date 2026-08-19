@@ -20,8 +20,6 @@ package testsupport
 import (
 	"context"
 	"fmt"
-	"path/filepath"
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -31,11 +29,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/pressly/goose/v3"
+
+	"github.com/qoim/samari/backend/migrations"
 	"github.com/testcontainers/testcontainers-go"
 	tcpostgres "github.com/testcontainers/testcontainers-go/modules/postgres"
 	"github.com/testcontainers/testcontainers-go/wait"
 
 	"database/sql"
+
 	_ "github.com/jackc/pgx/v5/stdlib" // database/sql driver, for goose
 )
 
@@ -61,13 +62,6 @@ var (
 
 // dsn builds a connection string for a named database on the shared container.
 func dsn(database string) string { return fmt.Sprintf(baseDSN, database) }
-
-// migrationsDir resolves backend/migrations relative to this source file, so tests
-// work regardless of the working directory the runner chose.
-func migrationsDir() string {
-	_, thisFile, _, _ := runtime.Caller(0)
-	return filepath.Join(filepath.Dir(thisFile), "..", "..", "migrations")
-}
 
 // start brings up the container and builds the template database. Runs once per
 // test binary; every NewDB call after that is a cheap clone.
@@ -112,11 +106,16 @@ func start(ctx context.Context) error {
 	}
 	defer sqlDB.Close()
 
+	// The SAME embedded filesystem the API migrates from, deliberately. Reading
+	// these from disk here would create a second code path: a migration the embed
+	// pattern failed to pick up would still apply in tests and silently not apply
+	// in production, which is the worst possible direction for that bug to run.
+	goose.SetBaseFS(migrations.FS)
 	goose.SetLogger(goose.NopLogger())
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("goose dialect: %w", err)
 	}
-	if err := goose.Up(sqlDB, migrationsDir()); err != nil {
+	if err := goose.Up(sqlDB, "."); err != nil {
 		return fmt.Errorf("migrate template: %w", err)
 	}
 
