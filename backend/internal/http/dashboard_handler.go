@@ -31,6 +31,22 @@ func dealStage(stage string) api.Status {
 	}
 }
 
+// stockRowStatus grades one panel line.
+//
+// Below minimum outranks expiring: a stockout stops the line today, an expiry is
+// a date in the future. Only a position that is neither is green — green means
+// healthy, never merely present (CLAUDE.md §5).
+func stockRowStatus(r dashboard.StockRow) api.Status {
+	switch {
+	case r.Low:
+		return api.Status{Key: "below_minimum", Label: "Низкий остаток", Level: string(common.LevelDanger)}
+	case r.Expiring:
+		return api.Status{Key: "expiring", Label: "Истекает", Level: string(common.LevelWarn)}
+	default:
+		return api.Status{Key: "ok", Label: "В норме", Level: string(common.LevelOK)}
+	}
+}
+
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	ident, ok := identityFrom(r)
 	if !ok {
@@ -45,11 +61,19 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	out := api.Dashboard{
-		Period:   string(snap.Period),
-		Pipeline: make([]api.DashboardStage, 0, len(snap.Pipeline)),
-		Recent:   make([]api.DashboardOrder, 0, len(snap.Recent)),
-		Feed:     make([]api.DashboardEvent, 0, len(snap.Feed)),
-		Revenue:  make([]api.DashboardRevenue, 0, len(snap.Revenue)),
+		Period:    string(snap.Period),
+		Pipeline:  make([]api.DashboardStage, 0, len(snap.Pipeline)),
+		Recent:    make([]api.DashboardOrder, 0, len(snap.Recent)),
+		Feed:      make([]api.DashboardEvent, 0, len(snap.Feed)),
+		Revenue:   make([]api.DashboardRevenue, 0, len(snap.Revenue)),
+		StockRows: make([]api.DashboardStockRow, 0, len(snap.StockRows)),
+	}
+	for _, r := range snap.StockRows {
+		out.StockRows = append(out.StockRows, api.DashboardStockRow{
+			SKU: r.SKU, Name: r.Name, Detail: r.Detail,
+			OnHand: r.OnHand.String(), UOM: r.UOM,
+			Status: stockRowStatus(r),
+		})
 	}
 	if p := snap.Sales; p != nil {
 		out.Sales = &api.DashboardSales{

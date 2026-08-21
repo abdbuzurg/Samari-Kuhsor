@@ -145,6 +145,12 @@ type Querier interface {
 	// Revenue and order count over a window. Confirmed onwards only: a draft is a
 	// quotation, and counting it as revenue would overstate the month.
 	DashboardSalesTotals(ctx context.Context, days int32) (DashboardSalesTotalsRow, error)
+	// The Запасы panel on the dashboard: the positions that most need attention.
+	//
+	// Ordered by how much trouble each one is in, not alphabetically — the panel
+	// shows five rows out of hundreds, so the ordering IS the selection. Below
+	// minimum first, then expiring soonest, then everything else.
+	DashboardStockRows(ctx context.Context, limit int32) ([]DashboardStockRowsRow, error)
 	// Stock at its most recent purchase price. Valued at cost, not at sale price:
 	// unsold stock is money spent, not money earned.
 	DashboardStockValue(ctx context.Context) (decimal.Decimal, error)

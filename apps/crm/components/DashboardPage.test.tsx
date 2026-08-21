@@ -43,6 +43,7 @@ const EMPTY: Dashboard = {
   quality: { quarantined: 0 },
   production: { good_qty: '0.000', scrap_qty: '0.000', planned_qty: '0.000', progress: 0 },
   pipeline: [],
+  stock_rows: [],
   recent_orders: [],
   feed: [],
   revenue: Array.from({ length: 30 }, (_, i) => ({
@@ -151,13 +152,13 @@ describe('an empty system', () => {
     expect(screen.queryByText(/2480000/)).not.toBeInTheDocument();
   });
 
-  it('says so in words rather than drawing a flat line at zero', async () => {
+  it('says so in words rather than drawing thirty zero-height bars', async () => {
     server.use(session.loaded(adminUser), dashboard(EMPTY));
     wrap(<DashboardPage />);
     await screen.findByText('Продаж за выбранный период пока нет.');
-    // A sparkline of thirty zeroes is a horizontal rule, which reads as a chart
-    // that failed to load rather than as "no sales yet".
-    expect(screen.queryByTestId('sparkline')).not.toBeInTheDocument();
+    // A row of stubs reads as a chart that failed to load rather than as "no
+    // sales yet".
+    expect(screen.queryByTestId('revenue-chart')).not.toBeInTheDocument();
   });
 
   it('shows an empty feed and an empty order list as such', async () => {
@@ -168,16 +169,121 @@ describe('an empty system', () => {
     expect(screen.queryByTestId('recent-order')).not.toBeInTheDocument();
   });
 
-  it('draws the sparkline once there is something to draw', async () => {
+  it('draws the chart once there is something to draw', async () => {
     server.use(session.loaded(adminUser), dashboard(RUNNING));
     wrap(<DashboardPage />);
-    expect(await screen.findByTestId('sparkline')).toBeInTheDocument();
+    expect(await screen.findByTestId('revenue-chart')).toBeInTheDocument();
+  });
+
+  it('draws a revenue AND an order bar per period, as the prototype does', async () => {
+    server.use(session.loaded(adminUser), dashboard(RUNNING));
+    wrap(<DashboardPage />);
+    const chart = await screen.findByTestId('revenue-chart');
+    const columns = within(chart).getAllByTestId('chart-column');
+    expect(columns).toHaveLength(RUNNING.revenue.length);
+    // Revenue alone cannot tell a good month from one big order. The pair is the
+    // panel's whole point, and an earlier pass shipped only the revenue line.
+    expect(within(chart).getAllByTestId('bar-revenue')).toHaveLength(columns.length);
+    expect(within(chart).getAllByTestId('bar-orders')).toHaveLength(columns.length);
   });
 });
 
 // ---------------------------------------------------------------------------
 // No leaked panels
 // ---------------------------------------------------------------------------
+
+describe('Воронка продаж', () => {
+  const WITH_PIPELINE: Dashboard = {
+    ...RUNNING,
+    pipeline: [
+      { stage: { key: 'qualification', label: 'Квалификация', level: 'neutral' }, count: 64, amount: '0.00' },
+      { stage: { key: 'proposal', label: 'Предложение', level: 'info' }, count: 24, amount: '0.00' },
+      { stage: { key: 'negotiation', label: 'Переговоры', level: 'info' }, count: 16, amount: '0.00' },
+    ],
+  };
+
+  it('scales every bar against the FIRST stage, so it reads as a funnel', async () => {
+    server.use(session.loaded(adminUser), dashboard(WITH_PIPELINE));
+    wrap(<DashboardPage />);
+    await screen.findByTestId('pipeline');
+
+    const fills = screen.getAllByTestId('pipeline-fill');
+    // 64 → 100%, 24 → 38%, 16 → 25%. Scaling to the maximum would give the same
+    // answer only by accident, and would invert the moment a later stage ever
+    // exceeded intake.
+    expect(fills[0].style.width).toBe('100%');
+    expect(fills[1].style.width).toBe('38%');
+    expect(fills[2].style.width).toBe('25%');
+  });
+
+  it('shows the count beside each stage', async () => {
+    server.use(session.loaded(adminUser), dashboard(WITH_PIPELINE));
+    wrap(<DashboardPage />);
+    const rows = await screen.findAllByTestId('pipeline-row');
+    expect(rows[0]).toHaveTextContent('64');
+    expect(rows[0]).toHaveTextContent('Квалификация');
+  });
+
+  it('says there are none rather than drawing an empty funnel', async () => {
+    server.use(session.loaded(adminUser), dashboard(RUNNING));
+    wrap(<DashboardPage />);
+    expect(await screen.findByTestId('pipeline-empty')).toBeInTheDocument();
+  });
+});
+
+describe('Запасы panel', () => {
+  const WITH_STOCK: Dashboard = {
+    ...RUNNING,
+    stock_rows: [
+      {
+        sku: 'SUG-25', name: 'Сахар-песок', detail: 'RAW-1',
+        on_hand: '12.500', uom: 'kg',
+        status: { key: 'below_minimum', label: 'Низкий остаток', level: 'danger' },
+      },
+      {
+        sku: 'APJ-1000', name: 'Яблочный сок 1 л', detail: 'Партия B-2617',
+        on_hand: '4800.000', uom: 'bottle',
+        status: { key: 'ok', label: 'В норме', level: 'ok' },
+      },
+    ],
+  };
+
+  it('lists positions with the identifier that fits the row', async () => {
+    server.use(session.loaded(adminUser), dashboard(WITH_STOCK));
+    wrap(<DashboardPage />);
+    const rows = await screen.findAllByTestId('stock-panel-row');
+
+    // A raw material is known by its bin; a finished good by its batch. Showing
+    // both would not fit, showing neither leaves an operator unable to act.
+    expect(rows[0]).toHaveTextContent('12.500 kg · RAW-1');
+    expect(rows[1]).toHaveTextContent('4800.000 bottle · Партия B-2617');
+  });
+
+  it('never colours a problem green', async () => {
+    server.use(session.loaded(adminUser), dashboard(WITH_STOCK));
+    wrap(<DashboardPage />);
+    await screen.findAllByTestId('stock-panel-row');
+
+    const tags = screen.getAllByTestId('status-tag');
+    const low = tags.find((el) => el.dataset.status === 'below_minimum');
+    expect(low).toHaveAttribute('data-level', 'danger');
+  });
+
+  it('shows an empty state on a system with no stock', async () => {
+    server.use(session.loaded(adminUser), dashboard(EMPTY));
+    wrap(<DashboardPage />);
+    expect(await screen.findByTestId('stock-panel-empty')).toBeInTheDocument();
+  });
+
+  it('is omitted entirely for a viewer who may not read inventory', async () => {
+    const noStock: Dashboard = { ...WITH_STOCK, stock: null };
+    server.use(session.loaded(warehouseUser), dashboard(noStock));
+    wrap(<DashboardPage />);
+    await screen.findByLabelText(messages.dash.feed);
+    // null means "not entitled", not "zero" — the panel goes, it does not empty.
+    expect(screen.queryByLabelText(messages.dash.stock)).not.toBeInTheDocument();
+  });
+});
 
 describe('permission filtering', () => {
   // The server sends null for a module the viewer may not read. Null and 0 look

@@ -476,6 +476,75 @@ func (q *Queries) DashboardSalesTotals(ctx context.Context, days int32) (Dashboa
 	return i, err
 }
 
+const dashboardStockRows = `-- name: DashboardStockRows :many
+SELECT
+  i.sku,
+  COALESCE(tr.name, i.sku) AS item_name,
+  i.base_uom,
+  b.batch_no,
+  b.expires_on,
+  l.code AS location_code,
+  sb.on_hand,
+  i.min_qty
+FROM stock_balances sb
+JOIN items i ON i.id = sb.item_id AND i.deleted_at IS NULL
+JOIN locations l ON l.id = sb.location_id AND l.deleted_at IS NULL
+LEFT JOIN batches b ON b.id = sb.batch_id AND b.deleted_at IS NULL
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
+WHERE sb.on_hand <> 0
+ORDER BY
+  (i.min_qty IS NOT NULL AND sb.on_hand < i.min_qty) DESC,
+  b.expires_on ASC NULLS LAST,
+  i.sku
+LIMIT $1
+`
+
+type DashboardStockRowsRow struct {
+	Sku          string
+	ItemName     string
+	BaseUom      string
+	BatchNo      *string
+	ExpiresOn    pgtype.Date
+	LocationCode string
+	OnHand       decimal.Decimal
+	MinQty       decimal.NullDecimal
+}
+
+// The Запасы panel on the dashboard: the positions that most need attention.
+//
+// Ordered by how much trouble each one is in, not alphabetically — the panel
+// shows five rows out of hundreds, so the ordering IS the selection. Below
+// minimum first, then expiring soonest, then everything else.
+func (q *Queries) DashboardStockRows(ctx context.Context, limit int32) ([]DashboardStockRowsRow, error) {
+	rows, err := q.db.Query(ctx, dashboardStockRows, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DashboardStockRowsRow{}
+	for rows.Next() {
+		var i DashboardStockRowsRow
+		if err := rows.Scan(
+			&i.Sku,
+			&i.ItemName,
+			&i.BaseUom,
+			&i.BatchNo,
+			&i.ExpiresOn,
+			&i.LocationCode,
+			&i.OnHand,
+			&i.MinQty,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const dashboardStockValue = `-- name: DashboardStockValue :one
 SELECT COALESCE(SUM(b.on_hand * COALESCE(p.unit_price, 0)), 0)::numeric(14,2) AS value
 FROM stock_balances b

@@ -20,10 +20,12 @@ package dashboard
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
 
+	"github.com/qoim/samari/backend/internal/alerts"
 	"github.com/qoim/samari/backend/internal/db"
 	"github.com/qoim/samari/backend/internal/rbac"
 )
@@ -74,6 +76,7 @@ type Snapshot struct {
 	Quality    *QualityPanel
 	Production *ProductionPanel
 	Pipeline   []PipelineStage
+	StockRows  []StockRow
 	Recent     []RecentOrder
 	Feed       []FeedEntry
 	Revenue    []RevenuePoint
@@ -99,6 +102,21 @@ type ProductionPanel struct {
 	GoodQty    decimal.Decimal
 	ScrapQty   decimal.Decimal
 	PlannedQty decimal.Decimal
+}
+
+// StockRow is one line of the Запасы panel.
+//
+// `Detail` is assembled here rather than in the handler because what identifies
+// a position differs by what it is: a finished good is known by its batch, a raw
+// material by where it sits. The panel has one line of room for whichever it is.
+type StockRow struct {
+	SKU      string
+	Name     string
+	Detail   string
+	OnHand   decimal.Decimal
+	UOM      string
+	Expiring bool
+	Low      bool
 }
 
 type PipelineStage struct {
@@ -213,6 +231,27 @@ func (s *Service) Build(ctx context.Context, perms rbac.Set, period Period) (Sna
 			return out, fmt.Errorf("dashboard: low stock: %w", err)
 		}
 		out.Stock = &StockPanel{Value: value, BelowMinimum: int(low)}
+
+		rows, err := q.DashboardStockRows(ctx, 5)
+		if err != nil {
+			return out, fmt.Errorf("dashboard: stock rows: %w", err)
+		}
+		for _, r := range rows {
+			row := StockRow{SKU: r.Sku, Name: r.ItemName, OnHand: r.OnHand, UOM: r.BaseUom}
+			row.Low = r.MinQty.Valid && r.OnHand.LessThan(r.MinQty.Decimal)
+			// Expiring uses the same 30-day horizon as the alerts service, so the
+			// panel and the bell cannot disagree about what "скоро истекает" means.
+			if r.ExpiresOn.Valid {
+				row.Expiring = !r.ExpiresOn.Time.After(time.Now().AddDate(0, 0, alerts.ExpiryWindow))
+			}
+			switch {
+			case r.BatchNo != nil:
+				row.Detail = "Партия " + *r.BatchNo
+			default:
+				row.Detail = r.LocationCode
+			}
+			out.StockRows = append(out.StockRows, row)
+		}
 	}
 
 	if perms.CanRead(rbac.Quality) {

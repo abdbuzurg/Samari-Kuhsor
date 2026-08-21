@@ -458,6 +458,7 @@ type Dashboard struct {
 	Quality    *DashboardQuality    `json:"quality" tstype:"DashboardQuality | null"`
 	Production *DashboardProduction `json:"production" tstype:"DashboardProduction | null"`
 	Pipeline   []DashboardStage     `json:"pipeline"`
+	StockRows  []DashboardStockRow  `json:"stock_rows"`
 	Recent     []DashboardOrder     `json:"recent_orders"`
 	Feed       []DashboardEvent     `json:"feed"`
 	Revenue    []DashboardRevenue   `json:"revenue"`
@@ -670,4 +671,14 @@ type MediaAltWriteRequest struct {
 	AltTG   *string `json:"alt_tg"`
 	AltEN   *string `json:"alt_en"`
 	Version *int32  `json:"version"`
+}
+
+// DashboardStockRow is one line of the Запасы panel.
+type DashboardStockRow struct {
+	SKU    string `json:"sku"`
+	Name   string `json:"name"`
+	Detail string `json:"detail"`
+	OnHand string `json:"on_hand"`
+	UOM    string `json:"uom"`
+	Status Status `json:"status"`
 }

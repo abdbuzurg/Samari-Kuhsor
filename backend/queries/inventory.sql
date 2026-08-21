@@ -362,3 +362,31 @@ WHERE n.deleted_at IS NULL
   AND n.published_on <= CURRENT_DATE
 ORDER BY n.published_on DESC
 LIMIT $1;
+
+-- name: DashboardStockRows :many
+-- The Запасы panel on the dashboard: the positions that most need attention.
+--
+-- Ordered by how much trouble each one is in, not alphabetically — the panel
+-- shows five rows out of hundreds, so the ordering IS the selection. Below
+-- minimum first, then expiring soonest, then everything else.
+SELECT
+  i.sku,
+  COALESCE(tr.name, i.sku) AS item_name,
+  i.base_uom,
+  b.batch_no,
+  b.expires_on,
+  l.code AS location_code,
+  sb.on_hand,
+  i.min_qty
+FROM stock_balances sb
+JOIN items i ON i.id = sb.item_id AND i.deleted_at IS NULL
+JOIN locations l ON l.id = sb.location_id AND l.deleted_at IS NULL
+LEFT JOIN batches b ON b.id = sb.batch_id AND b.deleted_at IS NULL
+LEFT JOIN item_translations tr
+  ON tr.item_id = i.id AND tr.locale = 'ru' AND tr.deleted_at IS NULL
+WHERE sb.on_hand <> 0
+ORDER BY
+  (i.min_qty IS NOT NULL AND sb.on_hand < i.min_qty) DESC,
+  b.expires_on ASC NULLS LAST,
+  i.sku
+LIMIT $1;

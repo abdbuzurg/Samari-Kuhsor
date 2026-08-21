@@ -420,6 +420,7 @@ export interface Dashboard {
   quality?: DashboardQuality | null;
   production?: DashboardProduction | null;
   pipeline: DashboardStage[];
+  stock_rows: DashboardStockRow[];
   recent_orders: DashboardOrder[];
   feed: DashboardEvent[];
   revenue: DashboardRevenue[];
@@ -615,6 +616,17 @@ export interface MediaAltWriteRequest {
   alt_tg?: string;
   alt_en?: string;
   version?: number /* int32 */;
+}
+/**
+ * DashboardStockRow is one line of the Запасы panel.
+ */
+export interface DashboardStockRow {
+  sku: string;
+  name: string;
+  detail: string;
+  on_hand: string;
+  uom: string;
+  status: Status;
 }
 
 //////////

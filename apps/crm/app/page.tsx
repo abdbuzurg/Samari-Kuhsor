@@ -6,6 +6,9 @@ import { useState } from 'react';
 
 import { AppShell } from '@/components/AppShell';
 import { StatusTag } from '@/components/StatusTag';
+import { ChartLegend, RevenueChart } from '@/components/dashboard/RevenueChart';
+import { PipelinePanel } from '@/components/dashboard/PipelinePanel';
+import { StockPanel } from '@/components/dashboard/StockPanel';
 import { ApiError } from '@/lib/session';
 import type { Dashboard, DashboardEvent } from '@samari/types';
 
@@ -126,12 +129,38 @@ export default function DashboardPage() {
 
           <div className="grid gap-3 lg:grid-cols-2">
             {d.sales && (
-              <Panel title={t('dash.rev')}>
+              <Panel
+                title={t('dash.rev')}
+                aside={
+                  <ChartLegend
+                    revenueLabel={t('dash.revLeg')}
+                    ordersLabel={t('dash.ordLeg')}
+                  />
+                }
+              >
                 {d.revenue.every((p) => p.revenue === '0.00') ? (
                   <Empty>Продаж за выбранный период пока нет.</Empty>
                 ) : (
-                  <Sparkline points={d.revenue} />
+                  <RevenueChart
+                    points={d.revenue}
+                    revenueLabel={t('dash.revLeg')}
+                    ordersLabel={t('dash.ordLeg')}
+                  />
                 )}
+              </Panel>
+            )}
+
+            {/* Воронка продаж. The backend has always computed this; until now
+                nothing rendered it. */}
+            {d.sales && (
+              <Panel title={t('dash.pipe')}>
+                <PipelinePanel stages={d.pipeline} />
+              </Panel>
+            )}
+
+            {d.stock && (
+              <Panel title={t('dash.stock')}>
+                <StockPanel rows={d.stock_rows} />
               </Panel>
             )}
 
@@ -238,12 +267,23 @@ function Kpi({
   );
 }
 
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({
+  title,
+  aside,
+  children,
+}: {
+  title: string;
+  aside?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <section className="card p-4" data-testid="panel" aria-label={title}>
-      <h2 className="text-[15px] mb-3" style={{ fontFamily: 'var(--font-heading)' }}>
-        {title}
-      </h2>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <h2 className="text-[15px]" style={{ fontFamily: 'var(--font-heading)' }}>
+          {title}
+        </h2>
+        {aside}
+      </div>
       {children}
     </section>
   );
@@ -265,28 +305,6 @@ function Figure({ label, value }: { label: string; value: string }) {
         {value}
       </div>
     </div>
-  );
-}
-
-/** A bare SVG sparkline. No charting library: one polyline is the whole
- *  requirement, and a dependency here would be 40 kB for a shape. */
-function Sparkline({ points }: { points: Dashboard['revenue'] }) {
-  const values = points.map((p) => Number(p.revenue));
-  const max = Math.max(...values, 1);
-  const step = points.length > 1 ? 100 / (points.length - 1) : 100;
-  const path = values.map((v, i) => `${i * step},${30 - (v / max) * 28}`).join(' ');
-
-  return (
-    <svg viewBox="0 0 100 30" className="w-full h-24" preserveAspectRatio="none" role="img"
-      aria-label="Выручка по дням" data-testid="sparkline">
-      <polyline
-        points={path}
-        fill="none"
-        stroke="var(--level-ok)"
-        strokeWidth="1"
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
   );
 }
 
