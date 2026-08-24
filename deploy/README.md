@@ -15,8 +15,22 @@ One server in Dushanbe. Docker Compose.
 > - `api` had no healthcheck at all, so `crm`'s `condition: service_healthy`
 >   could never be satisfied.
 >
-> All three are fixed, and `make check` now runs `tools/check-env-contract.mjs`,
-> which fails if the compose file sets a name the binary does not read.
+> A fourth appeared once those were fixed and everything else was healthy:
+>
+> - `deploy/Caddyfile` had `email {$ACME_EMAIL}` with a comment claiming an empty
+>   value was fine. An empty variable renders as a bare `email` with no argument,
+>   which is a parse error — Caddy refused the whole config and crash-looped,
+>   taking the public site and the CRM down while `api`, `crm`, `web` and `db`
+>   all reported healthy.
+>
+> All four are fixed, and `make check` now runs two new gates:
+> `tools/check-env-contract.mjs`, which fails if the compose file sets a name the
+> binary does not read, and `tools/check-caddyfile.mjs`, which runs
+> `caddy validate` against all three TLS stages with the variables empty.
+>
+> The pattern in all four: these artefacts were written and reviewed but never
+> executed. Rendering a compose file is not booting it, and reading a Caddyfile
+> is not validating it.
 
 ---
 
@@ -70,6 +84,8 @@ Fill in `.env`:
 openssl rand -base64 32   # POSTGRES_PASSWORD
 openssl rand -hex 32      # SERVICE_KEY
 ```
+
+Leave `ACME_EMAIL` empty — it is unused until TLS_MODE=auto at T38.
 
 Set `PUBLIC_SITE_URL` to the server's address, e.g. `http://203.0.113.10`, leave
 `TLS_MODE=off`, and set:

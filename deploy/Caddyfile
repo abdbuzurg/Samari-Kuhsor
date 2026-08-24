@@ -14,9 +14,19 @@
 
 {
 	admin off
-	# Let's Encrypt needs an address to warn about expiry. Empty is fine when TLS
-	# is off or internal.
-	email {$ACME_EMAIL}
+	# NO `email` directive here, deliberately.
+	#
+	# It was `email {$ACME_EMAIL}`, with a comment claiming an empty value was
+	# fine when TLS is off. It is not: an empty variable renders as a bare
+	# `email` with no argument, which is a PARSE error. Caddy refuses the whole
+	# config and crash-loops, taking the site and the CRM down with it — and
+	# `{$VAR:default}` does not help, because compose sets the variable to an
+	# empty string rather than leaving it unset. Found on the server, after the
+	# rest of the stack was already healthy.
+	#
+	# The address is only ever used by Let's Encrypt, so it belongs with the TLS
+	# blocks below and is added at T38 when DNS lands. Until then there is no
+	# certificate to warn about.
 }
 
 (common) {
