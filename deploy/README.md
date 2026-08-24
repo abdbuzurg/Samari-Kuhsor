@@ -28,9 +28,14 @@ One server in Dushanbe. Docker Compose.
 > binary does not read, and `tools/check-caddyfile.mjs`, which runs
 > `caddy validate` against all three TLS stages with the variables empty.
 >
-> The pattern in all four: these artefacts were written and reviewed but never
-> executed. Rendering a compose file is not booting it, and reading a Caddyfile
-> is not validating it.
+> And a fifth, once the stack was reachable: the `/crm` path mount could never
+> have worked, because a Next.js app cannot serve from under a prefix it is not
+> told about. The CRM now has its own port for this stage.
+>
+> The pattern in all five: these artefacts were written and reviewed but never
+> executed. Rendering a compose file is not booting it, reading a Caddyfile is
+> not validating it, and a reverse-proxy rule that parses is not a reverse-proxy
+> rule that serves an application.
 
 ---
 
@@ -121,7 +126,18 @@ Then:
 | What | Where |
 |---|---|
 | Public site | `http://<IP>/` |
-| CRM | `http://<IP>/crm/` |
+| CRM | `http://<IP>:8081/` |
+
+**The CRM is on its own port, not under a path.** Mounting it at `/crm` was the
+original design and it does not work: `handle_path` strips the prefix, so the
+Next.js app does not know it has one and emits root-absolute asset URLs
+(`/_next/static/...`). Every one of them then routed to the WEBSITE container.
+The CRM's HTML loaded and all of its CSS, JavaScript and fonts 404'd.
+
+Making a path prefix work means Next's `basePath` — baked in at build time, not
+applied to `fetch()`, and needing removal again at T38. A second port costs
+nothing, needs no application change, and retires itself when the host-based
+blocks take over.
 
 ### What is deliberately different in this stage
 

@@ -132,6 +132,11 @@ services:
     ports:
       - "80:80"
       - "443:443"
+      # The CRM during the IP stage (deploy/Caddyfile). Serving it under a path
+      # on :80 broke every asset URL, because a Next.js app cannot be mounted
+      # under a prefix it does not know about. Retire this line at T38, when the
+      # CRM gets its own hostname on 443.
+      - "8081:8081"
     environment:
       TLS_MODE: ${TLS_MODE:-off}
       SITE_HOST: ${SITE_HOST:-:80}

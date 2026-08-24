@@ -47,21 +47,35 @@
 
 # ---------------------------------------------------------------------------
 # TLS_MODE=off — one IP, no DNS. The client's first test.
+#
+# TWO PORTS, not one port split by path.
+#
+# The original design mounted the CRM under /crm with `handle_path`, which
+# strips the prefix "so the app itself is unaware it is mounted under one".
+# That unawareness IS the defect: a Next.js app that does not know its base
+# path emits root-absolute asset URLs — /_next/static/chunks/*.js,
+# /_next/static/media/*.woff2 — and every one of them was then routed to the
+# WEBSITE container, which has no such chunks. The CRM's HTML loaded and its
+# CSS, JavaScript and fonts all 404'd.
+#
+# Making it work under a prefix means Next's `basePath`, which is baked in at
+# build time, does not apply to `fetch()` (so all eight BFF call sites would
+# need rewriting), and would have to be removed again at T38 when the CRM gets
+# its own hostname. That is a lot of build-time coupling for a stage that
+# exists only until DNS lands.
+#
+# A second port costs nothing, needs no application change, and disappears on
+# its own when the host-based blocks below take over. `caddy` is still the only
+# service publishing anything, so the topology gate is unaffected.
 # ---------------------------------------------------------------------------
 :80 {
 	import common
+	reverse_proxy web:3001
+}
 
-	# The CRM under /crm. handle_path strips the prefix before proxying, so the
-	# app itself is unaware it is mounted under one.
-	handle_path /crm/* {
-		reverse_proxy crm:3000
-	}
-	# Bare /crm with no trailing slash would otherwise 404.
-	redir /crm /crm/ permanent
-
-	handle {
-		reverse_proxy web:3001
-	}
+:8081 {
+	import common
+	reverse_proxy crm:3000
 }
 
 # ---------------------------------------------------------------------------
