@@ -501,6 +501,18 @@ func (s *Service) List(ctx context.Context, p common.Params, status *string) ([]
 }
 
 // Suppliers lists suppliers for the module list and the order form's picker.
+// Supplier is the detail view's read.
+func (s *Service) Supplier(ctx context.Context, id uuid.UUID) (db.Supplier, error) {
+	row, err := db.New(s.pool).GetSupplier(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.Supplier{}, common.NotFound()
+		}
+		return db.Supplier{}, fmt.Errorf("procurement: supplier: %w", err)
+	}
+	return row, nil
+}
+
 func (s *Service) Suppliers(ctx context.Context, p common.Params) ([]db.Supplier, int64, error) {
 	q := db.New(s.pool)
 	rows, err := q.ListSuppliers(ctx, db.ListSuppliersParams{

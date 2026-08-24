@@ -64,6 +64,7 @@ export default function InquiriesPage() {
         rows={rows}
         rowKey={(r) => r.id}
         rowHref={(r) => `/inquiries/${r.id}`}
+        exportKey="inquiries"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);

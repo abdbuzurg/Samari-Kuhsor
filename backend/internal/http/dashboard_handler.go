@@ -13,24 +13,6 @@ import (
 
 // Панель управления — docs/05-MODULES.md §2.
 
-// dealStage maps a pipeline stage to its display level.
-//
-// Deliberately all neutral except the last: a deal being at "предложение" is not
-// healthier than being at "квалификация", it is just further along. Colouring
-// progress green would make the funnel read as a scorecard.
-func dealStage(stage string) api.Status {
-	switch stage {
-	case "negotiation":
-		return api.Status{Key: stage, Label: "Переговоры", Level: string(common.LevelInfo)}
-	case "proposal":
-		return api.Status{Key: stage, Label: "Предложение", Level: string(common.LevelInfo)}
-	case "qualification":
-		return api.Status{Key: stage, Label: "Квалификация", Level: string(common.LevelNeutral)}
-	default:
-		return api.Status{Key: stage, Label: stage, Level: string(common.LevelNeutral)}
-	}
-}
-
 // stockRowStatus grades one panel line.
 //
 // Below minimum outranks expiring: a stockout stops the line today, an expiry is

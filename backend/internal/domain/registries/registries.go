@@ -403,6 +403,20 @@ func (s *Service) Assets(ctx context.Context, p common.Params, status *string) (
 	return rows, total, nil
 }
 
+// Asset is the detail view's read. It carries the same two derived service
+// dates the register shows, so the row and the record it opens cannot disagree
+// about when the machine is next due.
+func (s *Service) Asset(ctx context.Context, id uuid.UUID) (db.GetAssetDetailRow, error) {
+	row, err := db.New(s.pool).GetAssetDetail(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.GetAssetDetailRow{}, common.NotFound()
+		}
+		return db.GetAssetDetailRow{}, fmt.Errorf("registries: asset: %w", err)
+	}
+	return row, nil
+}
+
 func (s *Service) MaintenanceFor(ctx context.Context, assetID uuid.UUID) ([]db.MaintenanceEvent, error) {
 	rows, err := db.New(s.pool).ListMaintenanceEvents(ctx, assetID)
 	if err != nil {

@@ -254,10 +254,14 @@ type InquiryReceipt struct {
 }
 
 type Lead struct {
-	ID     string  `json:"id"`
-	Name   string  `json:"name"`
-	Source *string `json:"source" tstype:"string | null"`
-	Status Status  `json:"status"`
+	ID string `json:"id"`
+	// CustomerID is what conversion produced alongside the lead. Without it the
+	// caller has just created a customer it cannot open, which is the whole point
+	// of converting an enquiry (ToR §8 condition 1).
+	CustomerID string  `json:"customer_id"`
+	Name       string  `json:"name"`
+	Source     *string `json:"source" tstype:"string | null"`
+	Status     Status  `json:"status"`
 }
 
 // ---------------------------------------------------------------------------

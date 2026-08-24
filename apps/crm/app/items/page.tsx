@@ -87,6 +87,7 @@ export default function ItemsPage() {
         rows={rows}
         rowKey={(r) => r.id}
         rowHref={(r) => `/items/${r.id}`}
+        exportKey="items"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);

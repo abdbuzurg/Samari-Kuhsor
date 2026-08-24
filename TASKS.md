@@ -14,13 +14,26 @@ Status: `todo` · `wip` · `partial` · `done`
 
 | Range | State |
 |---|---|
-| T01–T33 | **done** — the CRM's thirteen modules, the public website, the CMS, notifications and the dashboard |
-| T34 | **partial** — first live end-to-end run done and its findings fixed; Playwright specs and the responsive pass are not |
-| T35 | **partial** — every deploy artefact built and verified locally; not rehearsed on a server, because there is none |
+| T01–T15 | **done** — foundations, auth, RBAC, audit, the Товары reference slice |
+| T16–T25 | **done** — closed by R00–R21 (24 Aug). Every module has a detail view, create form and action buttons; every mutation hook is reachable from the UI |
+| T26–T32 | **done** — admin, audit viewer, notifications, CMS, website, public endpoints, locales, analytics |
+| T33 | **done** — Воронка продаж renders real bars; R12 gave `deals` a write path and R14 seeds all five stages |
+| T34 | **done** — 22 Playwright specs across the five ToR workflows pass against a live stack; responsive pass complete |
+| T35 | **partial** — every deploy artefact built and verified locally; not rehearsed on a server, because there is none. The full stack HAS now been run locally end to end under Playwright |
 | T36–T38 | **blocked** — need the Dushanbe server, the registered domains, and the client |
 
 Blocked means blocked on something outside this repository, not on work not yet
 started. See the bottom of this file for exactly what each one needs.
+
+> **Re-derived from code on 24 August 2026.** T16–T25 previously read `done`.
+> They passed gates written against the domain layer — *"confirming a sales order
+> posts `sale` movements"* is a true statement about Go that says nothing about
+> whether a human can confirm a sales order. They cannot: fourteen mutation hooks
+> in `lib/operations.ts` are called by no component, and there is no client code
+> at all for batch release.
+>
+> **The remaining work is `docs/09-RECOVERY-PLAN.md` (R00–R19), not this file.**
+> Every gate there names a role, an action and a browser.
 
 ---
 
@@ -410,7 +423,7 @@ reported without leaking its address.
 
 ## Stage C — The operational chain
 
-### T16 · Склад и запасы — `done`
+### T16 · Склад и запасы — `partial` · backend only
 `locations`, `stock_movements`, `stock_balances` **plain view** (I5). Advisory-lock negative
 posting with `adjustment` exempt (I6). Приёмка / перемещение / списание / корректировка.
 
@@ -423,7 +436,7 @@ anywhere accepts an absolute quantity.
 transfer endpoints; Склад screen. Fixed a real defect: sqlc typed SUM(numeric) as int64 in the
 balances view and the running-balance window, truncating every fractional quantity (migration 00005).
 
-### T17 · Производство — `done`
+### T17 · Производство — `partial` · backend only
 `manufacturing_orders`, `production_entries` (append-only). Completion posts `production_output`
 into a quarantine location and moves the batch to `quarantine`.
 
@@ -433,7 +446,7 @@ order does **not** make the batch sellable; MO↔batch is 1:1.
 **Result:** MO → shift entries → completion, which posts output to quarantine and moves the batch in one
 transaction. Yield is null rather than 0 when nothing has run.
 
-### T18 · Качество и безопасность — `done`
+### T18 · Качество и безопасность — `partial` · backend only
 `quality_tests`, `batch_status_events`. Transition rules from `02-SCHEMA.md §7`.
 **Reviewed line by line.**
 
@@ -446,7 +459,7 @@ both reject a non-`released` batch, enforced in the domain and proven by test.
 Batch detail is the traceability view: tests, decision history, and where the stock is now.
 AllowedFrom projects the same matrix the domain enforces, so buttons cannot drift from rules.
 
-### T19 · Закупки и поставщики — `done`
+### T19 · Закупки и поставщики — `partial` · backend only
 Suppliers, POs, lines, goods receipts. `procurement:approve` gates exit from `approval`.
 
 **Done when:** goods receipt posts `goods_receipt` movements matching received quantities; approval
@@ -455,7 +468,7 @@ without the permission is 403; receiving against a closed PO is refused.
 **Result:** Suppliers, POs with an approval ladder, goods receipt posting stock in the same transaction.
 Received quantity checked against what was ordered.
 
-### T20 · Интеграция с сайтом — `done`
+### T20 · Интеграция с сайтом — `partial` · backend only
 `inquiries`, reference-number generation per prefix, convert-to-lead.
 
 **Done when:** each type produces its correct prefix; reference numbers are unique under concurrent
@@ -469,37 +482,44 @@ submission; a `CP-` complaint must link to a batch; conversion carries the refer
 now come from per-type sequences (migration 00006) after the retry-on-MAX loop failed at 12
 concurrent submissions.
 
-### T21 · Логистика — `done`
+### T21 · Логистика — `partial` · backend only
 **Done when:** loading a shipment line with a non-`released` batch is refused server-side.
 
 **Result:** Trips, loading, and the released-batch check at the last step — a lorry leaving Хорог with
 quarantined product is the failure the whole quality chain exists to prevent.
 
-### T22 · Документы — `done`
+### T22 · Документы — `partial` · backend only
 **Done when:** superseded versions are retained; `documents:approve` gates `approval → active`;
 document files are unreachable by any static path and require `documents:read` (I17).
 
 **Result:** Approval ladder; `active` needs documents:approve. `expiring`/`expired` are unreachable as
 decisions — they are conditions of a date passing, derived by the alerts service.
 
-### T23 · Персонал — `done`
+### T23 · Персонал — `partial` · backend only
 **Done when:** personal data is unreachable through every public endpoint, asserted by test;
 contract expiry warns at 30 days.
 
 **Result:** Register ordered by contract expiry, which is the question it exists to answer.
 
-### T24 · Оборудование и ТО — `done`
+### T24 · Оборудование и ТО — `partial` · backend only
 
 **Result:** Recording maintenance clears a maintenance_due flag; it does NOT clear `broken`, because whether
 a repair worked is a judgement someone makes.
 
-### T25 · CRM и продажи — `done`
+### T25 · CRM и продажи — `partial` · sales orders only
 Customers, contacts, leads, deals with `deal_stage_events`, sales orders, tasks (I16).
 
 **Done when:** confirming a sales order posts `sale` movements and refuses non-`released` batches.
 
 **Result:** Sales orders; confirmation is the gate that checks every line's batch is released and reserves
 the stock.
+
+> **Re-derived 24 Aug:** the scope line above names six entities. One was built.
+> `customers`, `contacts`, `leads`, `deals`, `deal_stage_events` and `tasks` have
+> no INSERT, no list query, no route and no UI. `CreateCustomer`/`CreateLead` are
+> reachable only as a side effect of inquiry conversion and produce records no
+> screen can open. The shipped `/crm` page is a sales-order table; not one column
+> specified at `05-MODULES.md:179` matches. See R12/R13.
 
 ### T26 · Role management UI and audit log viewer — `done`
 `04-RBAC.md §6`. Behind `admin:manage` and `audit:read`.
@@ -579,7 +599,7 @@ terms written against what the system actually does.
 **Result:** Matomo renders no script at all before consent — nothing is requested from the analytics host,
 so declining leaves no trace.
 
-### T33 · Панель управления — `done`
+### T33 · Панель управления — `partial` · one panel is permanently empty
 Built last (`05-MODULES.md:60`).
 
 **Done when:** Дебиторка card hidden; Выручка sourced from confirmed sales orders only; empty
@@ -594,7 +614,7 @@ chart and the revenue KPI only.
 prototype's sample number never appears. Each panel is null — not zero — when the viewer may not
 read its module.
 
-### T34 · Full internal test pass — `partial`
+### T34 · Full internal test pass — `done`
 **Done when:** `go test ./...`, `sqlc diff`, `tygo` staleness, `vitest` ×2, `next build` ×2 and
 **Playwright E2E across the five ToR workflows** (I26) are all green; the production cookie
 assertion under `TLS_MODE=auto` passes (I25); responsive pass complete across all modules.
@@ -611,8 +631,15 @@ public enquiry sequences, the public catalogue with no session, the CRM's browse
 in any client asset, and the audit trail recording the whole run including the release as
 `approve quality`.
 
-**Still outstanding:** Playwright E2E specs are not written — the live run above was driven by curl.
-No responsive pass across breakpoints (I27), and no screenshot-drift gate.
+**Closed by R17/R18 (24 Aug).** 22 Playwright specs across the five ToR workflows now pass against a
+live stack — Postgres 18, the Go API and both Next apps — driven through a real browser rather than
+curl. The responsive pass is done: the sidebar becomes a drawer below `lg`, detail and form grids
+collapse, and no page scrolls the body sideways at 390px.
+
+Driving the browser found four defects that 830 Go tests and 286 component tests could not: a sixth
+double-wrapped envelope surviving from T25 (`handleGetShipment`), five batch/QR routes with no BFF
+route at all, an inquiry conversion navigating to a route that does not exist, and a `ListCustomers`
+cast that made every customer without a lead fail to scan. No screenshot-drift gate.
 ### T35 · Staging rehearsal — `partial`
 **Done when:** clean-box deploy from the compose file succeeds; `seed:reference` runs; **restore
 test restores both `pg_dump` and the `uploads` tar** and a document opens afterwards (I18).

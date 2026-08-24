@@ -37,6 +37,29 @@ export const adminUser: User = {
   ],
 };
 
+/**
+ * A QC technician who may record tests but not release stock.
+ *
+ * The distinction is the whole point of the Качество module: recording a result
+ * is data entry, releasing a batch is an act of authority (docs/04-RBAC.md §3).
+ * Two users are needed to prove the screen respects it.
+ */
+export const qcTechnician: User = {
+  ...warehouseUser,
+  email: 'qc@samari-kuhsor.tj',
+  full_name: 'М. Назарова',
+  roles: [{ key: 'quality', name_ru: 'Качество', name_tg: 'Сифат', name_en: 'Quality' }],
+  permissions: ['dashboard:read', 'items:read', 'quality:manage', 'inventory:read'],
+};
+
+/** The same technician, plus the authority to release and to recall. */
+export const qcLead: User = {
+  ...qcTechnician,
+  email: 'qclead@samari-kuhsor.tj',
+  full_name: 'С. Одинаев',
+  permissions: [...qcTechnician.permissions, 'quality:approve', 'audit:read'],
+};
+
 /** A user an administrator created but forgot to assign a role. */
 export const noRoleUser: User = { ...warehouseUser, roles: [], permissions: [] };
 

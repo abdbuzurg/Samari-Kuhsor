@@ -57,3 +57,11 @@ VALUES ($1,$2,$3,$4) RETURNING *;
 
 -- name: GetLeadForInquiry :one
 SELECT * FROM leads WHERE inquiry_id=$1 AND deleted_at IS NULL LIMIT 1;
+
+-- name: GetInquiryDetail :one
+-- The detail view's row. Mirrors ListInquiries so the list and the record it
+-- opens carry the same shape; GetInquiry stays as it is because ConvertToLead
+-- depends on its plain db.Inquiry return.
+SELECT i.*, b.batch_no
+FROM inquiries i LEFT JOIN batches b ON b.id=i.batch_id
+WHERE i.id=$1 AND i.deleted_at IS NULL;

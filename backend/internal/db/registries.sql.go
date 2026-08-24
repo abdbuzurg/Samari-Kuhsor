@@ -278,6 +278,47 @@ func (q *Queries) GetAsset(ctx context.Context, id uuid.UUID) (Asset, error) {
 	return i, err
 }
 
+const getAssetDetail = `-- name: GetAssetDetail :one
+SELECT a.id, a.asset_no, a.name, a.asset_type, a.line, a.commissioned_on, a.warranty_until, a.status, a.created_at, a.updated_at, a.deleted_at, a.version, a.created_by,
+  (SELECT max(m.next_due_on) FROM maintenance_events m
+    WHERE m.asset_id = a.id AND m.deleted_at IS NULL)::date AS next_due_on,
+  (SELECT max(m.performed_at) FROM maintenance_events m
+    WHERE m.asset_id = a.id AND m.deleted_at IS NULL)::timestamptz AS last_service_at
+FROM assets a
+WHERE a.id = $1 AND a.deleted_at IS NULL
+`
+
+type GetAssetDetailRow struct {
+	Asset         Asset
+	NextDueOn     pgtype.Date
+	LastServiceAt pgtype.Timestamptz
+}
+
+// Mirrors ListAssets, including the two derived service dates, so an asset's
+// register row and its detail view cannot disagree about when it is next due.
+func (q *Queries) GetAssetDetail(ctx context.Context, id uuid.UUID) (GetAssetDetailRow, error) {
+	row := q.db.QueryRow(ctx, getAssetDetail, id)
+	var i GetAssetDetailRow
+	err := row.Scan(
+		&i.Asset.ID,
+		&i.Asset.AssetNo,
+		&i.Asset.Name,
+		&i.Asset.AssetType,
+		&i.Asset.Line,
+		&i.Asset.CommissionedOn,
+		&i.Asset.WarrantyUntil,
+		&i.Asset.Status,
+		&i.Asset.CreatedAt,
+		&i.Asset.UpdatedAt,
+		&i.Asset.DeletedAt,
+		&i.Asset.Version,
+		&i.Asset.CreatedBy,
+		&i.NextDueOn,
+		&i.LastServiceAt,
+	)
+	return i, err
+}
+
 const getDocument = `-- name: GetDocument :one
 SELECT d.id, d.doc_no, d.title, d.doc_type, d.owner_id, d.valid_until, d.status, d.created_at, d.updated_at, d.deleted_at, d.version, d.created_by, u.full_name AS owner_name
 FROM documents d

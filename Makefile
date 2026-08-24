@@ -112,6 +112,7 @@ check: ## THE GATE — everything that must be green before the next task opens
 	echo "==> next build";    $(MAKE) --no-print-directory build; \
 	echo "==> bundle safety"; $(MAKE) --no-print-directory _check-bundle; \
 	echo "==> topology";      $(MAKE) --no-print-directory _check-topology; \
+	echo "==> env contract";  $(MAKE) --no-print-directory _check-env-contract; \
 	echo; echo "check: GREEN"
 
 # CLAUDE.md §3: no backend URL, token or service credential may appear in
@@ -128,6 +129,9 @@ _check-bundle:
 # host port, and the api has none at all. Checked against the RENDERED compose
 # config rather than the YAML, because an override file or a profile would escape
 # a regex over the source.
+_check-env-contract:
+	@node tools/check-env-contract.mjs
+
 _check-topology:
 	@if command -v docker >/dev/null 2>&1; then node tools/check-topology.mjs; \
 	else echo "   (docker not available; topology unchecked)"; fi

@@ -84,6 +84,7 @@ export default function InventoryPage() {
           `/inventory/ledger?item_id=${r.item_id}&location_id=${r.location_id}` +
           (r.batch_id ? `&batch_id=${r.batch_id}` : '')
         }
+        exportKey="stock"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);

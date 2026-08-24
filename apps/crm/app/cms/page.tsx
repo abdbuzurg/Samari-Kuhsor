@@ -11,10 +11,24 @@ import {
   useContentPages,
   useCreateNewsPost,
   useNewsPosts,
+  useMediaLibrary,
+  useNewsTranslations,
   useSaveContentBlock,
+  useSetMediaAlt,
+  useSaveNewsTranslation,
 } from '@/lib/operations';
 import { useSession, can } from '@/lib/session';
-import type { ContentBlock, ContentPage, NewsPost } from '@samari/types';
+import type { ContentBlock, ContentPage, MediaItem, NewsPost } from '@samari/types';
+
+/** The CMS ladder's rungs. Moved here with R01's generalisation of
+ *  WorkflowActions: the labels are this module's, not the component's. */
+const LADDER_LABELS: Record<string, string> = {
+  draft: 'В черновик',
+  technical_review: 'На техпроверку',
+  language_review: 'На языковую проверку',
+  approved: 'Утвердить',
+  published: 'Опубликовать',
+};
 
 const LOCALES = ['ru', 'tg', 'en'] as const;
 const LOCALE_LABELS: Record<string, string> = { ru: 'РУ', tg: 'ТҶ', en: 'EN' };
@@ -36,7 +50,7 @@ export default function CMSPage() {
   const session = useSession();
   const mayManage = can(session.data?.permissions, 'cms', 'manage');
 
-  const [tab, setTab] = useState<'pages' | 'news'>('pages');
+  const [tab, setTab] = useState<'pages' | 'news' | 'media'>('pages');
 
   return (
     <AppShell>
@@ -66,9 +80,20 @@ export default function CMSPage() {
         >
           Новости
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === 'media'}
+          className={`btn ${tab === 'media' ? '' : 'btn-secondary'}`}
+          onClick={() => setTab('media')}
+        >
+          Медиатека
+        </button>
       </div>
 
-      {tab === 'pages' ? <PagesTab mayManage={mayManage} /> : <NewsTab mayManage={mayManage} />}
+      {tab === 'pages' && <PagesTab mayManage={mayManage} />}
+      {tab === 'news' && <NewsTab mayManage={mayManage} />}
+      {tab === 'media' && <MediaTab mayManage={mayManage} />}
     </AppShell>
   );
 }
@@ -130,9 +155,10 @@ function PagesTab({ mayManage }: { mayManage: boolean }) {
               </td>
               <td className="text-right">
                 <WorkflowActions
-                  kind="pages"
-                  id={page.id}
+                  endpoint={`/api/cms/pages/${page.id}/transition`}
+                  invalidate="cms"
                   allowed={page.allowed_transitions}
+                  labels={LADDER_LABELS}
                   disabled={!mayManage}
                 />
               </td>
@@ -302,6 +328,7 @@ function BlockForm({
 
 function NewsTab({ mayManage }: { mayManage: boolean }) {
   const news = useNewsPosts({});
+  const [editing, setEditing] = useState<string | null>(null);
   const create = useCreateNewsPost();
   const [error, setError] = useState<string | null>(null);
 
@@ -392,18 +419,151 @@ function NewsTab({ mayManage }: { mayManage: boolean }) {
                   <StatusTag status={post.status} />
                 </td>
                 <td className="text-right">
-                  <WorkflowActions
-                    kind="news"
-                    id={post.id}
-                    allowed={post.allowed_transitions}
-                    disabled={!mayManage}
-                  />
+                  <div className="flex items-center gap-1.5 justify-end flex-wrap">
+                    {mayManage && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary"
+                        data-testid="toggle-translations"
+                        onClick={() => setEditing((id) => (id === post.id ? null : post.id))}
+                      >
+                        {editing === post.id ? 'Свернуть' : 'Переводы'}
+                      </button>
+                    )}
+                    <WorkflowActions
+                      endpoint={`/api/cms/news/${post.id}/transition`}
+                      invalidate="cms"
+                      allowed={post.allowed_transitions}
+                      labels={LADDER_LABELS}
+                      disabled={!mayManage}
+                    />
+                  </div>
                 </td>
               </tr>
             ))}
+            {rows.map((post) =>
+              editing === post.id ? (
+                <tr key={`${post.id}-editor`} data-testid="translation-editor-row">
+                  <td colSpan={5}>
+                    <NewsTranslationEditor postId={post.id} />
+                  </td>
+                </tr>
+              ) : null,
+            )}
           </tbody>
         </table>
       )}
+    </div>
+  );
+}
+
+/**
+ * The three-locale editor.
+ *
+ * Publishing a news post is refused unless all three translations exist (D10),
+ * and until R-final there was no screen that could supply them: a post could be
+ * created and then never published. The missing-locale badge told an editor what
+ * was wrong without giving them anywhere to fix it.
+ *
+ * One locale at a time, saved independently — a single form holding all three
+ * would make a Tajik translation wait on an English one.
+ */
+function NewsTranslationEditor({ postId }: { postId: string }) {
+  const translations = useNewsTranslations(postId);
+  const save = useSaveNewsTranslation(postId);
+  const [locale, setLocale] = useState<(typeof LOCALES)[number]>('ru');
+  const [draft, setDraft] = useState<{ title: string; excerpt: string; body: string } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const current = (translations.data ?? []).find((x) => x.locale === locale);
+  const values = draft ?? {
+    title: current?.title ?? '',
+    excerpt: current?.excerpt ?? '',
+    body: current?.body ?? '',
+  };
+
+  return (
+    <div className="flex flex-col gap-3 p-3" data-testid="translation-editor">
+      <div className="flex gap-1.5">
+        {LOCALES.map((code) => (
+          <button
+            key={code}
+            type="button"
+            className={`btn ${locale === code ? '' : 'btn-secondary'}`}
+            aria-pressed={locale === code}
+            onClick={() => {
+              setLocale(code);
+              // Drop the draft on switch: carrying one locale's text into
+              // another is how a Tajik post ends up with Russian body copy.
+              setDraft(null);
+              setError(null);
+            }}
+          >
+            {LOCALE_LABELS[code]}
+          </button>
+        ))}
+      </div>
+
+      <label className="flex flex-col gap-1 text-[12px] muted">
+        Заголовок
+        <input
+          className="input"
+          value={values.title}
+          aria-label={`Заголовок (${LOCALE_LABELS[locale]})`}
+          onChange={(e) => setDraft({ ...values, title: e.target.value })}
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-[12px] muted">
+        Краткое описание
+        <textarea
+          className="input"
+          rows={2}
+          value={values.excerpt}
+          aria-label={`Краткое описание (${LOCALE_LABELS[locale]})`}
+          onChange={(e) => setDraft({ ...values, excerpt: e.target.value })}
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-[12px] muted">
+        Текст
+        <textarea
+          className="input"
+          rows={5}
+          value={values.body}
+          aria-label={`Текст (${LOCALE_LABELS[locale]})`}
+          onChange={(e) => setDraft({ ...values, body: e.target.value })}
+        />
+      </label>
+
+      {error && (
+        <p className="text-[12px]" role="alert" data-testid="translation-error">
+          {error}
+        </p>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={save.isPending || !values.title.trim()}
+          data-testid="save-translation"
+          onClick={async () => {
+            setError(null);
+            try {
+              await save.mutateAsync({
+                locale,
+                title: values.title.trim(),
+                excerpt: values.excerpt.trim() || undefined,
+                body: values.body.trim() || undefined,
+              });
+              setDraft(null);
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Не удалось сохранить перевод');
+            }
+          }}
+        >
+          Сохранить перевод
+        </button>
+      </div>
     </div>
   );
 }
@@ -433,4 +593,178 @@ function TranslationState({ post }: { post: NewsPost }) {
 function emptyToNull(value: FormDataEntryValue | null): string | null {
   const s = typeof value === 'string' ? value.trim() : '';
   return s === '' ? null : s;
+}
+
+
+/**
+ * Медиатека — the images the website uses.
+ *
+ * Alt text is the only editable field, and it is editable because it is an
+ * accessibility obligation rather than a decoration: an image on a public site
+ * with no alt text is unreadable to anyone using a screen reader, and the CMS is
+ * the only place anybody would think to fix it.
+ *
+ * It is per-locale, like every other piece of content (CLAUDE.md §6): alt text
+ * is content, not a UI string. All three are sent together because they belong
+ * to one record and one version.
+ *
+ * Uploading is not here. Media arrives with the website build (T02 extracted
+ * four images and the font); a general upload path is phase 2 and would need its
+ * own storage and size policy.
+ */
+function MediaTab({ mayManage }: { mayManage: boolean }) {
+  const media = useMediaLibrary({});
+  const [editing, setEditing] = useState<string | null>(null);
+
+  if (media.isLoading) {
+    return (
+      <p className="muted text-[13px]" role="status" data-testid="media-loading">
+        Загрузка…
+      </p>
+    );
+  }
+  if (media.isError) {
+    return (
+      <p className="text-[13px]" role="alert" data-testid="media-error">
+        Не удалось загрузить медиатеку.
+      </p>
+    );
+  }
+
+  const rows = media.data?.data ?? [];
+  if (rows.length === 0) {
+    return (
+      <p className="muted text-[13px]" data-testid="media-empty">
+        Медиафайлов нет.
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="overflow-x-auto">
+        <table className="table w-full">
+          <thead>
+            <tr>
+              <th>Файл</th>
+              <th>Описание (РУ)</th>
+              <th>Языки</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((item) => (
+              <tr key={item.id} data-testid="media-row">
+                <td className="text-[12.5px]">{item.file_path}</td>
+                <td className="text-[12.5px]">{item.alt_ru ?? 'уточняется'}</td>
+                <td>
+                  <MediaAltState item={item} />
+                </td>
+                <td className="text-right">
+                  {mayManage && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      data-testid="toggle-alt"
+                      onClick={() => setEditing((id) => (id === item.id ? null : item.id))}
+                    >
+                      {editing === item.id ? 'Свернуть' : 'Описания'}
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {rows.map((item) =>
+              editing === item.id ? (
+                <tr key={`${item.id}-alt`} data-testid="alt-editor-row">
+                  <td colSpan={4}>
+                    <MediaAltEditor item={item} onDone={() => setEditing(null)} />
+                  </td>
+                </tr>
+              ) : null,
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/** Which alt texts are still missing — the same shape as the news badge. */
+function MediaAltState({ item }: { item: MediaItem }) {
+  const missing = LOCALES.filter((code) => {
+    const value = { ru: item.alt_ru, tg: item.alt_tg, en: item.alt_en }[code];
+    return !value?.trim();
+  });
+  if (missing.length === 0) {
+    return (
+      <span className="tag tag-ok" data-testid="alt-complete">
+        Все языки
+      </span>
+    );
+  }
+  return (
+    <span className="tag tag-warn" data-testid="alt-missing">
+      Нет: {missing.map((c) => LOCALE_LABELS[c]).join(', ')}
+    </span>
+  );
+}
+
+function MediaAltEditor({ item, onDone }: { item: MediaItem; onDone: () => void }) {
+  const setAlt = useSetMediaAlt(item.id);
+  const [ru, setRu] = useState(item.alt_ru ?? '');
+  const [tg, setTg] = useState(item.alt_tg ?? '');
+  const [en, setEn] = useState(item.alt_en ?? '');
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div className="flex flex-col gap-3 p-3" data-testid="alt-editor">
+      <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
+        <label className="flex flex-col gap-1 text-[12px] muted">
+          Описание (РУ)
+          <input className="input" value={ru} onChange={(e) => setRu(e.target.value)} aria-label="Описание (РУ)" />
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] muted">
+          Тавсиф (ТҶ)
+          <input className="input" value={tg} onChange={(e) => setTg(e.target.value)} aria-label="Тавсиф (ТҶ)" />
+        </label>
+        <label className="flex flex-col gap-1 text-[12px] muted">
+          Description (EN)
+          <input className="input" value={en} onChange={(e) => setEn(e.target.value)} aria-label="Description (EN)" />
+        </label>
+      </div>
+
+      {error && (
+        <p className="text-[12px]" role="alert" data-testid="alt-error">
+          {error}
+        </p>
+      )}
+
+      <div className="flex justify-end">
+        <button
+          type="button"
+          className="btn btn-primary"
+          disabled={setAlt.isPending}
+          data-testid="save-alt"
+          onClick={async () => {
+            setError(null);
+            try {
+              await setAlt.mutateAsync({
+                alt_ru: ru.trim() || undefined,
+                alt_tg: tg.trim() || undefined,
+                alt_en: en.trim() || undefined,
+                // Optimistic concurrency, like every other write.
+                version: item.version,
+              });
+              onDone();
+            } catch (e) {
+              setError(e instanceof Error ? e.message : 'Не удалось сохранить описание');
+            }
+          }}
+        >
+          Сохранить
+        </button>
+      </div>
+    </div>
+  );
 }

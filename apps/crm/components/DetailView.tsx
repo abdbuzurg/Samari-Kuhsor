@@ -102,7 +102,9 @@ export function DetailView({
         {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
       </div>
 
-      <div className="grid gap-4" style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)' }}>
+      {/* Content beside activity at desktop; stacked below lg, where a 1fr
+          activity column would be ~120px wide and unreadable. */}
+      <div className="grid gap-4 grid-cols-1 lg:[grid-template-columns:minmax(0,2fr)_minmax(0,1fr)]">
         <div className="flex flex-col gap-4 min-w-0">
           {groups.map((group) => (
             <section key={group.title} className="card p-5">
@@ -112,7 +114,7 @@ export function DetailView({
               >
                 {group.title}
               </h2>
-              <dl className="grid gap-x-6 gap-y-3" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              <dl className="grid gap-x-6 gap-y-3 grid-cols-1 sm:grid-cols-2">
                 {group.fields.map((f) => (
                   <div key={f.label} style={f.wide ? { gridColumn: '1 / -1' } : undefined}>
                     <dt className="text-[12px] muted">{f.label}</dt>

@@ -216,6 +216,58 @@ func (q *Queries) GetInquiry(ctx context.Context, id uuid.UUID) (Inquiry, error)
 	return i, err
 }
 
+const getInquiryDetail = `-- name: GetInquiryDetail :one
+SELECT i.id, i.reference_no, i.inquiry_type, i.name, i.company, i.contact, i.message, i.batch_id, i.status, i.source_ip, i.created_at, i.updated_at, i.deleted_at, i.version, i.created_by, b.batch_no
+FROM inquiries i LEFT JOIN batches b ON b.id=i.batch_id
+WHERE i.id=$1 AND i.deleted_at IS NULL
+`
+
+type GetInquiryDetailRow struct {
+	ID          uuid.UUID
+	ReferenceNo string
+	InquiryType string
+	Name        string
+	Company     *string
+	Contact     string
+	Message     *string
+	BatchID     uuid.NullUUID
+	Status      string
+	SourceIp    *netip.Addr
+	CreatedAt   pgtype.Timestamptz
+	UpdatedAt   pgtype.Timestamptz
+	DeletedAt   pgtype.Timestamptz
+	Version     int32
+	CreatedBy   uuid.NullUUID
+	BatchNo     *string
+}
+
+// The detail view's row. Mirrors ListInquiries so the list and the record it
+// opens carry the same shape; GetInquiry stays as it is because ConvertToLead
+// depends on its plain db.Inquiry return.
+func (q *Queries) GetInquiryDetail(ctx context.Context, id uuid.UUID) (GetInquiryDetailRow, error) {
+	row := q.db.QueryRow(ctx, getInquiryDetail, id)
+	var i GetInquiryDetailRow
+	err := row.Scan(
+		&i.ID,
+		&i.ReferenceNo,
+		&i.InquiryType,
+		&i.Name,
+		&i.Company,
+		&i.Contact,
+		&i.Message,
+		&i.BatchID,
+		&i.Status,
+		&i.SourceIp,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.Version,
+		&i.CreatedBy,
+		&i.BatchNo,
+	)
+	return i, err
+}
+
 const getLeadForInquiry = `-- name: GetLeadForInquiry :one
 SELECT id, customer_id, inquiry_id, source, status, created_at, updated_at, deleted_at, version, created_by FROM leads WHERE inquiry_id=$1 AND deleted_at IS NULL LIMIT 1
 `

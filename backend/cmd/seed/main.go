@@ -63,10 +63,30 @@ func run() error {
 	case "reference":
 		return runReference(ctx, pool)
 	case "demo":
-		return fmt.Errorf("demo seed is not built yet; it lands with the modules it demonstrates")
+		return runDemo(ctx, pool)
 	default:
 		return fmt.Errorf("unknown mode %q; expected reference or demo", mode)
 	}
+}
+
+// runDemo loads demonstration data across every module.
+//
+// Scheduled ahead of the client deploy on purpose: the first screen QOIM opens
+// is their first impression of the system, and an empty table reads as broken to
+// someone who has not been told it is new.
+func runDemo(ctx context.Context, pool *pgxpool.Pool) error {
+	res, err := seed.Demo(ctx, pool)
+	if err != nil {
+		return err
+	}
+	slog.Info("demo seed complete",
+		"customers", res.Customers, "contacts", res.Contacts, "leads", res.Leads,
+		"deals", res.Deals, "tasks", res.Tasks, "suppliers", res.Suppliers,
+		"employees", res.Employees, "assets", res.Assets, "documents", res.Documents,
+		"batches", res.Batches, "movements", res.Movements,
+		"quality_tests", res.QualityTests, "orders", res.Orders,
+		"inquiries", res.Inquiries, "shipments", res.Shipments)
+	return nil
 }
 
 func runReference(ctx context.Context, pool *pgxpool.Pool) error {

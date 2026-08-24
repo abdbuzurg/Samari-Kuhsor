@@ -28,6 +28,8 @@ type Querier interface {
 	CountBatchesExpiringWithin(ctx context.Context, days int32) (int32, error)
 	CountBatchesForQuality(ctx context.Context, arg CountBatchesForQualityParams) (int64, error)
 	CountContractsExpiringWithin(ctx context.Context, days int32) (int32, error)
+	CountCustomers(ctx context.Context, arg CountCustomersParams) (int64, error)
+	CountDeals(ctx context.Context, arg CountDealsParams) (int64, error)
 	CountDocuments(ctx context.Context, arg CountDocumentsParams) (int64, error)
 	// ---------------------------------------------------------------------------
 	// Derived standing conditions — the other seven (docs/07 I15)
@@ -53,7 +55,9 @@ type Querier interface {
 	CountMaintenanceDue(ctx context.Context, days int32) (int32, error)
 	CountManufacturingOrders(ctx context.Context, arg CountManufacturingOrdersParams) (int64, error)
 	CountMedia(ctx context.Context, q_ *string) (int64, error)
+	CountNewLeads(ctx context.Context) (int64, error)
 	CountNewsPosts(ctx context.Context, arg CountNewsPostsParams) (int64, error)
+	CountOpenDeals(ctx context.Context) (int64, error)
 	CountOverdueDeliveries(ctx context.Context) (int32, error)
 	CountOverdueTasks(ctx context.Context) (int32, error)
 	CountPurchaseOrders(ctx context.Context, arg CountPurchaseOrdersParams) (int64, error)
@@ -63,6 +67,7 @@ type Querier interface {
 	CountShipments(ctx context.Context, arg CountShipmentsParams) (int64, error)
 	CountStockBalances(ctx context.Context, arg CountStockBalancesParams) (int64, error)
 	CountSuppliers(ctx context.Context, q_ *string) (int64, error)
+	CountTasks(ctx context.Context, status *string) (int64, error)
 	CountUnreadNotifications(ctx context.Context, arg CountUnreadNotificationsParams) (int32, error)
 	CountUsers(ctx context.Context, q_ *string) (int64, error)
 	// The last-admin guard (docs/04-RBAC.md:147). Counts ACTIVE, non-deleted users
@@ -70,8 +75,13 @@ type Querier interface {
 	CountUsersHoldingPermission(ctx context.Context, arg CountUsersHoldingPermissionParams) (int32, error)
 	CreateAsset(ctx context.Context, arg CreateAssetParams) (Asset, error)
 	CreateBatch(ctx context.Context, arg CreateBatchParams) (Batch, error)
+	CreateContact(ctx context.Context, arg CreateContactParams) (Contact, error)
 	CreateContentPage(ctx context.Context, arg CreateContentPageParams) (ContentPage, error)
 	CreateCustomer(ctx context.Context, arg CreateCustomerParams) (Customer, error)
+	CreateDeal(ctx context.Context, arg CreateDealParams) (Deal, error)
+	// Immutable evidence, exactly like batch_status_events: no version, no
+	// deleted_at, so there is nothing here to edit.
+	CreateDealStageEvent(ctx context.Context, arg CreateDealStageEventParams) (DealStageEvent, error)
 	CreateDocument(ctx context.Context, arg CreateDocumentParams) (Document, error)
 	CreateEmployee(ctx context.Context, arg CreateEmployeeParams) (Employee, error)
 	CreateGoodsReceipt(ctx context.Context, arg CreateGoodsReceiptParams) (GoodsReceipt, error)
@@ -119,6 +129,7 @@ type Querier interface {
 	// Goods receipt posts goods_receipt movements: this is how raw material enters
 	// inventory, and the two must happen in one transaction.
 	CreateSupplier(ctx context.Context, arg CreateSupplierParams) (Supplier, error)
+	CreateTask(ctx context.Context, arg CreateTaskParams) (Task, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DashboardOpenOrders(ctx context.Context) (int32, error)
 	DashboardOverduePurchases(ctx context.Context) (int32, error)
@@ -154,8 +165,17 @@ type Querier interface {
 	// Stock at its most recent purchase price. Valued at cost, not at sale price:
 	// unsold stock is money spent, not money earned.
 	DashboardStockValue(ctx context.Context) (decimal.Decimal, error)
+	// Two counts rather than a computed rate.
+	//
+	// The ratio is formed in Go so that "nothing has closed yet" can be NULL rather
+	// than 0: on a sales dashboard those read very differently, and expressing that
+	// in SQL means fighting sqlc's nullability inference through a cast.
+	DealOutcomeCounts(ctx context.Context) (DealOutcomeCountsRow, error)
 	DeleteExpiredSessions(ctx context.Context, retain pgtype.Interval) error
 	GetAsset(ctx context.Context, id uuid.UUID) (Asset, error)
+	// Mirrors ListAssets, including the two derived service dates, so an asset's
+	// register row and its detail view cannot disagree about when it is next due.
+	GetAssetDetail(ctx context.Context, id uuid.UUID) (GetAssetDetailRow, error)
 	// ---------------------------------------------------------------------------
 	// Batches and QR — docs/01-DECISIONS.md D11
 	// ---------------------------------------------------------------------------
@@ -166,9 +186,15 @@ type Querier interface {
 	GetContentPage(ctx context.Context, id uuid.UUID) (ContentPage, error)
 	GetContentPageByKey(ctx context.Context, key string) (ContentPage, error)
 	GetCurrentItemPrice(ctx context.Context, itemID uuid.UUID) (ItemPrice, error)
+	GetCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
+	GetDeal(ctx context.Context, id uuid.UUID) (GetDealRow, error)
 	GetDocument(ctx context.Context, id uuid.UUID) (GetDocumentRow, error)
 	GetEmployee(ctx context.Context, id uuid.UUID) (GetEmployeeRow, error)
 	GetInquiry(ctx context.Context, id uuid.UUID) (Inquiry, error)
+	// The detail view's row. Mirrors ListInquiries so the list and the record it
+	// opens carry the same shape; GetInquiry stays as it is because ConvertToLead
+	// depends on its plain db.Inquiry return.
+	GetInquiryDetail(ctx context.Context, id uuid.UUID) (GetInquiryDetailRow, error)
 	// Товары и цены — the product master. docs/05-MODULES.md §4.
 	//
 	// This is the reference slice: every module after it copies these patterns, so
@@ -265,6 +291,7 @@ type Querier interface {
 	// Качество list view. Ordered so the batches that need a decision come first:
 	// quarantine before released, newest before oldest.
 	ListBatchesForQuality(ctx context.Context, arg ListBatchesForQualityParams) ([]ListBatchesForQualityRow, error)
+	ListContactsForCustomer(ctx context.Context, customerID uuid.UUID) ([]Contact, error)
 	// Every block with its translation in one locale. LEFT JOIN, so a block whose
 	// translation is missing still appears — an editor cannot fill in a gap they
 	// cannot see.
@@ -281,6 +308,15 @@ type Querier interface {
 	// The price in force today for each of the given items. DISTINCT ON keeps one
 	// row per item; the ORDER BY decides which one.
 	ListCurrentPricesForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemPrice, error)
+	// CRM и продажи — customers, contacts, leads, deals and tasks.
+	//
+	// The tables have existed since migration 00003 and were never queried. The
+	// dashboard's Воронка продаж reads `deals` (inventory.sql:326), so the funnel has
+	// rendered its empty state since the day it shipped.
+	ListCustomers(ctx context.Context, arg ListCustomersParams) ([]ListCustomersRow, error)
+	ListDealStageEvents(ctx context.Context, dealID uuid.UUID) ([]ListDealStageEventsRow, error)
+	ListDeals(ctx context.Context, arg ListDealsParams) ([]ListDealsRow, error)
+	ListDealsForCustomer(ctx context.Context, customerID uuid.UUID) ([]ListDealsForCustomerRow, error)
 	// ---------------------------------------------------------------------------
 	// Документы
 	// ---------------------------------------------------------------------------
@@ -297,6 +333,8 @@ type Querier interface {
 	ListEmployees(ctx context.Context, arg ListEmployeesParams) ([]ListEmployeesRow, error)
 	ListGoodsReceipts(ctx context.Context, poID uuid.UUID) ([]GoodsReceipt, error)
 	ListInquiries(ctx context.Context, arg ListInquiriesParams) ([]ListInquiriesRow, error)
+	// An enquiry reaches a customer through the lead its conversion created.
+	ListInquiriesForCustomer(ctx context.Context, customerID uuid.NullUUID) ([]ListInquiriesForCustomerRow, error)
 	// Full price history, newest first — the detail view shows it (docs/05-MODULES.md:90).
 	ListItemPrices(ctx context.Context, itemID uuid.UUID) ([]ItemPrice, error)
 	ListItemTranslations(ctx context.Context, itemID uuid.UUID) ([]ItemTranslation, error)
@@ -317,6 +355,7 @@ type Querier interface {
 	// field is already whitelisted in Go, but building an ORDER BY by concatenation
 	// is how whitelists get bypassed later, when someone adds a field and forgets.
 	ListItems(ctx context.Context, arg ListItemsParams) ([]ListItemsRow, error)
+	ListLeadsForCustomer(ctx context.Context, customerID uuid.NullUUID) ([]Lead, error)
 	ListLocations(ctx context.Context) ([]Location, error)
 	ListLowStockItems(ctx context.Context) ([]ListLowStockItemsRow, error)
 	// Append-only in practice: a service record is what someone did on a date, and
@@ -374,6 +413,7 @@ type Querier interface {
 	ListRoles(ctx context.Context) ([]ListRolesRow, error)
 	ListSalesOrderLines(ctx context.Context, salesOrderID uuid.UUID) ([]ListSalesOrderLinesRow, error)
 	ListSalesOrders(ctx context.Context, arg ListSalesOrdersParams) ([]ListSalesOrdersRow, error)
+	ListSalesOrdersForCustomer(ctx context.Context, customerID uuid.UUID) ([]ListSalesOrdersForCustomerRow, error)
 	ListShipmentLines(ctx context.Context, shipmentID uuid.UUID) ([]ListShipmentLinesRow, error)
 	ListShipments(ctx context.Context, arg ListShipmentsParams) ([]ListShipmentsRow, error)
 	// ---------------------------------------------------------------------------
@@ -386,6 +426,7 @@ type Querier interface {
 	// warehouse list with everything that ever passed through.
 	ListStockBalances(ctx context.Context, arg ListStockBalancesParams) ([]ListStockBalancesRow, error)
 	ListSuppliers(ctx context.Context, arg ListSuppliersParams) ([]Supplier, error)
+	ListTasks(ctx context.Context, arg ListTasksParams) ([]ListTasksRow, error)
 	ListTranslationsForItems(ctx context.Context, itemIds []uuid.UUID) ([]ItemTranslation, error)
 	ListUsersWithRoles(ctx context.Context, arg ListUsersWithRolesParams) ([]ListUsersWithRolesRow, error)
 	ListWorkflowEvents(ctx context.Context, arg ListWorkflowEventsParams) ([]ListWorkflowEventsRow, error)
@@ -409,6 +450,7 @@ type Querier interface {
 	// Logout everywhere, required on password change (docs/03-API-CONTRACT.md:193).
 	RevokeAllUserSessions(ctx context.Context, userID uuid.UUID) error
 	RevokeSession(ctx context.Context, id uuid.UUID) error
+	SetDealStage(ctx context.Context, arg SetDealStageParams) (Deal, error)
 	SetInquiryStatus(ctx context.Context, arg SetInquiryStatusParams) (Inquiry, error)
 	SetManufacturingOrderStatus(ctx context.Context, arg SetManufacturingOrderStatusParams) (ManufacturingOrder, error)
 	SetPasswordHash(ctx context.Context, arg SetPasswordHashParams) error
@@ -416,12 +458,14 @@ type Querier interface {
 	SetPurchaseOrderStatus(ctx context.Context, arg SetPurchaseOrderStatusParams) (PurchaseOrder, error)
 	SetSalesOrderStatus(ctx context.Context, arg SetSalesOrderStatusParams) (SalesOrder, error)
 	SetShipmentStatus(ctx context.Context, arg SetShipmentStatusParams) (Shipment, error)
+	SetTaskStatus(ctx context.Context, arg SetTaskStatusParams) (Task, error)
 	SetUserActive(ctx context.Context, arg SetUserActiveParams) (User, error)
 	// The dashboard's Выручка. Sourced from CONFIRMED sales orders only
 	// (docs/05-MODULES.md:65) — there is no finance module to ask.
 	SumConfirmedSalesRevenue(ctx context.Context) (decimal.Decimal, error)
 	SumReceivedForLine(ctx context.Context, poLineID uuid.UUID) (decimal.Decimal, error)
 	TombstoneAsset(ctx context.Context, arg TombstoneAssetParams) (Asset, error)
+	TombstoneCustomer(ctx context.Context, id uuid.UUID) (Customer, error)
 	TombstoneDocument(ctx context.Context, arg TombstoneDocumentParams) (Document, error)
 	TombstoneEmployee(ctx context.Context, arg TombstoneEmployeeParams) (Employee, error)
 	// No hard deletes (CLAUDE.md §4.3). Also version-guarded: deleting a record
@@ -444,6 +488,7 @@ type Querier interface {
 	TransitionDocument(ctx context.Context, arg TransitionDocumentParams) (Document, error)
 	TransitionNewsPost(ctx context.Context, arg TransitionNewsPostParams) (NewsPost, error)
 	UpdateAsset(ctx context.Context, arg UpdateAssetParams) (Asset, error)
+	UpdateCustomer(ctx context.Context, arg UpdateCustomerParams) (Customer, error)
 	UpdateDocument(ctx context.Context, arg UpdateDocumentParams) (Document, error)
 	UpdateEmployee(ctx context.Context, arg UpdateEmployeeParams) (Employee, error)
 	// The version guard is in the WHERE clause, not a prior read: checking then

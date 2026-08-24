@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -8,6 +9,7 @@ import { ListView, type Column, type KPI } from '@/components/ListView';
 import { StatusTag } from '@/components/StatusTag';
 import { useEmployees } from '@/lib/operations';
 import { orTBC } from '@/lib/resource';
+import { useSession, can } from '@/lib/session';
 import type { Employee } from '@samari/types';
 
 /**
@@ -18,6 +20,9 @@ import type { Employee } from '@samari/types';
  */
 export default function HRPage() {
   const t = useTranslations();
+  const router = useRouter();
+  const session = useSession();
+  const mayManage = can(session.data?.permissions, 'hr', 'manage');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -52,12 +57,14 @@ export default function HRPage() {
         rows={rows}
         rowKey={(r) => r.id}
         rowHref={(r) => `/hr/${r.id}`}
+        exportKey="hr"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
         searchPlaceholder="Поиск по ФИО и должности"
+        onCreate={mayManage ? () => router.push('/hr/new') : undefined}
         createLabel={t('create')}
         isLoading={employees.isLoading}
         error={employees.isError ? { message: 'Не удалось загрузить список сотрудников' } : null}

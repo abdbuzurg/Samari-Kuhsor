@@ -25,6 +25,7 @@ import (
 	"github.com/qoim/samari/backend/internal/domain/admin"
 	"github.com/qoim/samari/backend/internal/domain/batches"
 	"github.com/qoim/samari/backend/internal/domain/cms"
+	"github.com/qoim/samari/backend/internal/domain/crm"
 	"github.com/qoim/samari/backend/internal/domain/dashboard"
 	"github.com/qoim/samari/backend/internal/domain/inquiries"
 	"github.com/qoim/samari/backend/internal/domain/inventory"
@@ -129,6 +130,7 @@ func run() error {
 		Quality:     qualitySvc,
 		Procurement: procurement.NewService(pool, inventorySvc),
 		Sales:       sales.NewService(pool, inventorySvc),
+		CRM:         crm.NewService(pool),
 		Inquiries:   inquiries.NewService(pool, inquiries.DefaultRateLimit()),
 		Registries:  registries.NewService(pool),
 		CMS:         cms.NewService(pool),

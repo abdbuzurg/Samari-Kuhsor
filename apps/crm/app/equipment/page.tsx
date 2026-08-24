@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -8,11 +9,15 @@ import { ListView, type Column, type KPI } from '@/components/ListView';
 import { StatusTag } from '@/components/StatusTag';
 import { useAssets } from '@/lib/operations';
 import { orTBC } from '@/lib/resource';
+import { useSession, can } from '@/lib/session';
 import type { Asset } from '@samari/types';
 
 /** Оборудование и ТО — list view. Columns from docs/05-MODULES.md §13. */
 export default function EquipmentPage() {
   const t = useTranslations();
+  const router = useRouter();
+  const session = useSession();
+  const mayManage = can(session.data?.permissions, 'equipment', 'manage');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -60,12 +65,14 @@ export default function EquipmentPage() {
         rows={rows}
         rowKey={(r) => r.id}
         rowHref={(r) => `/equipment/${r.id}`}
+        exportKey="equipment"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
         searchPlaceholder="Поиск по инвентарному номеру, названию и линии"
+        onCreate={mayManage ? () => router.push('/equipment/new') : undefined}
         createLabel={t('create')}
         isLoading={assets.isLoading}
         error={assets.isError ? { message: 'Не удалось загрузить список оборудования' } : null}

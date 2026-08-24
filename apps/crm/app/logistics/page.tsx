@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -8,11 +9,15 @@ import { ListView, type Column, type KPI } from '@/components/ListView';
 import { StatusTag } from '@/components/StatusTag';
 import { useShipments } from '@/lib/operations';
 import { orTBC } from '@/lib/resource';
+import { useSession, can } from '@/lib/session';
 import type { Shipment } from '@samari/types';
 
 /** Логистика — list view. Columns from docs/05-MODULES.md §10. */
 export default function LogisticsPage() {
   const t = useTranslations();
+  const router = useRouter();
+  const session = useSession();
+  const mayManage = can(session.data?.permissions, 'logistics', 'manage');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -60,12 +65,14 @@ export default function LogisticsPage() {
         rows={rows}
         rowKey={(r) => r.id}
         rowHref={(r) => `/logistics/${r.id}`}
+        exportKey="logistics"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
         searchPlaceholder="Поиск по номеру рейса"
+        onCreate={mayManage ? () => router.push('/logistics/new') : undefined}
         createLabel={t('create')}
         isLoading={trips.isLoading}
         error={trips.isError ? { message: 'Не удалось загрузить рейсы' } : null}

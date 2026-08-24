@@ -9,7 +9,9 @@ import type { ReactNode } from 'react';
 import InventoryPage from '@/app/inventory/page';
 import ProductionPage from '@/app/production/page';
 import ProcurementPage from '@/app/procurement/page';
-import SalesPage from '@/app/crm/page';
+// R13 moved the sales-order table off /crm, which the CRM module's own
+// specification (docs/05-MODULES.md:179) describes as the customer register.
+import SalesPage from '@/app/crm/orders/page';
 import LogisticsPage from '@/app/logistics/page';
 import InquiriesPage from '@/app/inquiries/page';
 import QualityPage from '@/app/quality/page';
@@ -267,7 +269,7 @@ const MODULES = [
     cell: 'Ориён Агро', search: 'Поиск по номеру заказа и поставщику',
   },
   {
-    name: 'Продажи', path: '/api/sales-orders', Page: SalesPage, row: SO,
+    name: 'Заказы клиентов', path: '/api/sales-orders', Page: SalesPage, row: SO,
     cell: 'Маркет Хорог', search: 'Поиск по номеру заказа и клиенту',
   },
   {

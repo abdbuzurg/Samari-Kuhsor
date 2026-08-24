@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { AppShell } from '@/components/AppShell';
+import { ActivityPanel } from '@/components/ActivityPanel';
 import { DetailView, type FieldGroup } from '@/components/DetailView';
 import { StatusTag } from '@/components/StatusTag';
 import { useItem, orTBC } from '@/lib/items';
@@ -179,6 +180,7 @@ export default function ItemDetailPage() {
         }
         groups={groups}
         related={related}
+        activity={<ActivityPanel resource="items" resourceId={it.id} />}
         footer={{
           createdAt: formatDateTime(it.created_at),
           updatedAt: formatDateTime(it.updated_at),

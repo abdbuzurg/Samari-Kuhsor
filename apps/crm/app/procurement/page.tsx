@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -8,11 +10,15 @@ import { ListView, type Column, type KPI } from '@/components/ListView';
 import { StatusTag } from '@/components/StatusTag';
 import { usePurchaseOrders } from '@/lib/operations';
 import { orTBC } from '@/lib/resource';
+import { useSession, can } from '@/lib/session';
 import type { PurchaseOrderRow } from '@samari/types';
 
 /** Закупки — list view. Columns from docs/05-MODULES.md §8. */
 export default function ProcurementPage() {
   const t = useTranslations();
+  const router = useRouter();
+  const session = useSession();
+  const mayManage = can(session.data?.permissions, 'procurement', 'manage');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -49,6 +55,12 @@ export default function ProcurementPage() {
 
   return (
     <AppShell>
+      <div className="flex gap-2 mb-4">
+        <Link href="/procurement/suppliers" className="btn btn-secondary">
+          Поставщики
+        </Link>
+      </div>
+
       <ListView<PurchaseOrderRow>
         kicker={t('group.ops')}
         title={t('mod.procurement')}
@@ -57,12 +69,14 @@ export default function ProcurementPage() {
         rows={rows}
         rowKey={(r) => r.id}
         rowHref={(r) => `/procurement/${r.id}`}
+        exportKey="procurement"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
         searchPlaceholder="Поиск по номеру заказа и поставщику"
+        onCreate={mayManage ? () => router.push('/procurement/new') : undefined}
         createLabel={t('create')}
         isLoading={orders.isLoading}
         error={orders.isError ? { message: 'Не удалось загрузить заказы поставщикам' } : null}

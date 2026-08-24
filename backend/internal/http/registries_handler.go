@@ -100,6 +100,25 @@ func (s *Server) handleListEmployees(w http.ResponseWriter, r *http.Request) {
 	common.List(w, out, common.NewPageMeta(params, total))
 }
 
+// handleGetEmployee serves the Персонал detail view.
+//
+// Guarded on hr:read like the register. The T23 gate — personal data unreachable
+// through every public endpoint — survives a new route only because this one is
+// declared Guarded; there is no public counterpart and there must never be.
+func (s *Server) handleGetEmployee(w http.ResponseWriter, r *http.Request) {
+	id, err := pathUUID(r, "id")
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	row, err := s.svc.Registries.Employee(r.Context(), id)
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	common.JSON(w, http.StatusOK, employeeResponse(row.Employee, row.PositionTitle, row.DepartmentName))
+}
+
 func (s *Server) handleCreateEmployee(w http.ResponseWriter, r *http.Request) {
 	ident, ok := identityFrom(r)
 	if !ok {
@@ -210,6 +229,30 @@ func (s *Server) handleListAssets(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	common.List(w, out, common.NewPageMeta(params, total))
+}
+
+// handleGetAsset serves the Оборудование detail view.
+func (s *Server) handleGetAsset(w http.ResponseWriter, r *http.Request) {
+	id, err := pathUUID(r, "id")
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	row, err := s.svc.Registries.Asset(r.Context(), id)
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	a := row.Asset
+	common.JSON(w, http.StatusOK, api.Asset{
+		ID: a.ID.String(), AssetNo: a.AssetNo, Name: a.Name,
+		AssetType: a.AssetType, Line: a.Line,
+		CommissionedOn: common.Date(a.CommissionedOn),
+		WarrantyUntil:  common.Date(a.WarrantyUntil),
+		NextDueOn:      common.Date(row.NextDueOn),
+		LastServiceAt:  common.NullTimestamp(row.LastServiceAt),
+		Status:         assetStatus(a.Status), Version: a.Version,
+	})
 }
 
 func (s *Server) handleCreateAsset(w http.ResponseWriter, r *http.Request) {
@@ -376,6 +419,35 @@ func (s *Server) handleListDocuments(w http.ResponseWriter, r *http.Request) {
 		}, row.OwnerName, registries.DocAllowedFrom(row.Status, hasApprove)))
 	}
 	common.List(w, out, common.NewPageMeta(params, total))
+}
+
+// handleGetDocument serves the Документы detail view.
+//
+// `allowed_transitions` is computed here rather than in the frontend, from the
+// same matrix the domain enforces — so the detail view cannot offer a rung the
+// server would refuse (docs/05-MODULES.md §2).
+func (s *Server) handleGetDocument(w http.ResponseWriter, r *http.Request) {
+	ident, ok := identityFrom(r)
+	if !ok {
+		common.Fail(w, r, common.Unauthenticated())
+		return
+	}
+	id, err := pathUUID(r, "id")
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	row, err := s.svc.Registries.Document(r.Context(), id)
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	hasApprove := rbac.NewSet(ident.Permissions).Can(rbac.Documents, rbac.Approve)
+	common.JSON(w, http.StatusOK, documentResponse(db.Document{
+		ID: row.ID, DocNo: row.DocNo, Title: row.Title, DocType: row.DocType,
+		OwnerID: row.OwnerID, ValidUntil: row.ValidUntil,
+		Status: row.Status, Version: row.Version,
+	}, row.OwnerName, registries.DocAllowedFrom(row.Status, hasApprove)))
 }
 
 func (s *Server) handleCreateDocument(w http.ResponseWriter, r *http.Request) {

@@ -1,8 +1,22 @@
 # Deployment
 
-One server in Dushanbe. Docker Compose. Everything below has been rehearsed
-locally against the production compose file; nothing here has run on the real
-server, because there is not one yet.
+One server in Dushanbe. Docker Compose.
+
+> **Corrected 24 August, on the server.** An earlier version of this file said
+> the stages below had been "rehearsed locally against the production compose
+> file". They had not been — the file had been RENDERED (for the topology gate)
+> and never booted. Three faults only appeared on the first real `up`:
+>
+> - `api` was given `DATABASE_URL` and `ADDR`; the binary reads `DB_URL` and
+>   `LISTEN_ADDR`, so it exited with "DB_URL is required" and never became
+>   healthy, taking `crm`, `web` and `caddy` down with it.
+> - `APP_ENV` was hardcoded to `production`, which the I24 boot guard refuses
+>   without `TLS_MODE=auto` — making stage 1 impossible to start as written.
+> - `api` had no healthcheck at all, so `crm`'s `condition: service_healthy`
+>   could never be satisfied.
+>
+> All three are fixed, and `make check` now runs `tools/check-env-contract.mjs`,
+> which fails if the compose file sets a name the binary does not read.
 
 ---
 
@@ -57,8 +71,20 @@ openssl rand -base64 32   # POSTGRES_PASSWORD
 openssl rand -hex 32      # SERVICE_KEY
 ```
 
-Set `PUBLIC_SITE_URL` to the server's address, e.g. `http://203.0.113.10`, and
-leave `TLS_MODE=off`.
+Set `PUBLIC_SITE_URL` to the server's address, e.g. `http://203.0.113.10`, leave
+`TLS_MODE=off`, and set:
+
+```
+APP_ENV=staging
+```
+
+**`APP_ENV=staging` is required for this stage.** The API refuses to boot with
+`APP_ENV=production` unless `TLS_MODE=auto` — the I24 guard at
+`cmd/api/main.go:73`, which exists so that going live insecure is impossible
+rather than merely discouraged. This stage is deliberately insecure (a bare IP,
+no TLS) and is therefore not production. From T38 onward, drop `APP_ENV` from
+`.env` entirely: it defaults to `production`, and the guard then bites exactly
+when it should.
 
 ```sh
 docker compose -f docker-compose.prod.yml up -d --build

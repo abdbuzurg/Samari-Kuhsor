@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useLocale } from 'next-intl';
-import { useTransition, type ReactNode } from 'react';
+import { useState, useTransition, type ReactNode } from 'react';
 
 import { Sidebar } from '@/components/Sidebar';
 import { TopBar } from '@/components/TopBar';
@@ -52,6 +52,7 @@ export function AppShell({
 
   const session = useSession();
   const logout = useLogout();
+  const [navOpen, setNavOpen] = useState(false);
 
   if (session.isLoading) {
     return (
@@ -98,9 +99,28 @@ export function AppShell({
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <Sidebar permissions={user.permissions} counts={counts} />
+      <Sidebar
+        permissions={user.permissions}
+        counts={counts}
+        open={navOpen}
+        onNavigate={() => setNavOpen(false)}
+      />
+
+      {/* Scrim. Only below lg, where the sidebar overlays rather than sits
+          beside the content. */}
+      {navOpen && (
+        <button
+          type="button"
+          className="lg:hidden fixed inset-0 z-30 bg-black/40"
+          aria-label="Закрыть меню"
+          data-testid="nav-scrim"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
+
       <div className="flex-1 flex flex-col min-w-0">
         <TopBar
+          onOpenNav={() => setNavOpen(true)}
           userName={user.full_name}
           roleName={roleName(user.roles[0], locale)}
           locale={locale}
@@ -110,7 +130,7 @@ export function AppShell({
           onLocaleChange={handleLocaleChange}
           onLogout={handleLogout}
         />
-        <main className="flex-1 overflow-y-auto p-6" id="sk-content">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6" id="sk-content">
           {user.permissions.length === 0 ? (
             <div className="card p-6 max-w-lg">
               <h1 className="text-lg mb-2" style={{ fontFamily: 'var(--font-heading)' }}>

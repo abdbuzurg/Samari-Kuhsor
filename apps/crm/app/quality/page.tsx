@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -8,6 +9,7 @@ import { ListView, type Column, type KPI } from '@/components/ListView';
 import { StatusTag } from '@/components/StatusTag';
 import { useQualityBatches } from '@/lib/operations';
 import { orTBC } from '@/lib/resource';
+import { useSession, can } from '@/lib/session';
 import type { BatchListRow } from '@samari/types';
 
 /**
@@ -18,6 +20,9 @@ import type { BatchListRow } from '@samari/types';
  */
 export default function QualityPage() {
   const t = useTranslations();
+  const router = useRouter();
+  const session = useSession();
+  const mayManage = can(session.data?.permissions, 'quality', 'manage');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -68,6 +73,14 @@ export default function QualityPage() {
 
   return (
     <AppShell>
+      {/* The printer handoff (D11). Wrappers are ordered months in advance, so
+          this is used long before the plant produces anything. */}
+      <div className="flex gap-2 mb-4">
+        <a className="btn btn-secondary" href="/api/batches/qr-export" download>
+          Экспорт QR-кодов для типографии
+        </a>
+      </div>
+
       <ListView<BatchListRow>
         kicker={t('group.ops')}
         title={t('mod.quality')}
@@ -76,12 +89,14 @@ export default function QualityPage() {
         rows={rows}
         rowKey={(r) => r.id}
         rowHref={(r) => `/quality/${r.id}`}
+        exportKey="quality"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
         searchPlaceholder="Поиск по номеру партии и продукции"
+        onCreate={mayManage ? () => router.push('/quality/new') : undefined}
         createLabel={t('create')}
         isLoading={batches.isLoading}
         error={batches.isError ? { message: 'Не удалось загрузить партии' } : null}

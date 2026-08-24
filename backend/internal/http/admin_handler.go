@@ -88,6 +88,42 @@ func (s *Server) handleListInquiries(w http.ResponseWriter, r *http.Request) {
 	common.List(w, out, common.NewPageMeta(params, total))
 }
 
+// handleGetInquiry serves the Обращения detail view.
+//
+// Carries the batch number for a complaint, which is what makes the ToR's
+// complaint → batch traceability → investigation workflow openable from the
+// enquiry rather than only from Качество.
+func (s *Server) handleGetInquiry(w http.ResponseWriter, r *http.Request) {
+	id, err := pathUUID(r, "id")
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	row, err := s.svc.Inquiries.Detail(r.Context(), id)
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	inq := api.Inquiry{
+		ID:          row.ID.String(),
+		ReferenceNo: row.ReferenceNo,
+		Type:        inquiryType(row.InquiryType),
+		Name:        row.Name,
+		Company:     row.Company,
+		Contact:     row.Contact,
+		Message:     row.Message,
+		BatchNo:     row.BatchNo,
+		Status:      inquiryStatus(row.Status),
+		SubmittedAt: common.Timestamp(row.CreatedAt),
+		Version:     row.Version,
+	}
+	if row.BatchID.Valid {
+		bid := row.BatchID.UUID.String()
+		inq.BatchID = &bid
+	}
+	common.JSON(w, http.StatusOK, inq)
+}
+
 // handleSubmitInquiry is the ONLY unauthenticated write in the system.
 //
 // It still travels browser → website BFF → Go: the service key proves the caller
@@ -135,7 +171,8 @@ func (s *Server) handleConvertInquiry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Created(w, api.Lead{
-		ID: lead.ID.String(), Source: lead.Source,
+		ID: lead.ID.String(), CustomerID: customerIDOf(lead),
+		Source: lead.Source,
 		Status: api.Status{Key: lead.Status, Label: "Новый", Level: string(common.LevelInfo)},
 	})
 }
@@ -491,4 +528,15 @@ func rawJSON(b []byte) any {
 		return nil
 	}
 	return json.RawMessage(b)
+}
+
+// customerIDOf renders the customer a conversion created. leads.customer_id is
+// nullable in the schema, but ConvertToLead always sets it — an empty string
+// here would mean the conversion produced an orphan lead, which is a bug rather
+// than a state to render.
+func customerIDOf(lead db.Lead) string {
+	if !lead.CustomerID.Valid {
+		return ""
+	}
+	return lead.CustomerID.UUID.String()
 }

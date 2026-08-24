@@ -40,16 +40,32 @@ export interface SidebarProps {
   counts?: Partial<Record<ModuleKey, number>>;
 }
 
-export function Sidebar({ permissions, counts = {} }: SidebarProps) {
+export function Sidebar({
+  permissions,
+  counts = {},
+  open = false,
+  onNavigate,
+}: SidebarProps & { open?: boolean; onNavigate?: () => void }) {
   const t = useTranslations();
   const pathname = usePathname();
   const groups = visibleGroups(permissions);
 
   return (
+    // 252px and the 64px brand block are the approved visual contract
+    // (CLAUDE.md §5) and are unchanged at desktop. Below `lg` the same 252px
+    // panel slides over the content instead of taking it: on a 390px phone a
+    // fixed sidebar leaves 138px, which is not a usable content area.
     <aside
-      className="w-[252px] shrink-0 flex flex-col text-white"
+      className={[
+        'w-[252px] shrink-0 flex flex-col text-white',
+        'max-lg:fixed max-lg:inset-y-0 max-lg:left-0 max-lg:z-40',
+        'max-lg:transition-transform max-lg:duration-200',
+        open ? 'max-lg:translate-x-0' : 'max-lg:-translate-x-full',
+      ].join(' ')}
       style={{ background: 'var(--sk-chrome)' }}
       data-testid="sidebar"
+      data-open={open ? 'true' : 'false'}
+      onClick={onNavigate}
     >
       {/* Exactly 64px: the top bar is the same height so the divider is
           continuous across the seam. */}

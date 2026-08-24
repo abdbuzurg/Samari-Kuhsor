@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -8,11 +9,15 @@ import { ListView, type Column, type KPI } from '@/components/ListView';
 import { StatusTag } from '@/components/StatusTag';
 import { useManufacturingOrders } from '@/lib/operations';
 import { orTBC } from '@/lib/resource';
+import { useSession, can } from '@/lib/session';
 import type { ManufacturingOrderRow } from '@samari/types';
 
 /** Производство — list view. Columns from docs/05-MODULES.md §6. */
 export default function ProductionPage() {
   const t = useTranslations();
+  const router = useRouter();
+  const session = useSession();
+  const mayManage = can(session.data?.permissions, 'production', 'manage');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -69,12 +74,14 @@ export default function ProductionPage() {
         rows={rows}
         rowKey={(r) => r.id}
         rowHref={(r) => `/production/${r.id}`}
+        exportKey="production"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
         searchPlaceholder="Поиск по номеру заказа и артикулу"
+        onCreate={mayManage ? () => router.push('/production/new') : undefined}
         createLabel={t('create')}
         isLoading={orders.isLoading}
         error={orders.isError ? { message: 'Не удалось загрузить заказы на производство' } : null}

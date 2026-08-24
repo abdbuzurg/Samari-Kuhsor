@@ -12,6 +12,7 @@ import {
   LogOut,
   ScrollText,
   FileText,
+  Menu,
 } from 'lucide-react';
 
 import { locales, localeLabels, type Locale } from '@/i18n/config';
@@ -58,7 +59,8 @@ export function TopBar({
   onLocaleChange,
   onLogout,
   onSearch,
-}: TopBarProps) {
+  onOpenNav,
+}: TopBarProps & { onOpenNav?: () => void }) {
   const t = useTranslations();
   const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -76,6 +78,20 @@ export function TopBar({
       style={{ background: 'var(--sk-chrome)' }}
       data-testid="topbar"
     >
+      {/* Below lg the sidebar is a drawer, so it needs a way in. Hidden at
+          desktop, where the nav is always visible. */}
+      {onOpenNav && (
+        <button
+          type="button"
+          className="lg:hidden shrink-0 p-1.5 -ml-1 rounded-sm hover:bg-white/10"
+          aria-label="Открыть меню"
+          data-testid="open-nav"
+          onClick={onOpenNav}
+        >
+          <Menu size={20} aria-hidden />
+        </button>
+      )}
+
       <div className="relative flex-1 max-w-[420px]">
         {/* 16x16 at left:12px with the input padded to 38px, per the prototype's
             search-icon invariant (HANDOFF-CRM-CONTEXT.md:166). */}

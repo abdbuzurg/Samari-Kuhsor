@@ -299,6 +299,19 @@ type ListFilter struct {
 	Type   *string
 }
 
+// Detail is the detail view's read: the enquiry plus the batch number a
+// complaint names, which is the entry point to the traceability workflow.
+func (s *Service) Detail(ctx context.Context, id uuid.UUID) (db.GetInquiryDetailRow, error) {
+	row, err := db.New(s.pool).GetInquiryDetail(ctx, id)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return db.GetInquiryDetailRow{}, common.NotFound()
+		}
+		return db.GetInquiryDetailRow{}, fmt.Errorf("inquiries: detail: %w", err)
+	}
+	return row, nil
+}
+
 func (s *Service) List(ctx context.Context, p common.Params, f ListFilter) ([]db.ListInquiriesRow, int64, error) {
 	q := db.New(s.pool)
 	var search *string

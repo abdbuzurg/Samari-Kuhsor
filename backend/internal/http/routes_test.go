@@ -68,12 +68,27 @@ var everyGuardedRoute = []routeCase{
 	{"POST", "/api/v1/batches/" + zeroUUID + "/tests", "quality:manage", `{"test_type":"ph"}`},
 	{"POST", "/api/v1/batches/" + zeroUUID + "/transition", "quality:manage", `{"to":"quarantine"}`},
 	{"GET", "/api/v1/suppliers", "procurement:read", ""},
+	{"GET", "/api/v1/suppliers/" + zeroUUID, "procurement:read", ""},
 	{"POST", "/api/v1/suppliers", "procurement:manage", `{"name":"Тест"}`},
 	{"GET", "/api/v1/purchase-orders", "procurement:read", ""},
 	{"GET", "/api/v1/purchase-orders/" + zeroUUID, "procurement:read", ""},
 	{"POST", "/api/v1/purchase-orders", "procurement:manage", `{"po_no":"PO-1","supplier_id":"` + zeroUUID + `","lines":[]}`},
 	{"POST", "/api/v1/purchase-orders/" + zeroUUID + "/transition", "procurement:manage", `{"to":"approval"}`},
 	{"POST", "/api/v1/purchase-orders/" + zeroUUID + "/receipts", "procurement:manage", `{"location_id":"` + zeroUUID + `","lines":[]}`},
+	// CRM и продажи — the customer side (R12).
+	{"GET", "/api/v1/customers", "crm:read", ""},
+	{"GET", "/api/v1/customers/" + zeroUUID, "crm:read", ""},
+	{"POST", "/api/v1/customers", "crm:manage", `{"name":"Тест"}`},
+	{"PATCH", "/api/v1/customers/" + zeroUUID, "crm:manage", `{"name":"Тест","version":1}`},
+	{"POST", "/api/v1/customers/" + zeroUUID + "/contacts", "crm:manage", `{"full_name":"Тест"}`},
+	{"GET", "/api/v1/deals", "crm:read", ""},
+	{"GET", "/api/v1/deals/" + zeroUUID, "crm:read", ""},
+	{"POST", "/api/v1/deals", "crm:manage", `{"customer_id":"` + zeroUUID + `"}`},
+	{"POST", "/api/v1/deals/" + zeroUUID + "/stage", "crm:manage", `{"to":"negotiation"}`},
+	{"GET", "/api/v1/tasks", "crm:read", ""},
+	{"POST", "/api/v1/tasks", "crm:manage", `{"title":"Тест"}`},
+	{"PUT", "/api/v1/tasks/" + zeroUUID + "/status", "crm:manage", `{"status":"done"}`},
+	{"GET", "/api/v1/crm/kpis", "crm:read", ""},
 	{"GET", "/api/v1/sales-orders", "crm:read", ""},
 	{"GET", "/api/v1/sales-orders/" + zeroUUID, "crm:read", ""},
 	{"POST", "/api/v1/sales-orders", "crm:manage", `{"so_no":"SO-1","customer_id":"` + zeroUUID + `","lines":[]}`},
@@ -83,15 +98,19 @@ var everyGuardedRoute = []routeCase{
 	{"POST", "/api/v1/shipments", "logistics:manage", `{"trip_no":"T-1"}`},
 	{"POST", "/api/v1/shipments/" + zeroUUID + "/lines", "logistics:manage", `{"item_id":"` + zeroUUID + `","batch_id":"` + zeroUUID + `","qty":"1"}`},
 	{"GET", "/api/v1/inquiries", "inquiries:read", ""},
+	{"GET", "/api/v1/inquiries/" + zeroUUID, "inquiries:read", ""},
 	{"POST", "/api/v1/inquiries/" + zeroUUID + "/convert", "inquiries:manage", ""},
 	{"GET", "/api/v1/employees", "hr:read", ""},
+	{"GET", "/api/v1/employees/" + zeroUUID, "hr:read", ""},
 	{"POST", "/api/v1/employees", "hr:manage", `{"full_name":"Тест","version":0}`},
 	{"PATCH", "/api/v1/employees/" + zeroUUID, "hr:manage", `{"full_name":"Тест","version":1}`},
 	{"GET", "/api/v1/assets", "equipment:read", ""},
+	{"GET", "/api/v1/assets/" + zeroUUID, "equipment:read", ""},
 	{"POST", "/api/v1/assets", "equipment:manage", `{"asset_no":"EQ-1","name":"Линия","version":0}`},
 	{"GET", "/api/v1/assets/" + zeroUUID + "/maintenance", "equipment:read", ""},
 	{"POST", "/api/v1/assets/" + zeroUUID + "/maintenance", "equipment:manage", `{"event_type":"planned"}`},
 	{"GET", "/api/v1/documents", "documents:read", ""},
+	{"GET", "/api/v1/documents/" + zeroUUID, "documents:read", ""},
 	{"POST", "/api/v1/documents", "documents:manage", `{"doc_no":"D-1","title":"Тест","version":0}`},
 	{"POST", "/api/v1/documents/" + zeroUUID + "/transition", "documents:manage", `{"to":"approval"}`},
 	{"GET", "/api/v1/cms/pages", "cms:read", ""},
@@ -115,6 +134,21 @@ var everyGuardedRoute = []routeCase{
 	{"PUT", "/api/v1/admin/users/" + zeroUUID + "/roles", "admin:manage", `{"role_ids":[]}`},
 	{"PUT", "/api/v1/admin/users/" + zeroUUID + "/active", "admin:manage", `{"active":false}`},
 	{"GET", "/api/v1/admin/permissions", "admin:read", ""},
+	// Экспорт (R15) — one guarded route per collection.
+	{"GET", "/api/v1/export/items", "items:read", ""},
+	{"GET", "/api/v1/export/stock", "inventory:read", ""},
+	{"GET", "/api/v1/export/quality", "quality:read", ""},
+	{"GET", "/api/v1/export/production", "production:read", ""},
+	{"GET", "/api/v1/export/procurement", "procurement:read", ""},
+	{"GET", "/api/v1/export/sales-orders", "crm:read", ""},
+	{"GET", "/api/v1/export/customers", "crm:read", ""},
+	{"GET", "/api/v1/export/deals", "crm:read", ""},
+	{"GET", "/api/v1/export/logistics", "logistics:read", ""},
+	{"GET", "/api/v1/export/hr", "hr:read", ""},
+	{"GET", "/api/v1/export/equipment", "equipment:read", ""},
+	{"GET", "/api/v1/export/documents", "documents:read", ""},
+	{"GET", "/api/v1/export/inquiries", "inquiries:read", ""},
+	{"GET", "/api/v1/export/audit", "audit:read", ""},
 	{"GET", "/api/v1/audit", "audit:read", ""},
 }
 
@@ -490,8 +524,24 @@ func TestEverySuccessfulResponseIsASingleDataEnvelope(t *testing.T) {
 		t.Run(tc.path, func(t *testing.T) {
 			res := do(t, handler, tc.method, tc.path, token, nil)
 			if res.Code != http.StatusOK {
-				return // 404 on a fabricated id is a correct answer, not a shape
+				// 404 on a fabricated id is a correct answer, not a shape.
+				//
+				// KNOWN BLIND SPOT: every `/{id}` route in the table uses
+				// zeroUUID, so none of them ever reaches the check below. R02
+				// added five detail routes that double-wrapped exactly as the
+				// original 27 did, and this guard passed them. Detail routes are
+				// covered in detail_routes_test.go instead, which creates a real
+				// record first. Do not assume a green run here means a detail
+				// route's envelope was checked.
+				return
 			}
+			// The envelope contract is about JSON. Exports (R15) deliberately
+			// return CSV and QR export returns a ZIP; neither has an envelope to
+			// be wrong about.
+			if ct := res.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
+				return
+			}
+
 			var env map[string]json.RawMessage
 			if err := json.Unmarshal(res.Body.Bytes(), &env); err != nil {
 				t.Fatalf("response is not a JSON object: %s", res.Body.String())

@@ -70,6 +70,21 @@ func shipStatus(status string) api.Status {
 // Поставщики
 // ---------------------------------------------------------------------------
 
+// handleGetSupplier serves the supplier record behind Закупки.
+func (s *Server) handleGetSupplier(w http.ResponseWriter, r *http.Request) {
+	id, err := pathUUID(r, "id")
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	row, err := s.svc.Procurement.Supplier(r.Context(), id)
+	if err != nil {
+		common.Fail(w, r, err)
+		return
+	}
+	common.JSON(w, http.StatusOK, supplierResponse(row))
+}
+
 func supplierResponse(s db.Supplier) api.Supplier {
 	return api.Supplier{
 		ID: s.ID.String(), Name: s.Name, TaxID: s.TaxID,
@@ -592,9 +607,12 @@ func (s *Server) handleGetShipment(w http.ResponseWriter, r *http.Request) {
 			BatchID: l.BatchID.String(), BatchNo: l.BatchNo, Qty: l.Qty.String(),
 		})
 	}
-	common.JSON(w, http.StatusOK, map[string]any{
-		"data": shipmentResponse(sh, nil, nil, out),
-	})
+	// common.JSON already builds the envelope (respond.go:38). This handler was
+	// wrapping it a second time and shipping {"data":{"data":…}} — one of the 27
+	// T34 found, and the only one that survived. It survived because the envelope
+	// guard skips any route that 404s, and every /{id} case in its table uses a
+	// fabricated id. Found by driving the browser (R18).
+	common.JSON(w, http.StatusOK, shipmentResponse(sh, nil, nil, out))
 }
 
 func (s *Server) handleCreateShipment(w http.ResponseWriter, r *http.Request) {

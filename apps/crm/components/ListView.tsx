@@ -44,6 +44,16 @@ export interface ListViewProps<Row> {
   /** Where a row click goes. Omitted rows are not clickable. */
   rowHref?: (row: Row) => string;
 
+  /**
+   * Export collection key, e.g. 'stock'. Renders the CSV button.
+   *
+   * The link carries the SAME query string the list is filtered by, so the file
+   * matches the screen. Go re-enters this module's own list handler to build it,
+   * which is also where the permission check happens — a user without the
+   * module's `read` could not have reached this screen anyway.
+   */
+  exportKey?: string;
+
   search: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder: string;
@@ -72,6 +82,7 @@ export function ListView<Row>({
   rows,
   rowKey,
   rowHref,
+  exportKey,
   search,
   onSearchChange,
   searchPlaceholder,
@@ -164,6 +175,20 @@ export function ListView<Row>({
             <SlidersHorizontal size={15} aria-hidden />
             Фильтры
           </button>
+          {exportKey && (
+            // A plain link, not a fetch: the browser's own download handling
+            // gets the filename from Content-Disposition, and a blob round trip
+            // would buffer the whole report in memory for no gain.
+            <a
+              className="btn btn-secondary"
+              href={`/api/export/${exportKey}${search ? `?q=${encodeURIComponent(search)}` : ''}`}
+              data-testid="export-link"
+              download
+            >
+              <Download size={15} aria-hidden />
+              Экспорт
+            </a>
+          )}
         </div>
 
         <div className="overflow-x-auto">

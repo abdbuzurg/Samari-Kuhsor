@@ -178,3 +178,14 @@ RETURNING *;
 UPDATE documents SET deleted_at = now()
 WHERE id = $1 AND deleted_at IS NULL AND version = $2
 RETURNING *;
+
+-- name: GetAssetDetail :one
+-- Mirrors ListAssets, including the two derived service dates, so an asset's
+-- register row and its detail view cannot disagree about when it is next due.
+SELECT sqlc.embed(a),
+  (SELECT max(m.next_due_on) FROM maintenance_events m
+    WHERE m.asset_id = a.id AND m.deleted_at IS NULL)::date AS next_due_on,
+  (SELECT max(m.performed_at) FROM maintenance_events m
+    WHERE m.asset_id = a.id AND m.deleted_at IS NULL)::timestamptz AS last_service_at
+FROM assets a
+WHERE a.id = $1 AND a.deleted_at IS NULL;

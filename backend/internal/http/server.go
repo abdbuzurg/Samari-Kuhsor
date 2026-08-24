@@ -27,6 +27,7 @@ import (
 	"github.com/qoim/samari/backend/internal/domain/admin"
 	"github.com/qoim/samari/backend/internal/domain/batches"
 	"github.com/qoim/samari/backend/internal/domain/cms"
+	"github.com/qoim/samari/backend/internal/domain/crm"
 	"github.com/qoim/samari/backend/internal/domain/dashboard"
 	"github.com/qoim/samari/backend/internal/domain/inquiries"
 	"github.com/qoim/samari/backend/internal/domain/inventory"
@@ -62,6 +63,7 @@ type Services struct {
 	Quality     *quality.Service
 	Procurement *procurement.Service
 	Sales       *sales.Service
+	CRM         *crm.Service
 	Inquiries   *inquiries.Service
 	Registries  *registries.Service
 	CMS         *cms.Service
@@ -203,6 +205,8 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 		// Закупки.
 		v1.Guarded(api, http.MethodGet, "/suppliers",
 			rbac.Procurement, rbac.Read, s.handleListSuppliers)
+		v1.Guarded(api, http.MethodGet, "/suppliers/{id}",
+			rbac.Procurement, rbac.Read, s.handleGetSupplier)
 		v1.Guarded(api, http.MethodPost, "/suppliers",
 			rbac.Procurement, rbac.Manage, s.handleCreateSupplier)
 		v1.Guarded(api, http.MethodGet, "/purchase-orders",
@@ -215,6 +219,45 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 			rbac.Procurement, rbac.Manage, s.handleTransitionPurchaseOrder)
 		v1.Guarded(api, http.MethodPost, "/purchase-orders/{id}/receipts",
 			rbac.Procurement, rbac.Manage, s.handleReceivePurchaseOrder)
+
+		// CRM и продажи — the customer side. Sales orders follow below.
+		//
+		// Every one of these tables has existed since migration 00003 and had no
+		// route until R12: `CreateCustomer` and `CreateLead` were reachable only
+		// as a side effect of converting an enquiry, producing records no screen
+		// could open.
+		v1.Guarded(api, http.MethodGet, "/customers",
+			rbac.CRM, rbac.Read, s.handleListCustomers)
+		v1.Guarded(api, http.MethodGet, "/customers/{id}",
+			rbac.CRM, rbac.Read, s.handleGetCustomer)
+		v1.Guarded(api, http.MethodPost, "/customers",
+			rbac.CRM, rbac.Manage, s.handleCreateCustomer)
+		v1.Guarded(api, http.MethodPatch, "/customers/{id}",
+			rbac.CRM, rbac.Manage, s.handleUpdateCustomer)
+		v1.Guarded(api, http.MethodPost, "/customers/{id}/contacts",
+			rbac.CRM, rbac.Manage, s.handleCreateContact)
+
+		v1.Guarded(api, http.MethodGet, "/deals",
+			rbac.CRM, rbac.Read, s.handleListDeals)
+		v1.Guarded(api, http.MethodGet, "/deals/{id}",
+			rbac.CRM, rbac.Read, s.handleGetDeal)
+		v1.Guarded(api, http.MethodPost, "/deals",
+			rbac.CRM, rbac.Manage, s.handleCreateDeal)
+		// A POST to an action, not a PATCH of `stage`: the move is guarded by a
+		// matrix and writes an immutable event, neither of which a field update
+		// could express.
+		v1.Guarded(api, http.MethodPost, "/deals/{id}/stage",
+			rbac.CRM, rbac.Manage, s.handleMoveDealStage)
+
+		v1.Guarded(api, http.MethodGet, "/tasks",
+			rbac.CRM, rbac.Read, s.handleListTasks)
+		v1.Guarded(api, http.MethodPost, "/tasks",
+			rbac.CRM, rbac.Manage, s.handleCreateTask)
+		v1.Guarded(api, http.MethodPut, "/tasks/{id}/status",
+			rbac.CRM, rbac.Manage, s.handleSetTaskStatus)
+
+		v1.Guarded(api, http.MethodGet, "/crm/kpis",
+			rbac.CRM, rbac.Read, s.handleCRMKPIs)
 
 		// Продажи.
 		v1.Guarded(api, http.MethodGet, "/sales-orders",
@@ -257,6 +300,8 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 			s.handleSubmitInquiry)
 		v1.Guarded(api, http.MethodGet, "/inquiries",
 			rbac.Inquiries, rbac.Read, s.handleListInquiries)
+		v1.Guarded(api, http.MethodGet, "/inquiries/{id}",
+			rbac.Inquiries, rbac.Read, s.handleGetInquiry)
 		v1.Guarded(api, http.MethodPost, "/inquiries/{id}/convert",
 			rbac.Inquiries, rbac.Manage, s.handleConvertInquiry)
 
@@ -273,6 +318,8 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 		// Персонал.
 		v1.Guarded(api, http.MethodGet, "/employees",
 			rbac.HR, rbac.Read, s.handleListEmployees)
+		v1.Guarded(api, http.MethodGet, "/employees/{id}",
+			rbac.HR, rbac.Read, s.handleGetEmployee)
 		v1.Guarded(api, http.MethodPost, "/employees",
 			rbac.HR, rbac.Manage, s.handleCreateEmployee)
 		v1.Guarded(api, http.MethodPatch, "/employees/{id}",
@@ -281,6 +328,8 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 		// Оборудование и ТО.
 		v1.Guarded(api, http.MethodGet, "/assets",
 			rbac.Equipment, rbac.Read, s.handleListAssets)
+		v1.Guarded(api, http.MethodGet, "/assets/{id}",
+			rbac.Equipment, rbac.Read, s.handleGetAsset)
 		v1.Guarded(api, http.MethodPost, "/assets",
 			rbac.Equipment, rbac.Manage, s.handleCreateAsset)
 		v1.Guarded(api, http.MethodGet, "/assets/{id}/maintenance",
@@ -293,6 +342,8 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 		// the transition matrix enforces inside the domain.
 		v1.Guarded(api, http.MethodGet, "/documents",
 			rbac.Documents, rbac.Read, s.handleListDocuments)
+		v1.Guarded(api, http.MethodGet, "/documents/{id}",
+			rbac.Documents, rbac.Read, s.handleGetDocument)
 		v1.Guarded(api, http.MethodPost, "/documents",
 			rbac.Documents, rbac.Manage, s.handleCreateDocument)
 		v1.Guarded(api, http.MethodPost, "/documents/{id}/transition",
@@ -329,6 +380,19 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 			rbac.CMS, rbac.Read, s.handleListMedia)
 		v1.Guarded(api, http.MethodPut, "/cms/media/{id}/alt",
 			rbac.CMS, rbac.Manage, s.handleSetMediaAlt)
+
+		// Экспорт. ToR §4 and §8 condition 7.
+		//
+		// ONE ROUTE PER COLLECTION, each guarded on that collection's own module.
+		// A single /export/{collection} route would have to be declared public,
+		// because the permission is not known until the path parameter is read —
+		// and a public route that reads any module's data is exactly what
+		// docs/04-RBAC.md:123's boot-time verification exists to prevent. Static
+		// declarations mean the guard is checked before we serve, not after.
+		for _, e := range exportRoutes() {
+			v1.Guarded(api, http.MethodGet, "/export/"+e.Key,
+				e.Module, rbac.Read, s.handleExport)
+		}
 
 		// Администрирование. Everything here is admin:manage — there is no
 		// read-only view of the permission system that is worth the surface.

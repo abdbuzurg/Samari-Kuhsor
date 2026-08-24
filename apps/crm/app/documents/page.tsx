@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -8,6 +9,7 @@ import { ListView, type Column, type KPI } from '@/components/ListView';
 import { StatusTag } from '@/components/StatusTag';
 import { useDocuments } from '@/lib/operations';
 import { orTBC } from '@/lib/resource';
+import { useSession, can } from '@/lib/session';
 import type { Document } from '@samari/types';
 
 /**
@@ -18,6 +20,9 @@ import type { Document } from '@samari/types';
  */
 export default function DocumentsPage() {
   const t = useTranslations();
+  const router = useRouter();
+  const session = useSession();
+  const mayManage = can(session.data?.permissions, 'documents', 'manage');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
 
@@ -59,12 +64,14 @@ export default function DocumentsPage() {
         rows={rows}
         rowKey={(r) => r.id}
         rowHref={(r) => `/documents/${r.id}`}
+        exportKey="documents"
         search={search}
         onSearchChange={(v) => {
           setSearch(v);
           setPage(1);
         }}
         searchPlaceholder="Поиск по номеру и названию"
+        onCreate={mayManage ? () => router.push('/documents/new') : undefined}
         createLabel={t('create')}
         isLoading={documents.isLoading}
         error={documents.isError ? { message: 'Не удалось загрузить документы' } : null}

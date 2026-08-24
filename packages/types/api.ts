@@ -242,6 +242,12 @@ export interface InquiryReceipt {
 }
 export interface Lead {
   id: string;
+  /**
+   * CustomerID is what conversion produced alongside the lead. Without it the
+   * caller has just created a customer it cannot open, which is the whole point
+   * of converting an enquiry (ToR §8 condition 1).
+   */
+  customer_id: string;
   name: string;
   source?: string | null;
   status: Status;
@@ -627,6 +633,194 @@ export interface DashboardStockRow {
   on_hand: string;
   uom: string;
   status: Status;
+}
+
+//////////
+// source: crm.go
+
+/**
+ * CustomerRow is one row of the Клиенты register.
+ * OpenDeals and OpenAmount are computed at read time. There is no column behind
+ * either, for the same reason there is no stored stock balance: a cached count
+ * that disagrees with the deals table is worse than no count at all.
+ */
+export interface CustomerRow {
+  id: string;
+  name: string;
+  customer_type?: string | null;
+  region?: string | null;
+  contact?: string | null;
+  open_deals: number /* int32 */;
+  open_amount: string;
+  lead_status?: Status | null;
+  version: number /* int32 */;
+}
+/**
+ * Customer is the detail payload: the header the related bands hang from.
+ */
+export interface Customer {
+  id: string;
+  name: string;
+  customer_type?: string | null;
+  region?: string | null;
+  contact?: string | null;
+  version: number /* int32 */;
+  created_at: string;
+}
+export interface CustomerWriteRequest {
+  name: string;
+  customer_type?: string;
+  region?: string;
+  contact?: string;
+  version?: number /* int32 */;
+}
+export interface Contact {
+  id: string;
+  full_name: string;
+  role?: string | null;
+  email?: string | null;
+  phone?: string | null;
+}
+export interface ContactWriteRequest {
+  full_name: string;
+  role?: string;
+  email?: string;
+  phone?: string;
+}
+/**
+ * CustomerLead is a lead as the customer's detail view shows it. Distinct from
+ * api.Lead in commerce.go, which is the flatter shape the enquiry conversion
+ * returns and which predates this module having a screen.
+ */
+export interface CustomerLead {
+  id: string;
+  source?: string | null;
+  inquiry_id?: string | null;
+  status: Status;
+  created_at: string;
+  reference_no?: string | null;
+}
+/**
+ * DealRow is one row of the Сделки pipeline.
+ */
+export interface DealRow {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  region?: string | null;
+  amount?: string | null;
+  stage: Status;
+  owner_name?: string | null;
+  expected_close?: string | null;
+  version: number /* int32 */;
+}
+/**
+ * Deal is the detail payload, with the stage history that makes the pipeline
+ * auditable rather than merely current.
+ */
+export interface Deal {
+  id: string;
+  customer_id: string;
+  customer_name: string;
+  amount?: string | null;
+  stage: Status;
+  owner_name?: string | null;
+  expected_close?: string | null;
+  version: number /* int32 */;
+  created_at: string;
+  history: DealStageEvent[];
+  /**
+   * AllowedTransitions is what this actor may move the deal to next, computed
+   * from the same matrix the domain enforces. Won and lost are terminal, so a
+   * closed deal returns an empty list.
+   */
+  allowed_transitions: string[];
+}
+/**
+ * DealStageEvent is immutable evidence: who moved it, when, and why. No version
+ * and no deleted_at, exactly like BatchStatusEvent.
+ */
+export interface DealStageEvent {
+  id: string;
+  from_stage?: Status | null;
+  to_stage: Status;
+  occurred_at: string;
+  changed_by?: string | null;
+  note?: string | null;
+}
+export interface DealWriteRequest {
+  customer_id: string;
+  amount?: string;
+  stage?: string;
+  owner_id?: string;
+  expected_close?: string;
+}
+/**
+ * DealStageRequest moves a deal. `to` is the destination; legality is decided in
+ * Go from the same matrix that computes AllowedTransitions.
+ */
+export interface DealStageRequest {
+  to: string;
+  note?: string;
+}
+export interface Task {
+  id: string;
+  title: string;
+  assignee_name?: string | null;
+  due_on?: string | null;
+  status: Status;
+  related_type?: string | null;
+  related_id?: string | null;
+  version: number /* int32 */;
+}
+export interface TaskWriteRequest {
+  title: string;
+  assignee_id?: string;
+  due_on?: string;
+  related_type?: string;
+  related_id?: string;
+}
+export interface TaskStatusRequest {
+  status: string;
+}
+/**
+ * CustomerDetail bundles the header with every band the detail view shows
+ * (docs/05-MODULES.md:179): "customer header · contacts · deals with stage
+ * history · linked inquiries · orders · activity".
+ */
+export interface CustomerDetail {
+  customer: Customer;
+  contacts: Contact[];
+  leads: CustomerLead[];
+  deals: DealRow[];
+  orders: CustomerOrder[];
+  inquiries: CustomerInquiry[];
+}
+export interface CustomerOrder {
+  id: string;
+  so_no: string;
+  ordered_on?: string | null;
+  total: string;
+  status: Status;
+}
+export interface CustomerInquiry {
+  id: string;
+  reference_no: string;
+  type: Status;
+  status: Status;
+  submitted_at: string;
+}
+/**
+ * CRMKPIs are the four figures specified at docs/05-MODULES.md:179.
+ */
+export interface CRMKPIs {
+  new_leads: number /* int32 */;
+  open_deals: number /* int32 */;
+  /**
+   * Conversion is null before anything has closed, never "0".
+   */
+  conversion?: string | null;
+  overdue_tasks: number /* int32 */;
 }
 
 //////////

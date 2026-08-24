@@ -165,3 +165,54 @@ export async function readBody(req: Request): Promise<unknown> {
     return text;
   }
 }
+
+/**
+ * Proxies a file download — CSV exports, the QR ZIP — without touching the body.
+ *
+ * `proxy` cannot serve these: it runs the response through `callApi`, which
+ * parses JSON, and then through `relay`, which re-encodes it. A CSV would arrive
+ * as a JSON string of itself.
+ *
+ * The credential handling is identical to `callApi`: the service key proves the
+ * caller is a BFF and the Bearer token is the user's own session. Go still
+ * enforces the permission, so a caller without the module's `read` gets a JSON
+ * 403 here — which is why the error path is passed through as-is rather than
+ * being forced into a download.
+ */
+export async function download(req: Request, path: string): Promise<Response> {
+  const headers: Record<string, string> = {};
+  if (SERVICE_KEY) headers['X-Service-Key'] = SERVICE_KEY;
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded) headers['X-Forwarded-For'] = forwarded;
+
+  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const search = new URL(req.url).search;
+
+  let res: Response;
+  try {
+    res = await fetch(`${BACKEND_URL}/api/v1${path}${search}`, {
+      method: 'GET',
+      headers,
+      cache: 'no-store',
+    });
+  } catch (cause) {
+    console.error('BFF: backend unreachable', cause);
+    return Response.json(
+      { error: { code: 'internal_error', message: 'Сервис временно недоступен' } },
+      { status: 503 },
+    );
+  }
+
+  const out = new Headers();
+  // Only the headers a download needs. Copying the whole set would forward
+  // backend infrastructure headers to the browser.
+  for (const name of ['content-type', 'content-disposition', 'content-length']) {
+    const value = res.headers.get(name);
+    if (value) out.set(name, value);
+  }
+  out.set('Cache-Control', 'no-store');
+
+  return new Response(res.body, { status: res.status, headers: out });
+}
