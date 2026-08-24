@@ -76,3 +76,204 @@ body {
     scroll-behavior: auto !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * Mobile.
+ *
+ * The prototype's own mobile block (imported above, from .reference/site.css)
+ * covers exactly four things: the assembly line becomes a horizontal snap
+ * scroller, the hero and two-column grids collapse, and the marquee speeds up.
+ * Everything else on the site was authored at desktop width only — the header
+ * alone forced 673px of horizontal scroll on every page at 393px.
+ *
+ * Nothing here changes the design at desktop width. The palette, the fonts, the
+ * conveyor gradient and the catalogue animation are the client-approved visual
+ * contract (CLAUDE.md §5) and are untouched; this decides only what is visible
+ * and how big it is on a narrow screen.
+ *
+ * The assembly line stays horizontal and swipeable. It must never become a
+ * vertical list — that is an explicit instruction, and the prototype's
+ * .skc-slots rules that implement it are left exactly as they are.
+ * ------------------------------------------------------------------------- */
+
+/* The header's row is roughly 1080px of content: logo, four nav items, three
+   locale links and the CTA. Below that it becomes a drawer rather than being
+   squeezed, because squeezing it produces 13px tap targets. */
+.site-burger {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .site-nav-desktop,
+  .site-locale-desktop,
+  .site-cta-desktop {
+    display: none !important;
+  }
+  .site-burger {
+    display: inline-flex !important;
+    margin-left: auto;
+  }
+  .site-bar {
+    padding: 12px 18px !important;
+  }
+}
+
+/* The drawer. Only rendered when open, so it needs no display toggle — but it
+   must never appear at desktop width, where the real nav is already visible. */
+@media (min-width: 1025px) {
+  .site-drawer {
+    display: none !important;
+  }
+}
+
+@media (max-width: 760px) {
+  /* Section gutters. 32px of each side is a fifth of a 393px screen. */
+  .skc-section {
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+    padding-top: 44px !important;
+  }
+
+  /* Display type. The hero is authored at 60px, which wraps to four lines and
+     overhangs at 393px. clamp keeps the desktop value exactly. */
+  .skc-display-xl {
+    font-size: clamp(32px, 8.5vw, 60px) !important;
+  }
+  .skc-display-lg {
+    font-size: clamp(24px, 6.4vw, 30px) !important;
+  }
+
+  /* Anything that pins itself to the corner of the viewport. */
+  .skc-fixed-inset {
+    left: 12px !important;
+    right: 12px !important;
+    max-width: none !important;
+  }
+}
+
+/* Touch targets.
+ *
+ * Raised only under `pointer: coarse`, so a mouse-driven desktop is untouched
+ * and the approved layout does not move. Inline links inside a paragraph are
+ * deliberately NOT included: WCAG exempts them, and padding them out would
+ * break the line box of every body-copy link on the site.
+ *
+ * The controls below are the ones a finger has to hit precisely and cannot:
+ * the batch pager sits on the conveyor belt at 30×24, the catalogue filters at
+ * 36px, and the consent checkbox — required before the form will submit — at
+ * 13px. */
+@media (pointer: coarse) {
+  .skc-tap {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* A native checkbox renders at 13px and cannot be styled larger without
+     replacing it. Scaling keeps the platform control, its focus ring and its
+     semantics, which a div-with-a-tick loses. */
+  .skc-tap-check {
+    transform: scale(1.5);
+    transform-origin: left center;
+    margin-right: 6px;
+  }
+
+  /* Standalone arrow links — «Вся продукция →», «Подробнее →». They read as
+     buttons and are tapped like buttons, but are 22px tall. Vertical padding
+     only: a horizontal box would detach the underline from the text. */
+  .skc-tap-cta {
+    display: inline-block;
+    padding-top: 11px;
+    padding-bottom: 11px;
+  }
+}
+
+/* No element may push the page sideways. Wide content — the assembly line, a
+   table, the marquee — scrolls inside its own container, which is what
+   .skc-slots and the marquee wrapper already do. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* ---------------------------------------------------------------------------
+ * The assembly line's hover affordance.
+ *
+ * The design specifies it in as many words: "the item lifts and scales slightly,
+ * gains a soft glow, and reveals a small «Просмотр →» cue over the card". None
+ * of it was implemented — the products were clickable with no indication that
+ * they were, which is why the section's own lead line («нажмите — чтобы открыть
+ * подробности») was the only hint a visitor got.
+ *
+ * Hover AND focus-visible, so a keyboard reaches it too. Under
+ * prefers-reduced-motion the transform is neutralised by the global rule above
+ * and only the cue and the glow remain.
+ * ------------------------------------------------------------------------- */
+.skc-slot-button {
+  position: relative;
+  transition:
+    transform 0.28s cubic-bezier(0.34, 0, 0.24, 1),
+    filter 0.28s ease;
+}
+
+.skc-slot-button:hover,
+.skc-slot-button:focus-visible {
+  transform: translateY(-6px) scale(1.035);
+  filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.34));
+}
+
+.skc-slot-cue {
+  position: absolute;
+  top: 46px;
+  left: 50%;
+  transform: translate(-50%, 4px);
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+  background: rgba(35, 88, 58, 0.92);
+  color: #eaf1dd;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  padding: 6px 11px;
+  border-radius: 999px;
+}
+
+.skc-slot-button:hover .skc-slot-cue,
+.skc-slot-button:focus-visible .skc-slot-cue {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* A finger has no hover state, so the cue would either never appear or stick
+   after a tap. The card is already the tap target; the cue is desktop affordance
+   only. */
+@media (pointer: coarse) {
+  .skc-slot-cue {
+    display: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * The process grid's dividers.
+ *
+ * At desktop the six steps are one card cut into 3×2 by hairlines. Collapsed to
+ * a single column those inline borders are wrong in two ways: `border-right` on
+ * a full-width cell draws a stray vertical rule down the right edge, and the
+ * bottom rules were only on the first row, so the last three steps ran together.
+ *
+ * Overriding here rather than in the component because the rule is entirely
+ * about width — the component should not have to know a breakpoint exists.
+ * ------------------------------------------------------------------------- */
+@media (max-width: 760px) {
+  .skc-steps > li {
+    border-right: none !important;
+    border-bottom: 1px solid rgba(35, 88, 58, 0.12) !important;
+    padding: 22px 20px 24px !important;
+  }
+  .skc-steps > li:last-child {
+    border-bottom: none !important;
+  }
+}

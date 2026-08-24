@@ -114,6 +114,7 @@ export function AssemblyLine({ products }: { products: PublicProduct[] }) {
               onClick={() => page(-1)}
               disabled={!multiBatch}
               aria-label="Предыдущая партия"
+              className="skc-tap"
               style={batchButtonStyle(multiBatch)}
             >
               ▲
@@ -123,6 +124,7 @@ export function AssemblyLine({ products }: { products: PublicProduct[] }) {
               onClick={() => page(1)}
               disabled={!multiBatch}
               aria-label="Следующая партия"
+              className="skc-tap"
               style={batchButtonStyle(multiBatch)}
             >
               ▼
@@ -202,6 +204,12 @@ export function AssemblyLine({ products }: { products: PublicProduct[] }) {
                       display: 'block',
                     }}
                   />
+                  {/* «Просмотр →» — the design's hover cue. aria-hidden because
+                      the button already announces the product; a screen reader
+                      does not need a second label saying it is clickable. */}
+                  <span className="skc-slot-cue" aria-hidden>
+                    {t('cta.preview')}
+                  </span>
                   <span
                     style={{
                       color: '#EAF1DD',
@@ -237,6 +245,7 @@ export function AssemblyLine({ products }: { products: PublicProduct[] }) {
 
       <div style={{ marginTop: 18, textAlign: 'right' }}>
         <Link
+          className="skc-tap-cta"
           href="/catalogue"
           style={{
             textDecoration: 'none',

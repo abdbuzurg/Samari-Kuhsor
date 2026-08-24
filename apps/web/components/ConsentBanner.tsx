@@ -27,6 +27,7 @@ export function ConsentBanner() {
       aria-live="polite"
       aria-label={t('title')}
       data-testid="consent-banner"
+      className="skc-fixed-inset"
       style={{
         position: 'fixed',
         left: 16,
@@ -56,7 +57,8 @@ export function ConsentBanner() {
           style={{
             fontSize: 13.5,
             fontWeight: 700,
-            padding: '10px 18px',
+            padding: '12px 18px',
+            minHeight: 44,
             borderRadius: 10,
             border: `1.5px solid ${palette.hairlineStrong}`,
             background: 'transparent',
@@ -73,7 +75,8 @@ export function ConsentBanner() {
           style={{
             fontSize: 13.5,
             fontWeight: 700,
-            padding: '10px 18px',
+            padding: '12px 18px',
+            minHeight: 44,
             borderRadius: 10,
             border: 'none',
             background: palette.primary,

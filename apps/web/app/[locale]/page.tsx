@@ -50,7 +50,11 @@ export default async function HomePage({
       <TrustStrip />
 
       <Section>
-        <SectionHead title={t('home.catalogueTitle')} lead={t('home.catalogueLead')} />
+        <SectionHead
+          eyebrow={t('home.catalogueEyebrow')}
+          title={t('home.catalogueTitle')}
+          lead={t('home.catalogueLead')}
+        />
         <AssemblyLine products={products} />
       </Section>
 

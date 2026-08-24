@@ -199,7 +199,13 @@ export function ContactForm() {
           consent, and this is the one field on the page that has to survive a
           regulator reading it. */}
       <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13 }}>
-        <input type="checkbox" name="consent" required style={{ marginTop: 3 }} />
+        <input
+          type="checkbox"
+          name="consent"
+          required
+          className="skc-tap-check"
+          style={{ marginTop: 3 }}
+        />
         <span>
           {t('consent')} <span aria-hidden style={{ color: palette.accent }}>*</span>
         </span>

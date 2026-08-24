@@ -70,7 +70,7 @@ export function NewsGrid({ heading, items }: { heading: string; items: NewsCard[
                   margin: '0 0 10px',
                 }}
               >
-                {[n.category, n.publishedOn].filter(Boolean).join(' · ')}
+                {[n.category, monthYear(n.publishedOn)].filter(Boolean).join(' · ')}
               </p>
               <h3
                 style={{
@@ -89,4 +89,28 @@ export function NewsGrid({ heading, items }: { heading: string; items: NewsCard[
       </div>
     </section>
   );
+}
+
+/**
+ * «Июнь 2026», not «2026-06-01».
+ *
+ * The API sends an ISO date and the card was printing it raw. A news card is
+ * read at a glance and a full ISO date reads as a database field; the design
+ * shows month and year, which is all the precision a milestone needs.
+ *
+ * Formatted in Dushanbe time for the same reason every other date on the
+ * platform is: a date is a fact about when something happened at the factory.
+ */
+function monthYear(iso: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  const s = d.toLocaleDateString('ru-RU', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Dushanbe',
+  });
+  // ru-RU renders "июнь 2026 г."; the design capitalises and drops the "г.".
+  const cleaned = s.replace(/\s*г\.?$/, '');
+  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
 }

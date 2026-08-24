@@ -102,7 +102,7 @@ export function Hero({
           </p>
 
           <h1
-            className="disp"
+            className="disp skc-display-xl"
             style={{
               fontSize: 60,
               lineHeight: 1.02,
@@ -174,7 +174,15 @@ export function Hero({
             overflow: 'hidden',
           }}
         >
-          {products.slice(0, 4).map((p) => (
+          {/* All five, not four. The catalogue is exactly five products (D8) and
+              the design lists every one of them; slicing to four dropped
+              «Питьевая вода 1 л» off the hero entirely.
+
+              Row shape is the design's: index, colour bar, name over
+              «volume · packaging», arrow. The built version had the index on the
+              right, no arrow, and «line · volume» — so the packaging, which is
+              what a wholesale buyer is actually scanning for, never appeared. */}
+          {products.map((p, i) => (
             <li key={p.id}>
               <Link
                 href={`/catalogue/${p.sku}`}
@@ -182,32 +190,45 @@ export function Hero({
                   textDecoration: 'none',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 18,
-                  padding: '18px 22px',
-                  borderBottom: '1px solid rgba(35,88,58,.08)',
+                  gap: 16,
+                  padding: '16px 20px',
+                  borderBottom:
+                    i === products.length - 1 ? 'none' : '1px solid rgba(35,88,58,.08)',
                 }}
               >
                 <span
+                  className="disp"
                   aria-hidden
                   style={{
-                    width: 34,
-                    height: 46,
-                    borderRadius: '6px 6px 8px 8px',
-                    background: p.tint,
-                    borderTop: `10px solid ${p.accent}`,
+                    fontSize: 13,
+                    fontWeight: 800,
+                    color: palette.muted,
+                    flex: 'none',
+                    minWidth: 20,
+                  }}
+                >
+                  {p.idx}
+                </span>
+                <span
+                  aria-hidden
+                  style={{
+                    width: 6,
+                    height: 34,
+                    borderRadius: 3,
+                    background: p.accent,
                     flex: 'none',
                   }}
                 />
-                <span style={{ flex: 1 }}>
-                  <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700 }}>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: 'block', fontSize: 14, fontWeight: 700 }}>
                     {p.short}
                   </span>
-                  <span style={{ display: 'block', fontSize: 12.5, color: palette.muted }}>
-                    {p.line} · {p.volume}
+                  <span style={{ display: 'block', fontSize: 12, color: palette.muted }}>
+                    {p.volume} · {p.pack}
                   </span>
                 </span>
-                <span style={{ fontSize: 12, color: palette.muted, fontWeight: 700 }}>
-                  {p.idx}
+                <span aria-hidden style={{ fontSize: 14, color: palette.muted, flex: 'none' }}>
+                  →
                 </span>
               </Link>
             </li>

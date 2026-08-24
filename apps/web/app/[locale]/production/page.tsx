@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
-import { Section, SectionHead } from '@/components/Section';
+import { Section } from '@/components/Section';
+import { Link } from '@/i18n/routing';
+import { PROCESS_STEPS } from '@/lib/content';
 import { palette } from '@/lib/palette';
 
 export async function generateMetadata({
@@ -17,39 +19,26 @@ export async function generateMetadata({
 /**
  * Производство и качество.
  *
- * The six process steps come from the prototype. They describe what the factory
- * does; they make no claim about certification, because nothing is certified
- * yet — «Статус сертификации: на согласовании» is what the product pages say and
- * this page must not contradict them.
+ * Rebuilt against the approved design (`Samari Kuhsor - C.dc.html`, §5.6 of the
+ * design project's PROJECT-CONTEXT.md) after a comparison found three ways this
+ * page had drifted from it:
+ *
+ *   1. It declared its OWN six steps rather than using PROCESS_STEPS, so steps
+ *      02 and 03 were «Мойка и подготовка» / «Переработка» here and
+ *      «Переработка фруктов и овощей» / «Водоподготовка и выдув ПЭТ» on the home
+ *      page. lib/content.ts says in as many words that the two views "cannot
+ *      disagree about how many steps there are or what they are called". They
+ *      did.
+ *   2. The steps were a six-across row of separate cards; the design is a 3×2
+ *      grid inside one bordered card with hairline dividers.
+ *   3. The closing card — «Гигиена, прослеживаемость и лаборатория» with its
+ *      three tags and a photo placeholder — had been replaced by a different
+ *      «Контроль качества» section.
+ *
+ * The steps make no claim about certification, because nothing is certified yet:
+ * the product pages say «Статус сертификации: на согласовании» and this page
+ * must not contradict them.
  */
-const STEPS = [
-  { n: '01', title: 'Приёмка и контроль сырья', text: 'Входной контроль фруктов и воды.' },
-  { n: '02', title: 'Мойка и подготовка', text: 'Очистка, сортировка и подготовка сырья.' },
-  { n: '03', title: 'Переработка', text: 'Отжим, уваривание или подготовка к розливу.' },
-  { n: '04', title: 'Пастеризация и розлив', text: 'Термическая обработка и розлив в тару.' },
-  {
-    n: '05',
-    title: 'Укупорка, охлаждение, маркировка',
-    text: 'Герметизация, охлаждение и нанесение маркировки.',
-  },
-  { n: '06', title: 'Упаковка и складирование', text: 'Групповая упаковка, форматы и хранение.' },
-];
-
-const QUALITY = [
-  {
-    title: 'Лабораторный контроль',
-    text: 'Проверки на этапах производства. Заявления публикуются только после подтверждения.',
-  },
-  {
-    title: 'Прослеживаемость партий',
-    text: 'Каждая партия связана с сырьём, сменой и результатами испытаний.',
-  },
-  {
-    title: 'Карантин до выпуска',
-    text: 'Готовая продукция помещается в карантин и выпускается только по решению контроля качества.',
-  },
-];
-
 export default async function ProductionPage({
   params,
 }: {
@@ -61,54 +50,89 @@ export default async function ProductionPage({
 
   return (
     <>
-      <Section>
-        <SectionHead title={t('title')} lead={t('lead')} />
-      </Section>
+      {/* The tinted header band with a ridgeline, from the design. The built
+          page had a plain SectionHead on the page background. */}
+      <div
+        style={{
+          background: `linear-gradient(180deg, ${palette.section} 0%, ${palette.page} 100%)`,
+          borderBottom: `1px solid ${palette.hairline}`,
+        }}
+      >
+        <Section>
+          <nav
+            aria-label={t('breadcrumbHome')}
+            style={{ fontSize: 12.5, color: palette.muted, marginBottom: 14 }}
+          >
+            <Link href="/" style={{ textDecoration: 'none' }}>
+              {t('breadcrumbHome')}
+            </Link>
+            <span aria-hidden> / </span>
+            <span>{t('title')}</span>
+          </nav>
+          <h1
+            className="disp skc-display-xl"
+            style={{ fontSize: 52, lineHeight: 1.06, margin: 0, fontWeight: 800 }}
+          >
+            {t('title')}
+          </h1>
+          <p
+            style={{
+              fontSize: 16,
+              lineHeight: 1.62,
+              color: palette.muted,
+              margin: '14px 0 0',
+              maxWidth: 620,
+            }}
+          >
+            {t('lead')}
+          </p>
+        </Section>
+      </div>
 
       <Section>
-        <h2 className="disp" style={{ fontSize: 22, margin: '0 0 22px', fontWeight: 800 }}>
-          {t('processTitle')}
-        </h2>
-        {/* Horizontal and swipeable on mobile — it must never become a vertical
-            list (CLAUDE.md §5). The .skc-slots class carries the prototype's own
-            mobile rule, which turns this grid into a scroll-snapping row. */}
+        {/* One card, 3×2, hairline dividers between cells — the design's shape.
+            .skc-2col collapses it to a single column below 760px. */}
         <ol
-          className="skc-slots"
+          className="skc-2col skc-steps"
           style={{
             listStyle: 'none',
             margin: 0,
             padding: 0,
             display: 'grid',
-            gridTemplateColumns: 'repeat(6, 1fr)',
-            gap: 14,
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            background: '#fff',
+            border: `1px solid ${palette.hairline}`,
+            borderRadius: 18,
+            overflow: 'hidden',
           }}
         >
-          {STEPS.map((s) => (
+          {PROCESS_STEPS.map((s, i) => (
             <li
               key={s.n}
-              className="skc-slot"
               style={{
-                background: '#fff',
-                borderRadius: 14,
-                border: `1px solid ${palette.hairline}`,
-                padding: '18px 16px 20px',
+                padding: '26px 26px 30px',
+                // Dividers rather than gaps: the design reads as one card cut
+                // into six, not six cards side by side.
+                borderRight: (i + 1) % 3 === 0 ? 'none' : `1px solid ${palette.hairline}`,
+                borderBottom: i < 3 ? `1px solid ${palette.hairline}` : 'none',
               }}
             >
               <span
+                className="disp"
                 style={{
-                  display: 'inline-block',
-                  fontSize: 12,
+                  display: 'block',
+                  fontSize: 26,
                   fontWeight: 800,
-                  color: palette.accent,
-                  marginBottom: 8,
+                  color: palette.primary,
+                  marginBottom: 12,
                 }}
               >
                 {s.n}
               </span>
-              <h3 style={{ fontSize: 14, lineHeight: 1.35, margin: '0 0 6px', fontWeight: 700 }}>
+              <h2 style={{ fontSize: 15.5, lineHeight: 1.35, margin: '0 0 8px', fontWeight: 700 }}>
                 {s.title}
-              </h3>
-              <p style={{ fontSize: 12.5, lineHeight: 1.5, color: palette.muted, margin: 0 }}>
+              </h2>
+              <p style={{ fontSize: 13.5, lineHeight: 1.55, color: palette.muted, margin: 0 }}>
                 {s.text}
               </p>
             </li>
@@ -117,28 +141,63 @@ export default async function ProductionPage({
       </Section>
 
       <Section>
-        <h2 className="disp" style={{ fontSize: 22, margin: '0 0 22px', fontWeight: 800 }}>
-          {t('qualityTitle')}
-        </h2>
         <div
           className="skc-2col"
-          style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)',
+            gap: 34,
+            alignItems: 'center',
+            background: '#fff',
+            border: `1px solid ${palette.hairline}`,
+            borderRadius: 20,
+            padding: '38px 38px 42px',
+          }}
         >
-          {QUALITY.map((q) => (
-            <div
-              key={q.title}
-              style={{
-                background: palette.section,
-                borderRadius: 16,
-                padding: '24px 22px',
-              }}
+          <div>
+            <h2
+              className="disp skc-display-lg"
+              style={{ fontSize: 25, lineHeight: 1.2, margin: '0 0 14px', fontWeight: 800 }}
             >
-              <h3 style={{ fontSize: 15.5, margin: '0 0 8px', fontWeight: 700 }}>{q.title}</h3>
-              <p style={{ fontSize: 13.5, lineHeight: 1.6, color: palette.muted, margin: 0 }}>
-                {q.text}
-              </p>
+              {t('closingTitle')}
+            </h2>
+            <p style={{ fontSize: 14.5, lineHeight: 1.65, color: palette.muted, margin: '0 0 20px' }}>
+              {t('closingBody')}
+            </p>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {[t('tagHaccp'), t('tagTraceability'), t('tagLab')].map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    fontSize: 12.5,
+                    fontWeight: 700,
+                    color: palette.deep,
+                    background: palette.section,
+                    borderRadius: 999,
+                    padding: '8px 15px',
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
-          ))}
+          </div>
+
+          {/* Real photography of the hall has to come from the client
+              (PROJECT-CONTEXT.md §10). The placeholder is the design's own. */}
+          <div
+            style={{
+              background: palette.section,
+              borderRadius: 16,
+              minHeight: 300,
+              display: 'grid',
+              placeItems: 'center',
+              fontSize: 12.5,
+              color: palette.muted,
+            }}
+          >
+            {t('photoPlaceholder')}
+          </div>
         </div>
       </Section>
     </>

@@ -32,9 +32,14 @@ export default defineConfig({
       name: 'desktop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
       // The responsive spec asserts the drawer, which does not exist above lg.
-      testIgnore: /responsive\.spec\.ts/,
+      // Both responsive specs assert phone-width behaviour.
+      testIgnore: /responsive\.spec\.ts|website-mobile\.spec\.ts/,
     },
     // I27: the responsive pass. 390px is the phone the factory floor actually uses.
-    { name: 'mobile', use: { ...devices['Pixel 5'] }, testMatch: /responsive\.spec\.ts/ },
+    {
+      name: 'mobile',
+      use: { ...devices['Pixel 5'] },
+      testMatch: /responsive\.spec\.ts|website-mobile\.spec\.ts/,
+    },
   ],
 });

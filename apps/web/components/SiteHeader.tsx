@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Image from 'next/image';
 import { useLocale, useTranslations } from 'next-intl';
 import { usePathname as useRawPathname } from 'next/navigation';
@@ -14,6 +15,15 @@ import { palette } from '@/lib/palette';
  *
  * The nav is four items and the language switcher is ТҶ / РУ / EN in that
  * order — both are part of the visual contract (CLAUDE.md §5).
+ *
+ * Below 1024px the same items move into a drawer. The row needs about 1080px:
+ * logo, four nav items, three locale links and the CTA. At 393px it was 1066px
+ * wide and forced every page on the site to scroll sideways — the single
+ * largest mobile defect, and present on every route.
+ *
+ * A drawer rather than a squeeze: shrinking the row to fit produces 13px tap
+ * targets. Nothing is removed and nothing is reordered, so the contract holds —
+ * this decides only when the items are visible.
  */
 
 const NAV = [
@@ -28,6 +38,7 @@ export function SiteHeader() {
   const locale = useLocale() as Locale;
   const pathname = usePathname();
   const rawPathname = useRawPathname();
+  const [open, setOpen] = useState(false);
 
   return (
     <header
@@ -41,6 +52,7 @@ export function SiteHeader() {
       }}
     >
       <div
+        className="site-bar"
         style={{
           maxWidth: 1240,
           margin: '0 auto',
@@ -90,6 +102,7 @@ export function SiteHeader() {
         </Link>
 
         <nav
+          className="site-nav-desktop"
           aria-label={t('a11y.mainNav')}
           style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}
         >
@@ -122,6 +135,7 @@ export function SiteHeader() {
         </nav>
 
         <div
+          className="site-locale-desktop"
           role="group"
           aria-label={t('a11y.language')}
           style={{
@@ -162,6 +176,7 @@ export function SiteHeader() {
 
         <Link
           href="/contact"
+          className="site-cta-desktop"
           style={{
             textDecoration: 'none',
             fontSize: 13,
@@ -176,7 +191,146 @@ export function SiteHeader() {
         >
           {t('cta.distributors')}
         </Link>
+
+        <button
+          type="button"
+          className="site-burger"
+          aria-expanded={open}
+          aria-controls="site-drawer"
+          aria-label={t('a11y.mainNav')}
+          data-testid="site-burger"
+          onClick={() => setOpen((v) => !v)}
+          style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 44,
+            height: 44,
+            flex: 'none',
+            border: `1px solid ${palette.hairline}`,
+            borderRadius: 10,
+            background: 'transparent',
+            color: palette.deep,
+            cursor: 'pointer',
+          }}
+        >
+          <svg viewBox="0 0 24 24" width={22} height={22} aria-hidden fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+            {open ? (
+              <>
+                <path d="M6 6l12 12" />
+                <path d="M18 6L6 18" />
+              </>
+            ) : (
+              <>
+                <path d="M4 7h16" />
+                <path d="M4 12h16" />
+                <path d="M4 17h16" />
+              </>
+            )}
+          </svg>
+        </button>
       </div>
+
+      {open && (
+        <div
+          id="site-drawer"
+          className="site-drawer"
+          data-testid="site-drawer"
+          style={{
+            borderTop: `1px solid ${palette.hairline}`,
+            background: 'rgba(244,247,248,.98)',
+            padding: '10px 18px 18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+          }}
+        >
+          <nav
+            aria-label={t('a11y.mainNav')}
+            style={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+          >
+            {NAV.map((item) => {
+              const active =
+                item.href === '/' ? pathname === '/' : pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  aria-current={active ? 'page' : undefined}
+                  // Closing on navigation: a drawer left covering the page it
+                  // just opened is the most common mobile-menu defect.
+                  onClick={() => setOpen(false)}
+                  style={{
+                    textDecoration: 'none',
+                    fontSize: 15,
+                    fontWeight: 600,
+                    padding: '12px 12px',
+                    borderRadius: 9,
+                    color: active ? palette.deep : palette.muted,
+                    background: active ? 'rgba(62,142,95,.13)' : 'transparent',
+                  }}
+                >
+                  {t(`nav.${item.key}`)}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div
+            role="group"
+            aria-label={t('a11y.language')}
+            style={{
+              display: 'flex',
+              gap: 6,
+              marginTop: 8,
+              paddingTop: 12,
+              borderTop: `1px solid ${palette.hairline}`,
+            }}
+          >
+            {locales.map((l) => {
+              const active = l === locale;
+              return (
+                <Link
+                  key={l}
+                  href={pathname}
+                  locale={l}
+                  hrefLang={l}
+                  aria-current={active ? 'true' : undefined}
+                  onClick={() => setOpen(false)}
+                  style={{
+                    textDecoration: 'none',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    padding: '10px 16px',
+                    borderRadius: 9,
+                    color: active ? '#fff' : palette.deep,
+                    background: active ? palette.primary : 'rgba(62,142,95,.10)',
+                  }}
+                >
+                  {localeLabels[l]}
+                </Link>
+              );
+            })}
+          </div>
+
+          <Link
+            href="/contact"
+            onClick={() => setOpen(false)}
+            style={{
+              textDecoration: 'none',
+              textAlign: 'center',
+              fontSize: 14,
+              fontWeight: 700,
+              background: palette.primary,
+              color: '#fff',
+              padding: '13px 17px',
+              borderRadius: 10,
+              marginTop: 10,
+            }}
+          >
+            {t('cta.distributors')}
+          </Link>
+        </div>
+      )}
       {/* rawPathname is read so the header re-renders on navigation in tests
           that mount it outside a router transition. */}
       <span hidden data-path={rawPathname} />

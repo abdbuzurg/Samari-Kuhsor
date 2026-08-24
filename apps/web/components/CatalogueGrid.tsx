@@ -170,6 +170,7 @@ function FilterChip({
 }) {
   return (
     <button
+      className="skc-tap"
       type="button"
       onClick={onClick}
       aria-pressed={active}
