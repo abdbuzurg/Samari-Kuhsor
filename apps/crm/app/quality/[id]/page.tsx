@@ -435,11 +435,25 @@ function QRBand({
       </div>
 
       {payload ? (
-        <div className="text-[12.5px]" data-testid="qr-payload">
+        <div className="text-[12.5px] flex gap-4 items-start" data-testid="qr-payload">
+          {/* The code as it will actually be printed. Checking the payload
+              string is not the same as seeing whether the code scans, and
+              wrappers are ordered against it months in advance (D11). */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={`/api/batches/${batchId}/qr.svg`}
+            alt={`QR-код партии`}
+            width={104}
+            height={104}
+            className="shrink-0"
+            data-testid="qr-image"
+          />
+          <div className="min-w-0">
           <div className="break-all">{payload}</div>
           <div className="muted mt-0.5">Выпущен: {formatDateTime(issuedAt)}</div>
           <div className="muted mt-0.5">
             Код выпускается один раз и не меняется — обёртки печатаются заранее.
+          </div>
           </div>
         </div>
       ) : (

@@ -35,6 +35,7 @@ import type {
   Task,
   StockMovementRow,
   Supplier,
+  WorkflowEvent,
 } from '@samari/types';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -818,6 +819,21 @@ export function useSetMediaAlt(id: string) {
       version: number;
     }) => putJSON(`/api/cms/media/${id}/alt`, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['cms', 'media'] }),
+  });
+}
+
+/**
+ * The ladder's history for one piece of content.
+ *
+ * `content_workflow_events` is immutable evidence: who moved a page or a post
+ * along the ladder, when, and what they said about it. Publishing is a claim the
+ * company makes in public, so the record of who approved it is the point.
+ */
+export function useContentHistory(kind: 'pages' | 'news', id: string | undefined) {
+  return useQuery<WorkflowEvent[]>({
+    queryKey: ['cms', 'history', kind, id],
+    queryFn: () => getJSON<WorkflowEvent[]>(`/api/cms/${kind}/${id}/history`),
+    enabled: !!id,
   });
 }
 

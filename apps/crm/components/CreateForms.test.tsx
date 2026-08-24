@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NextIntlClientProvider } from 'next-intl';
@@ -265,5 +265,103 @@ describe('Задачи', () => {
     wrap(<TasksPage />);
     await screen.findByTestId('list-row');
     expect(screen.queryByTestId('close-task')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * Two surfaces that had a Go route and no client path, found by a route audit
+ * after the fact: the CMS ladder history (pages had a BFF route, news did not,
+ * and neither had a screen) and the rendered QR image.
+ */
+describe('CMS — the ladder history', () => {
+  const NEWS = {
+    id: 'n1',
+    slug: 'otkrytie-zavoda',
+    title: 'Открытие завода',
+    status: { key: 'technical_review', label: 'Техпроверка', level: 'warn' },
+    missing_locales: ['tg', 'en'],
+    allowed_transitions: ['draft', 'language_review'],
+    version: 2,
+  };
+
+  const EVENTS = [
+    {
+      id: 'w1',
+      from_status: { key: 'draft', label: 'Черновик', level: 'neutral' },
+      to_status: { key: 'technical_review', label: 'Техпроверка', level: 'warn' },
+      actor_name: 'С. Одинаев',
+      comment: 'Проверьте цифры по объёмам',
+      occurred_at: '2026-09-01T09:00:00Z',
+    },
+  ];
+
+  it('shows who moved a news post and what they said', async () => {
+    const { default: CMSPage } = await import('@/app/cms/page');
+    server.use(
+      session.loaded(adminUser),
+      http.get('/api/cms/pages', () => ok([])),
+      http.get('/api/cms/news', () => page([NEWS])),
+      http.get('/api/cms/news/n1/translations', () => ok([])),
+      http.get('/api/cms/news/n1/history', () => ok(EVENTS)),
+    );
+    wrap(<CMSPage />);
+
+    await userEvent.click(await screen.findByRole('tab', { name: 'Новости' }));
+    await userEvent.click(await screen.findByTestId('toggle-translations'));
+
+    // Publishing is a claim the company makes in public; the record of who
+    // approved it is the point of having a ladder at all.
+    const entry = await screen.findByTestId('history-entry');
+    expect(entry).toHaveTextContent('С. Одинаев');
+    expect(entry).toHaveTextContent('Проверьте цифры по объёмам');
+  });
+
+  it('says nothing has moved rather than showing an empty list', async () => {
+    const { default: CMSPage } = await import('@/app/cms/page');
+    server.use(
+      session.loaded(adminUser),
+      http.get('/api/cms/pages', () => ok([])),
+      http.get('/api/cms/news', () => page([NEWS])),
+      http.get('/api/cms/news/n1/translations', () => ok([])),
+      http.get('/api/cms/news/n1/history', () => ok([])),
+    );
+    wrap(<CMSPage />);
+
+    await userEvent.click(await screen.findByRole('tab', { name: 'Новости' }));
+    await userEvent.click(await screen.findByTestId('toggle-translations'));
+    expect(await screen.findByTestId('history-empty')).toBeInTheDocument();
+  });
+
+  it('lets an editor supply a missing translation', async () => {
+    let sent: unknown = null;
+    const { default: CMSPage } = await import('@/app/cms/page');
+    server.use(
+      session.loaded(adminUser),
+      http.get('/api/cms/pages', () => ok([])),
+      http.get('/api/cms/news', () => page([NEWS])),
+      http.get('/api/cms/news/n1/translations', () => ok([])),
+      http.get('/api/cms/news/n1/history', () => ok([])),
+      http.put('/api/cms/news/n1/translations', async ({ request }) => {
+        sent = await request.json();
+        return ok({});
+      }),
+    );
+    wrap(<CMSPage />);
+
+    await userEvent.click(await screen.findByRole('tab', { name: 'Новости' }));
+    await userEvent.click(await screen.findByTestId('toggle-translations'));
+
+    // Scoped to the editor: the top bar's locale switcher has a ТҶ button too.
+    const editor = within(await screen.findByTestId('translation-editor'));
+
+    // D10 refuses publication without all three. Before this editor existed a
+    // post could be created and then never published.
+    await userEvent.click(editor.getByRole('button', { name: 'ТҶ' }));
+    await userEvent.type(screen.getByLabelText('Заголовок (ТҶ)'), 'Кушодашавии корхона');
+    await userEvent.click(screen.getByTestId('save-translation'));
+
+    await waitFor(() =>
+      expect(sent).toMatchObject({ locale: 'tg', title: 'Кушодашавии корхона' }),
+    );
   });
 });

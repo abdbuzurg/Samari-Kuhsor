@@ -12,6 +12,7 @@ import {
   useCreateNewsPost,
   useNewsPosts,
   useMediaLibrary,
+  useContentHistory,
   useNewsTranslations,
   useSaveContentBlock,
   useSetMediaAlt,
@@ -167,7 +168,12 @@ function PagesTab({ mayManage }: { mayManage: boolean }) {
         </tbody>
       </table>
 
-      {open && <BlockEditor page={open} mayManage={mayManage} />}
+      {open && (
+        <>
+          <BlockEditor page={open} mayManage={mayManage} />
+          <WorkflowHistory kind="pages" id={open.id} />
+        </>
+      )}
     </div>
   );
 }
@@ -446,6 +452,7 @@ function NewsTab({ mayManage }: { mayManage: boolean }) {
                 <tr key={`${post.id}-editor`} data-testid="translation-editor-row">
                   <td colSpan={5}>
                     <NewsTranslationEditor postId={post.id} />
+                    <WorkflowHistory kind="news" id={post.id} />
                   </td>
                 </tr>
               ) : null,
@@ -765,6 +772,72 @@ function MediaAltEditor({ item, onDone }: { item: MediaItem; onDone: () => void 
           Сохранить
         </button>
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * Who moved this content along the ladder, and what they said.
+ *
+ * `content_workflow_events` has no version and no deleted_at — immutable
+ * evidence, like `batch_status_events`. Publishing is a claim the company makes
+ * in public and the two reviews are what make it meaningful; a ladder whose
+ * history nobody can read makes them ceremonial.
+ *
+ * The endpoint existed for pages and news from T28. Only the pages half had a
+ * BFF route, and neither had a screen.
+ */
+function WorkflowHistory({ kind, id }: { kind: 'pages' | 'news'; id: string }) {
+  const history = useContentHistory(kind, id);
+
+  if (history.isLoading) {
+    return (
+      <p className="muted text-[12px] px-3 pb-3" data-testid="history-loading">
+        Загрузка истории…
+      </p>
+    );
+  }
+  if (history.isError) {
+    return (
+      <p className="muted text-[12px] px-3 pb-3" data-testid="history-error">
+        История недоступна.
+      </p>
+    );
+  }
+
+  const rows = history.data ?? [];
+  if (rows.length === 0) {
+    return (
+      <p className="muted text-[12px] px-3 pb-3" data-testid="history-empty">
+        Изменений статуса не было.
+      </p>
+    );
+  }
+
+  return (
+    <div className="px-3 pb-3" data-testid="workflow-history">
+      <h3 className="text-[13px] mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
+        История статусов
+      </h3>
+      <ol className="flex flex-col gap-1.5">
+        {rows.map((event) => (
+          <li key={event.id} className="text-[12px] flex flex-wrap items-center gap-1.5" data-testid="history-entry">
+            {event.from_status ? (
+              <StatusTag status={event.from_status} />
+            ) : (
+              <span className="muted">—</span>
+            )}
+            <span className="muted">→</span>
+            <StatusTag status={event.to_status} />
+            <span className="muted">· {event.actor_name}</span>
+            <span className="muted tabular-nums">
+              · {new Date(event.occurred_at).toLocaleString('ru-RU', { timeZone: 'Asia/Dushanbe' })}
+            </span>
+            {event.comment && <span className="muted">· {event.comment}</span>}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
