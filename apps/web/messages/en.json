@@ -92,10 +92,12 @@
     "termsTitle": "Условия использования"
   },
   "consent": {
-    "title": "Analytics",
-    "body": "We use self-hosted Matomo analytics to understand which pages are useful. No data is shared with third parties.",
+    "title": "Site statistics",
+    "body": "We keep our own statistics: which pages and products people open, and which links they click. Actions are linked by a random visit number that disappears when you close the tab. Nothing is shared with third parties.",
     "accept": "Accept",
-    "decline": "Decline"
+    "decline": "Decline",
+    "reset": "Change your statistics choice",
+    "resetDone": "Preference cleared — the banner will appear again."
   },
   "a11y": {
     "skip": "Skip to content",

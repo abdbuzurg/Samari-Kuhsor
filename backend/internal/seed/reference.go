@@ -52,6 +52,7 @@ var SeedRoles = []SeedRole{
 			"logistics:manage", "hr:manage", "equipment:manage",
 			"documents:manage", "documents:approve",
 			"cms:manage", "cms:approve", "admin:manage", "audit:read",
+			"analytics:read",
 		},
 	},
 	{
@@ -62,6 +63,9 @@ var SeedRoles = []SeedRole{
 			"production:read", "quality:read", "logistics:read", "hr:read",
 			"equipment:read", "documents:read", "documents:approve",
 			"cms:read", "cms:approve", "audit:read",
+			// The business owner reads website statistics without any role
+			// editing (docs/01-DECISIONS.md D12).
+			"analytics:read",
 		},
 	},
 	{

@@ -8,6 +8,8 @@ import { AppShell } from '@/components/AppShell';
 import { StatusTag } from '@/components/StatusTag';
 import { ChartLegend, RevenueChart } from '@/components/dashboard/RevenueChart';
 import { PipelinePanel } from '@/components/dashboard/PipelinePanel';
+import { SiteAnalyticsPanel } from '@/components/dashboard/SiteAnalyticsPanel';
+import { useSiteAnalytics } from '@/lib/operations';
 import { StockPanel } from '@/components/dashboard/StockPanel';
 import { ApiError } from '@/lib/session';
 import type { Dashboard, DashboardEvent } from '@samari/types';
@@ -31,6 +33,7 @@ import type { Dashboard, DashboardEvent } from '@samari/types';
 export default function DashboardPage() {
   const t = useTranslations();
   const [period, setPeriod] = useState('month');
+  const analytics = useSiteAnalytics(period);
 
   const dashboard = useQuery<Dashboard>({
     queryKey: ['dashboard', period],
@@ -155,6 +158,16 @@ export default function DashboardPage() {
             {d.sales && (
               <Panel title={t('dash.pipe')}>
                 <PipelinePanel stages={d.pipeline} />
+              </Panel>
+            )}
+
+            {/* Что смотрят на сайте (docs/01-DECISIONS.md D12).
+                Rendered only for a holder of analytics:read — the request 403s
+                for anyone else and the hook simply has no data, which is the
+                same per-module gating every other panel gets. */}
+            {analytics.data && (
+              <Panel title="Сайт">
+                <SiteAnalyticsPanel report={analytics.data} />
               </Panel>
             )}
 

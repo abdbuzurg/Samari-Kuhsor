@@ -1,3 +1,6 @@
+> **Analytics superseded.** Anything below describing Matomo is history:
+> `docs/01-DECISIONS.md` **D12** removed it in favour of first-party statistics.
+
 # 06 — Build Plan
 
 How the work is sequenced between 17 August and 9 September 2026. Solo developer.

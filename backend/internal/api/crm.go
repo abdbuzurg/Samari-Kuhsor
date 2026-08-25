@@ -185,3 +185,61 @@ type CRMKPIs struct {
 	Conversion   *string `json:"conversion" tstype:"string | null"`
 	OverdueTasks int32   `json:"overdue_tasks"`
 }
+
+// ---------------------------------------------------------------------------
+// Аналитика сайта — docs/01-DECISIONS.md D12
+// ---------------------------------------------------------------------------
+
+// AnalyticsEventRequest is one thing that happened in a browser.
+//
+// Every field is untrusted. Kind, source, category and locale are checked
+// against fixed sets and the SKU against the real catalogue; anything else is
+// dropped silently, because validation feedback on an anonymous endpoint is a
+// probing oracle.
+type AnalyticsEventRequest struct {
+	Kind     string `json:"kind"`
+	Target   string `json:"target"`
+	Source   string `json:"source,omitempty"`
+	Category string `json:"category,omitempty"`
+	Locale   string `json:"locale"`
+	SKU      string `json:"sku,omitempty"`
+}
+
+// AnalyticsBatchRequest is one flush from one browser. The client buffers and
+// sends via navigator.sendBeacon, so batches arrive rather than single events.
+type AnalyticsBatchRequest struct {
+	// SessionID is generated in the browser, held in sessionStorage and gone
+	// when the tab closes. Never persisted across visits.
+	SessionID string                  `json:"session_id"`
+	Events    []AnalyticsEventRequest `json:"events"`
+}
+
+// AnalyticsProductRow is one line of «Что смотрят на сайте».
+type AnalyticsProductRow struct {
+	SKU  string `json:"sku"`
+	Name string `json:"name"`
+	// Visits is distinct sessions — ten views in one sitting count once.
+	Visits int32 `json:"visits"`
+	Views  int32 `json:"views"`
+}
+
+// AnalyticsLinkRow is one line of «Популярные ссылки». Only `cta` and
+// `outbound` reach the panel.
+type AnalyticsLinkRow struct {
+	Target   string `json:"target"`
+	Category string `json:"category"`
+	Visits   int32  `json:"visits"`
+	Clicks   int32  `json:"clicks"`
+}
+
+// AnalyticsReport is both panels for one period.
+type AnalyticsReport struct {
+	Period string `json:"period"`
+	// Visits counts consented sessions, NOT raw traffic: events fire only after
+	// the banner is accepted, so crawlers are excluded by construction and these
+	// figures read lower than a server log would.
+	Visits        int32                 `json:"visits"`
+	ProductVisits int32                 `json:"product_visits"`
+	Products      []AnalyticsProductRow `json:"products"`
+	Links         []AnalyticsLinkRow    `json:"links"`
+}

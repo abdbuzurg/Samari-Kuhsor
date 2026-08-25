@@ -23,6 +23,7 @@ import (
 	"github.com/qoim/samari/backend/internal/alerts"
 	"github.com/qoim/samari/backend/internal/auth"
 	"github.com/qoim/samari/backend/internal/domain/admin"
+	"github.com/qoim/samari/backend/internal/domain/analytics"
 	"github.com/qoim/samari/backend/internal/domain/batches"
 	"github.com/qoim/samari/backend/internal/domain/cms"
 	"github.com/qoim/samari/backend/internal/domain/crm"
@@ -119,6 +120,16 @@ func run() error {
 	inventorySvc := inventory.NewService(pool)
 	qualitySvc := quality.NewService(pool)
 
+	// The salt keeps the IP hash from being a lookup table of the address space.
+	// Absent, ingestion still works and the hash is simply weaker — a missing
+	// salt must not stop the website serving (docs/01-DECISIONS.md D12).
+	analyticsCfg := analytics.DefaultConfig()
+	analyticsCfg.IPSalt = os.Getenv("ANALYTICS_IP_SALT")
+	if analyticsCfg.IPSalt == "" {
+		slog.Warn("ANALYTICS_IP_SALT is unset; website analytics rate limiting is weaker than intended")
+	}
+	analyticsSvc := analytics.NewService(pool, analyticsCfg)
+
 	srv, err := samarihttp.NewServer(samarihttp.Services{
 		Auth:  auth.NewService(pool, auth.DefaultConfig()),
 		Items: items.NewService(pool),
@@ -137,6 +148,7 @@ func run() error {
 		Dashboard:   dashboard.NewService(pool),
 		Admin:       admin.NewService(pool),
 		Alerts:      alerts.NewService(pool),
+		Analytics:   analyticsSvc,
 	}, samarihttp.Config{ServiceKey: os.Getenv("SERVICE_KEY")})
 	if err != nil {
 		// docs/04-RBAC.md:123 — an undeclared route means we do not serve at all.
@@ -154,6 +166,15 @@ func run() error {
 	for _, d := range srv.Declarations() {
 		slog.Info("route", "declaration", d.String())
 	}
+
+	// Website analytics retention (docs/01-DECISIONS.md D12).
+	//
+	// In-process rather than a crontab, because deploy/backup.sh documents a cron
+	// line that has never been installed, and a ninety-day deletion promise that
+	// depends on somebody remembering is not a promise. Says so at boot if it has
+	// not run, so a ticker that died is distinguishable from one that is working.
+	analyticsSvc.WarnIfStale(ctx, slog.Default())
+	go analyticsSvc.RunDaily(ctx, slog.Default())
 
 	httpSrv := &http.Server{
 		Addr:              addr,

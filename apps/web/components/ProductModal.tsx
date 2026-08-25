@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react';
 
 import { Link } from '@/i18n/routing';
+import { ProductViewTracker } from '@/components/ProductViewTracker';
 import { palette } from '@/lib/palette';
 import { specsFor } from '@/lib/specs';
 import type { PublicProduct } from '@/lib/catalogue';
@@ -82,6 +83,12 @@ export function ProductModal({
   const specs = specsFor(product);
 
   return (
+    <>
+      {/* One of the two surfaces that SHOWS a product — the other is the product
+          page. The belt click that opened this modal changes no URL, so without
+          this the site's signature element would be invisible to the ranking
+          (docs/01-DECISIONS.md D12). */}
+      <ProductViewTracker sku={product.sku} source="belt_modal" />
     <div
       onClick={onClose}
       data-testid="product-modal-backdrop"
@@ -264,6 +271,8 @@ export function ProductModal({
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Link
               href="/contact"
+              data-sk-category="cta"
+              data-sk-sku={product.sku}
               style={{
                 textDecoration: 'none',
                 fontSize: 14.5,
@@ -278,6 +287,8 @@ export function ProductModal({
             </Link>
             <Link
               href={`/catalogue/${product.sku}`}
+              data-sk-category="product"
+              data-sk-sku={product.sku}
               style={{
                 textDecoration: 'none',
                 fontSize: 14.5,
@@ -294,5 +305,6 @@ export function ProductModal({
         </div>
       </div>
     </div>
+    </>
   );
 }

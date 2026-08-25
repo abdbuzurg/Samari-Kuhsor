@@ -138,6 +138,15 @@ export async function callApi<T>(path: string, opts: CallOptions = {}): Promise<
  * break every consumer for no gain.
  */
 export function relay<T>(result: ApiResult<T>): Response {
+  // 204 carries no body, and `Response.json` REFUSES to build one that does —
+  // "Invalid response status code 204" from the constructor, surfacing as a 500
+  // from a route that had already succeeded. callApi has always understood 204;
+  // relay did not, and nothing exercised it until the analytics beacon became
+  // the first endpoint to answer with one.
+  if (result.status === 204) {
+    return new Response(null, { status: 204, headers: { 'Cache-Control': 'no-store' } });
+  }
+
   const body = result.ok
     ? result.meta === undefined
       ? { data: result.data }

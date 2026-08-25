@@ -70,6 +70,10 @@ services:
       SERVICE_KEY: ${SERVICE_KEY:?set SERVICE_KEY}
       TLS_MODE: ${TLS_MODE:-off}
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?set PUBLIC_SITE_URL}
+      # Salts the IP hash used to rate-limit website analytics (D12). Absent, the
+      # API warns and carries on: a missing salt weakens the hash, it does not
+      # stop the site serving.
+      ANALYTICS_IP_SALT: ${ANALYTICS_IP_SALT:-}
     healthcheck:
       # The API has no host port, so this is the only thing that can prove it is
       # actually serving rather than merely running. Without it, `crm` would
@@ -120,8 +124,6 @@ services:
       # when the image is built. While it is a bare IP, robots.txt disallows
       # everything (app/robots.ts).
       PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:?set PUBLIC_SITE_URL}
-      NEXT_PUBLIC_MATOMO_URL: ${MATOMO_URL:-}
-      NEXT_PUBLIC_MATOMO_SITE_ID: ${MATOMO_SITE_ID:-}
     depends_on:
       api:
         condition: service_healthy

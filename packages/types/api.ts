@@ -822,6 +822,70 @@ export interface CRMKPIs {
   conversion?: string | null;
   overdue_tasks: number /* int32 */;
 }
+/**
+ * AnalyticsEventRequest is one thing that happened in a browser.
+ * Every field is untrusted. Kind, source, category and locale are checked
+ * against fixed sets and the SKU against the real catalogue; anything else is
+ * dropped silently, because validation feedback on an anonymous endpoint is a
+ * probing oracle.
+ */
+export interface AnalyticsEventRequest {
+  kind: string;
+  target: string;
+  source?: string;
+  category?: string;
+  locale: string;
+  sku?: string;
+}
+/**
+ * AnalyticsBatchRequest is one flush from one browser. The client buffers and
+ * sends via navigator.sendBeacon, so batches arrive rather than single events.
+ */
+export interface AnalyticsBatchRequest {
+  /**
+   * SessionID is generated in the browser, held in sessionStorage and gone
+   * when the tab closes. Never persisted across visits.
+   */
+  session_id: string;
+  events: AnalyticsEventRequest[];
+}
+/**
+ * AnalyticsProductRow is one line of «Что смотрят на сайте».
+ */
+export interface AnalyticsProductRow {
+  sku: string;
+  name: string;
+  /**
+   * Visits is distinct sessions — ten views in one sitting count once.
+   */
+  visits: number /* int32 */;
+  views: number /* int32 */;
+}
+/**
+ * AnalyticsLinkRow is one line of «Популярные ссылки». Only `cta` and
+ * `outbound` reach the panel.
+ */
+export interface AnalyticsLinkRow {
+  target: string;
+  category: string;
+  visits: number /* int32 */;
+  clicks: number /* int32 */;
+}
+/**
+ * AnalyticsReport is both panels for one period.
+ */
+export interface AnalyticsReport {
+  period: string;
+  /**
+   * Visits counts consented sessions, NOT raw traffic: events fire only after
+   * the banner is accepted, so crawlers are excluded by construction and these
+   * figures read lower than a server log would.
+   */
+  visits: number /* int32 */;
+  product_visits: number /* int32 */;
+  products: AnalyticsProductRow[];
+  links: AnalyticsLinkRow[];
+}
 
 //////////
 // source: operations.go

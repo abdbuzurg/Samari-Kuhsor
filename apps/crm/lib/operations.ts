@@ -2,6 +2,7 @@
 
 import type {
   AdminUserRow,
+  AnalyticsReport,
   ContentBlock,
   ContentPage,
   Asset,
@@ -417,6 +418,20 @@ export function useSetTaskStatus(id: string) {
         qc.invalidateQueries({ queryKey: ['tasks'] }),
         qc.invalidateQueries({ queryKey: ['crm-kpis'] }),
       ]),
+  });
+}
+
+/**
+ * Website statistics for the dashboard (docs/01-DECISIONS.md D12).
+ *
+ * Reuses the dashboard's existing period rather than inventing a second date
+ * control. Returns null-safe empty panels rather than throwing: analytics being
+ * unavailable must not take the whole dashboard down with it.
+ */
+export function useSiteAnalytics(period: string) {
+  return useQuery<AnalyticsReport>({
+    queryKey: ['analytics', period],
+    queryFn: () => getJSON<AnalyticsReport>(`/api/analytics?period=${encodeURIComponent(period)}`),
   });
 }
 

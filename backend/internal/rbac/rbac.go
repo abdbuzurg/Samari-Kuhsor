@@ -65,6 +65,9 @@ const (
 	CMS         = "cms"
 	Admin       = "admin"
 	Audit       = "audit"
+	// Analytics is read-only by design: there is nothing to manage. Website
+	// statistics are written by visitors, not by staff (docs/01-DECISIONS.md D12).
+	Analytics = "analytics"
 	// Auth is not a module and carries no permissions. Login must work before any
 	// permission can be resolved, so /auth/* routes declare this instead.
 	Auth = "auth"
@@ -75,6 +78,7 @@ const (
 var Resources = []string{
 	Dashboard, CRM, Inquiries, Items, Inventory, Procurement, Production,
 	Quality, Logistics, HR, Equipment, Documents, Finance, CMS, Admin, Audit,
+	Analytics,
 }
 
 // ApproveResources are the only resources where Approve is meaningful

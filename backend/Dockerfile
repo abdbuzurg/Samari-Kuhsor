@@ -21,6 +21,11 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 RUN CGO_ENABLED=0 GOOS=linux go build \
       -trimpath -ldflags="-s -w" \
       -o /out/seed ./cmd/seed
+# Website-analytics maintenance. The API runs it daily in-process; this is for
+# catching up after downtime and for verifying retention by hand (D12).
+RUN CGO_ENABLED=0 GOOS=linux go build \
+      -trimpath -ldflags="-s -w" \
+      -o /out/analytics ./cmd/analytics
 
 FROM alpine:3.21 AS runtime
 # ca-certificates only. The API makes no outbound TLS calls today, but a future
@@ -31,6 +36,7 @@ RUN apk add --no-cache ca-certificates tzdata \
 WORKDIR /app
 COPY --from=build /out/api /app/api
 COPY --from=build /out/seed /app/seed
+COPY --from=build /out/analytics /app/analytics
 # Migrations ship WITH the binary rather than being applied from a workstation.
 # A deploy that can migrate itself is one that cannot be half-applied because
 # somebody's laptop lost its VPN.

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
+import { ProductViewTracker } from '@/components/ProductViewTracker';
 import { Section } from '@/components/Section';
 import { Link } from '@/i18n/routing';
 import { CATALOGUE_ORDER, loadCatalogue } from '@/lib/catalogue';
@@ -59,6 +60,10 @@ export default async function ProductPage({
 
   return (
     <Section>
+      {/* The other surface that shows a product. A visitor arriving here from
+          search never clicked anything, so a click-only scheme would make every
+          well-ranking product look unpopular (docs/01-DECISIONS.md D12). */}
+      <ProductViewTracker sku={product.sku} source="product_page" />
       <Link
         href="/catalogue"
         style={{

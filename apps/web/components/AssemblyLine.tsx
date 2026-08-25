@@ -180,6 +180,8 @@ export function AssemblyLine({ products }: { products: PublicProduct[] }) {
                   type="button"
                   onClick={() => setSelected(product)}
                   className="skc-slot-button"
+                  data-testid="slot-button"
+                  data-sk-sku={product.sku}
                   style={{
                     background: 'none',
                     border: 'none',

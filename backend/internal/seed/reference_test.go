@@ -78,6 +78,9 @@ func TestPermissionMatrixMatchesTheSpec(t *testing.T) {
 			"quality": {"approve", "manage"}, "logistics": {"manage"}, "hr": {"manage"},
 			"equipment": {"manage"}, "documents": {"approve", "manage"},
 			"cms": {"approve", "manage"}, "admin": {"manage"}, "audit": {"read"},
+			// analytics is read-only for everyone: website statistics are written
+			// by visitors, not staff (docs/01-DECISIONS.md D12).
+			"analytics": {"read"},
 		},
 		"director": {
 			"dashboard": {"read"}, "crm": {"read"}, "inquiries": {"read"},
@@ -85,7 +88,7 @@ func TestPermissionMatrixMatchesTheSpec(t *testing.T) {
 			"procurement": {"approve", "read"}, "production": {"read"},
 			"quality": {"read"}, "logistics": {"read"}, "hr": {"read"},
 			"equipment": {"read"}, "documents": {"approve", "read"},
-			"cms": {"approve", "read"}, "audit": {"read"},
+			"cms": {"approve", "read"}, "audit": {"read"}, "analytics": {"read"},
 		},
 		"warehouse": {
 			"dashboard": {"read"}, "items": {"read"}, "inventory": {"manage"},

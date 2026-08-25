@@ -25,6 +25,7 @@ import (
 	"github.com/qoim/samari/backend/internal/alerts"
 	"github.com/qoim/samari/backend/internal/auth"
 	"github.com/qoim/samari/backend/internal/domain/admin"
+	"github.com/qoim/samari/backend/internal/domain/analytics"
 	"github.com/qoim/samari/backend/internal/domain/batches"
 	"github.com/qoim/samari/backend/internal/domain/cms"
 	"github.com/qoim/samari/backend/internal/domain/crm"
@@ -70,6 +71,7 @@ type Services struct {
 	Dashboard   *dashboard.Service
 	Admin       *admin.Service
 	Alerts      *alerts.Service
+	Analytics   *analytics.Service
 }
 
 type Server struct {
@@ -295,6 +297,13 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 		v1.Public(api, http.MethodGet, "/public/news",
 			"published news; no visitor has an account",
 			s.handlePublicNews)
+		// Аналитика сайта (D12). The second unauthenticated write, and unlike
+		// the enquiry form it takes traffic on every click. It answers 204 for
+		// everything: a caller who learns which of their forged SKUs was
+		// rejected has been handed a catalogue enumeration tool.
+		v1.Public(api, http.MethodPost, "/public/analytics",
+			"website statistics from visitors who have no account; validated and rate-limited inside",
+			s.handleAnalyticsCollect)
 		v1.Public(api, http.MethodPost, "/public/inquiries",
 			"public website form; no visitor has an account to authenticate with",
 			s.handleSubmitInquiry)
@@ -415,6 +424,11 @@ func NewServer(svc Services, cfg Config) (*Server, error) {
 		// should not need the power to grant themselves anything.
 		v1.Guarded(api, http.MethodGet, "/audit",
 			rbac.Audit, rbac.Read, s.handleAuditLog)
+		// The two dashboard panels. analytics:read is held by admin and
+		// director only — there is no `manage`, because website statistics are
+		// written by visitors rather than staff.
+		v1.Guarded(api, http.MethodGet, "/analytics/report",
+			rbac.Analytics, rbac.Read, s.handleAnalyticsReport)
 		v1.Guarded(api, http.MethodGet, "/admin/permissions",
 			rbac.Admin, rbac.Read, s.handlePermissionCatalogue)
 	})

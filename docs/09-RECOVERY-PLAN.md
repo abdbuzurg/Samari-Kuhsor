@@ -179,6 +179,7 @@ though the registers are cheaper and would make the burndown look better.
 | R16 · Printable documents | **done** | Batch certificate · purchase order · delivery note as print routes (see below) |
 | R17 · Responsive pass | **done** | Sidebar → drawer below `lg`; detail and form grids collapse; no horizontal body scroll at 390px |
 | R18 · Playwright E2E | **done** | 22 specs, **all passing against a live stack** — Postgres + Go + both Next apps |
+| R22 · First-party analytics *(new)* | **specified, not started** | D12 settles the design; 20–28h, the largest single task in this file |
 
 ### R16 — why print routes rather than server-side PDF
 
@@ -437,6 +438,61 @@ rather than `curl`.
 
 **Done when:** sales, procurement, production and complaint workflows each pass
 end to end in CI; each asserts a permission denial as well as a happy path.
+
+#### R22 · First-party analytics, replacing Matomo — `20–28h`
+
+Settled in full as **D12**. Read that first; this is the build order and the gate.
+
+Larger than R12 and R13 combined, and the only task here that adds a public write
+endpoint. It is not a small change and should not be started between two other
+things.
+
+**Build order** — each step is usable before the next begins:
+
+1. Migration `00007`: `analytics_events`, `analytics_daily`. Queries, sqlc.
+2. `internal/domain/analytics`: ingest with target validation and the salted-IP
+   rate limit, the rollup, the retention delete. Unit tests here, not later.
+3. `POST /public/analytics` — batched, always `204`. Registered in
+   `everyGuardedRoute`, which will refuse to let it exist otherwise.
+4. BFF route, then the client runtime: consent-gated buffer, `sendBeacon` on
+   `visibilitychange`, session id in `sessionStorage`.
+5. Instrument the three event kinds. `product_view` at the product page and the
+   belt modal ONLY.
+6. Maintenance: daily ticker at 03:00 Asia/Dushanbe, `/app/analytics maintain`
+   CLI, boot warning past 48h.
+7. RBAC module `analytics`, seeded to admin and director. Dashboard panels.
+8. Banner text in ru/tg/en, versioned consent, the change-your-mind control,
+   privacy policy rewrite.
+9. Delete Matomo: `Analytics.tsx`, its tests, `MATOMO_*` from `.env.example` and
+   `docker-compose.prod.yml`, the references in `06-BUILD-PLAN.md` and
+   `07-IMPLEMENTATION-PLAN.md`.
+
+**Done when** — one end-to-end gate, plus four that end-to-end cannot reach:
+
+> A visitor accepts the banner and opens Абрикосовый джем on the assembly line.
+> A user holding `analytics:read` then sees Абрикосовый джем in
+> «Что смотрят на сайте» in the CRM.
+
+That single test is the feature. It fails if the beacon never fires, if the BFF
+drops it, if validation rejects a real SKU, if the rollup does not run, if the
+panel is gated wrong, or if the hook is orphaned — which is precisely how
+fourteen mutation hooks passed 830 green tests while being unreachable.
+
+The four it cannot cover:
+
+| Test | Proves |
+|---|---|
+| Declining produces **no network request** — asserted at the network layer | The banner's central claim is technically true, not merely intended |
+| `POST` a `product_view` for `FAKE-999` → `204`, nothing stored | The ranking cannot be forged; the anti-skew guarantee |
+| Injected clock, events at 89 and 91 days → one survives, one is gone, the rollup kept the deleted day's count | Retention is real and history is not lost with it |
+| One session viewing the same SKU ten times counts as **1** | Visits, not events — the whole reason a session id is carried at all |
+
+Also run the end-to-end gate under the `mobile` project: `sendBeacon` on
+`visibilitychange` behaves differently on mobile Safari than desktop Chrome, and
+a phone is how the factory's own staff will read this.
+
+**Not done when:** the panel renders. A panel showing plausible numbers that
+nothing verified is worse than no panel, because the owner will act on it.
 
 #### R19 · Written notice to QOIM — `2h`
 Not code, and the only task here with a legal rather than technical consequence.

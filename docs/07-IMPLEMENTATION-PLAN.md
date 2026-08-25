@@ -1,3 +1,6 @@
+> **Analytics superseded.** Anything below describing Matomo is history:
+> `docs/01-DECISIONS.md` **D12** removed it in favour of first-party statistics.
+
 # 07 — Implementation Plan
 
 How the platform gets built.

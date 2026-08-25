@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { Section, SectionHead } from '@/components/Section';
+import { ConsentReset } from '@/components/ConsentReset';
 import { LegalBody } from '@/components/LegalBody';
 
 export async function generateMetadata({
@@ -19,8 +20,10 @@ export async function generateMetadata({
  *
  * Written against what the system ACTUALLY does, not from a template. Every
  * claim here is checkable in the code: the enquiry form stores what it says it
- * stores, the IP is recorded for the rate limit and the audit trail, and Matomo
- * is self-hosted and consent-gated.
+ * stores, the enquiry IP is recorded for the rate limit and the audit trail, and
+ * the statistics section describes the first-party collector that replaced
+ * Matomo (docs/01-DECISIONS.md D12) — including the 90-day window, which is
+ * enforced by a job rather than asserted here.
  *
  * This is deliberately not legal advice and does not pretend to be a lawyer's
  * document — it is an accurate description of the data flows, which is what the
@@ -58,13 +61,36 @@ export default async function PrivacyPage({
           сразу после отправки — по нему мы находим вашу заявку.
         </p>
 
-        <h2>Аналитика</h2>
+        <h2>Статистика посещений</h2>
         <p>
-          Мы используем Matomo, размещённую на нашем собственном сервере. Она включается
-          только после вашего согласия: пока вы не нажали «Принять», никакие скрипты
-          аналитики не загружаются и никакие запросы не отправляются. Данные аналитики не
-          передаются третьим сторонам.
+          Мы ведём собственную статистику и храним её на своём сервере. Сторонних
+          систем аналитики — Google Analytics, Matomo или любых других — на сайте нет,
+          и никакие данные не передаются третьим сторонам.
         </p>
+        <p>Мы записываем:</p>
+        <ul>
+          <li>какие страницы открывают;</li>
+          <li>какие товары открывают — на странице товара и в карточке на линии;</li>
+          <li>какие ссылки и кнопки нажимают.</li>
+        </ul>
+        <p>
+          Чтобы отличить один визит от другого, действия связываются случайным номером.
+          Он создаётся в браузере, хранится только до закрытия вкладки и не связан ни с
+          вашим именем, ни с учётной записью. Мы не используем файлы cookie для статистики
+          и не отслеживаем вас между визитами.
+        </p>
+        <p>
+          Статистика включается только после того, как вы нажали «Принять». Пока вы этого
+          не сделали или если вы отказались, ничего не отправляется — ни одного запроса.
+        </p>
+        <p>
+          Подробные записи хранятся <strong>90 дней</strong>, после чего удаляются
+          безвозвратно. Остаются только обезличенные суточные итоги — сколько раз открыли
+          ту или иную страницу, — в которых нет номера визита и ничего, что связано с
+          конкретным человеком.
+        </p>
+
+        <ConsentReset />
 
         <h2>Сколько мы храним</h2>
         <p>

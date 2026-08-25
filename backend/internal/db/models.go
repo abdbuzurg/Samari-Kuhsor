@@ -12,6 +12,40 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type AnalyticsDaily struct {
+	ID           uuid.UUID
+	Day          pgtype.Date
+	Kind         string
+	Target       string
+	ItemID       uuid.NullUUID
+	Category     *string
+	Locale       string
+	EventCount   int32
+	SessionCount int32
+	CreatedAt    pgtype.Timestamptz
+}
+
+type AnalyticsEvent struct {
+	ID         uuid.UUID
+	OccurredAt pgtype.Timestamptz
+	SessionID  string
+	Kind       string
+	Target     string
+	ItemID     uuid.NullUUID
+	Source     *string
+	Category   *string
+	Locale     string
+	IpHash     string
+}
+
+type AnalyticsMaintenanceRun struct {
+	ID              uuid.UUID
+	RanAt           pgtype.Timestamptz
+	DaysRolledUp    int32
+	RowsDeleted     int32
+	OldestSurviving pgtype.Date
+}
+
 type Asset struct {
 	ID             uuid.UUID
 	AssetNo        string

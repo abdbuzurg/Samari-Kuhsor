@@ -43,6 +43,7 @@ returned by `GET /auth/me`.
 | `cms` | Website content | ✅ |
 | `admin` | Users, roles, system settings | ✅ |
 | `audit` | Audit log viewer | ✅ |
+| `analytics` | Website statistics (D12). **`read` only** — there is nothing to manage, because these rows are written by visitors rather than staff. | ✅ |
 
 ---
 
@@ -91,6 +92,7 @@ not a fixed matrix.
 | `cms` | manage + approve | read + approve | — | — | — |
 | `admin` | manage | — | — | — | — |
 | `audit` | read | read | — | — | — |
+| `analytics` | read | read | — | — | — |
 
 Note what Директор does **not** get: `manage` on operational modules. Management reads; the floor
 writes. This matches the original synchronisation design, where the site was the system of record.

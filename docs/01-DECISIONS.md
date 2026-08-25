@@ -172,6 +172,143 @@ onward. The wrapper lead time may already have started; confirm with QOIM immedi
 
 ---
 
+## D12 — Matomo is removed. First-party analytics, session-scoped and consented.
+
+Matomo is deleted from the website. In its place the platform collects its own
+behavioural statistics, stores them in its own database, and shows them to the
+business owner on the CRM dashboard.
+
+**Rejected:** keeping Matomo; anonymous event counts with no identity; a
+persistent visitor id; a fourteenth CRM sidebar module; cron as the only way the
+retention job runs.
+
+Matomo was never configured — `MATOMO_URL` was unset, so `Analytics.tsx` rendered
+nothing — so no data is lost and nothing has to be migrated.
+
+### What is collected
+
+Three event kinds. Every event carries the locale.
+
+| Kind | Fires when | Carries |
+|---|---|---|
+| `page_view` | any route renders | path |
+| `product_view` | a product is **shown** | SKU, source: `product_page` \| `belt_modal` |
+| `link_click` | any link or CTA is activated | target, category: `cta` \| `product` \| `nav` \| `footer` \| `outbound` |
+
+**`product_view` never fires on the click that leads to a product**, only where one
+is displayed. There are three routes to a product — the belt (a modal, no URL
+change), a catalogue card (a navigation), and a search landing (no click at all) —
+and counting clicks would go blind to the third while double-counting the second.
+One interaction, one view, whichever route brought them.
+
+Everything is captured and classified; the dashboard panel *shows* `cta` and
+`outbound` only. Nav and footer chrome always win on volume and tell the owner
+nothing, but discarding them at collection time would be irreversible.
+
+### Identity: a session, not a visitor
+
+A random id in `sessionStorage`, gone when the tab closes. Never persisted across
+visits, never linked to a person.
+
+Fully anonymous counts were rejected because they are actively misleading for the
+question being asked: one crawler walking five product pages makes every product
+look equally popular, and one distributor browsing thirty times outranks thirty
+real visitors. The owner would be reading noise as demand. **Products are ranked
+by visits, not events** — ten views in one session count once.
+
+A session id is pseudonymous personal data, so consent is genuinely required
+rather than merely polite. That cost was already being paid: the banner stays.
+
+### Storage, and the two rules this bends
+
+- `analytics_events` — raw, one row per event, **90 days**, then hard-deleted.
+- `analytics_daily` — nightly rollup of `(date, kind, target)` → event count and
+  session count. **No session id.** Kept indefinitely.
+
+**This bends `CLAUDE.md §4.3, "No hard deletes".** A tombstoned analytics row still
+contains the session id, so `deleted_at` would satisfy the letter of the rule
+while defeating its entire purpose. Retention here is a privacy commitment, not a
+storage optimisation, and it is the one table in the system that deletes for real.
+
+**This bends `CLAUDE.md §4.5, "Every mutation writes to `audit_log`".** An audit
+row per click would bury the trail that proves who released a batch under web
+traffic within a week. **Ingestion writes no audit row. The retention job writes
+one per run** — rows rolled up, rows deleted, oldest surviving date — so the
+deletion is provable and the clicks are not.
+
+Both carve-outs are limited to these two tables. Nothing else in the system gains
+either exemption.
+
+### Ingestion
+
+A second unauthenticated write endpoint — the first since `POST /public/inquiries`
+— and this one takes traffic on every click rather than every form submission.
+
+- **Batched.** Buffered client-side, flushed via `navigator.sendBeacon` on
+  `visibilitychange → hidden`, plus every 15s or 25 events. `sendBeacon` is the
+  only thing that survives a tab close, which is when the most interesting click
+  happens. Batching also keeps the per-request rate check as cheap as the
+  inquiry endpoint's.
+- **Targets validated against reality.** A SKU not in `items`, or a path that is
+  not a known route, is dropped. The target space is five products and about
+  eight routes. This is the anti-forgery measure that matters: the worst a prober
+  can do is inflate something that genuinely exists.
+- **Rate-limited on a salted IP hash**, never the raw IP. `ANALYTICS_IP_SALT` is a
+  new secret. Storing a raw IP against a form someone deliberately submitted is
+  defensible; storing one against browsing behaviour is a materially larger claim
+  and is not needed to count.
+- **Always `204`.** Validation feedback on an anonymous endpoint is a probing
+  oracle, and a beacon must never surface an error into the page.
+
+Because events fire only after consent, crawlers are excluded by construction.
+The figures are therefore **consented visitors, not raw traffic**, and will read
+lower than the client expects. They must be told this once.
+
+### Consent
+
+- Decline means **nothing is sent** — not "sent and ignored". The existing test
+  asserting no request fires before consent survives the rewrite; it is the
+  technical basis for the banner's central claim.
+- The stored value is **versioned**. Anyone holding consent given against older
+  wording is asked again. **The version bumps when what is collected changes, not
+  when the wording is tidied** — fixing a typo must not re-prompt the country.
+- The privacy policy carries a control to change the answer later. Until now
+  there was no path back: decline once and the banner never returned.
+- The banner names the visit number rather than claiming "no personal data
+  collected". The shorter claim would be an overclaim, and this project does not
+  publish unverified claims about anything else either.
+
+### Where the owner sees it
+
+Dashboard panels, reusing the existing `day/week/month/quarter` switch. **No new
+sidebar entry** — the prototype's nav is exactly thirteen modules, which is why
+Администрирование already sits behind the gear (`TASKS.md:536`).
+
+New RBAC module `analytics`, `read` only — there is nothing to manage. Granted to
+**admin** and **director**, so the business owner has it without any role editing.
+Panel gating is already enforced generically by
+`TestEachPanelRequiresItsOwnModulePermission`.
+
+### Maintenance
+
+Rollup and deletion are one job, reachable two ways: an **in-process daily ticker**
+at 03:00 Asia/Dushanbe — an hour after the backup, so a restore captures a
+consistent state — and a **CLI** in the API image alongside `/app/seed`.
+
+Cron alone was rejected. `deploy/backup.sh` documents a crontab line that has
+never been installed, and a retention promise depending on an un-run manual step
+is not a promise. The API logs a warning at boot if the last successful run is
+over 48 hours old, so a ticker that dies silently is distinguishable from one
+that is working.
+
+### Accepted risk
+
+The Tajik banner text was written without a native speaker. It is a privacy
+notice; it needs reading before launch, not after. Added to the content still
+owed below.
+
+---
+
 ## Open questions still owed by the client
 
 From `QOIM_Samari_Kuhsor_Clarification_Register.docx` (v2):
@@ -189,6 +326,6 @@ From `QOIM_Samari_Kuhsor_Clarification_Register.docx` (v2):
 Real product photography · retailer logos · the company phone number (`+992 —` is incomplete) ·
 confirmation of `info@samari-kuhsor.tj` · Pamir landscape photography · news article content and
 images · technical datasheet PDFs · legal page copy for the privacy policy, terms and cookie pages ·
-Tajik and English translations.
+Tajik and English translations · **native review of the Tajik analytics consent banner (D12)**.
 
 Every one of these is on the launch critical path.

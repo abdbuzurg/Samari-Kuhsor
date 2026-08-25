@@ -8,7 +8,7 @@ import type { ReactNode } from 'react';
 import { SiteHeader } from '@/components/SiteHeader';
 import { SiteFooter } from '@/components/SiteFooter';
 import { ConsentBanner } from '@/components/ConsentBanner';
-import { Analytics } from '@/components/Analytics';
+import { AnalyticsTracker } from '@/components/AnalyticsTracker';
 import { htmlLang, locales, type Locale } from '@/i18n/config';
 import { routing } from '@/i18n/routing';
 import { palette } from '@/lib/palette';
@@ -101,7 +101,7 @@ export default async function LocaleLayout({
           <main id="main">{children}</main>
           <SiteFooter />
           <ConsentBanner />
-          <Analytics />
+          <AnalyticsTracker />
         </NextIntlClientProvider>
       </body>
     </html>

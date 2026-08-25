@@ -8,7 +8,7 @@ import { AssemblyLine } from '@/components/AssemblyLine';
 import { CatalogueGrid } from '@/components/CatalogueGrid';
 import { ContactForm } from '@/components/ContactForm';
 import { ConsentBanner } from '@/components/ConsentBanner';
-import { Analytics } from '@/components/Analytics';
+import { readConsent, resetConsent, writeConsent } from '@/lib/consent';
 import { server, http, HttpResponse } from '@/test/msw';
 import messages from '@/messages/ru.json';
 import type { PublicProduct } from '@/lib/catalogue';
@@ -398,29 +398,68 @@ describe('Analytics consent', () => {
     });
   });
 
-  it('loads no analytics script before consent is granted', async () => {
-    vi.stubEnv('NEXT_PUBLIC_MATOMO_URL', 'https://analytics.samari-kuhsor.tj');
-    vi.stubEnv('NEXT_PUBLIC_MATOMO_SITE_ID', '1');
+  /**
+   * Targeted test 1 of R22: declining sends NOTHING.
+   *
+   * Asserted at the network layer — sendBeacon and fetch are both spied — rather
+   * than by reading a variable. This is the technical basis for the banner's
+   * central claim, and a claim about network behaviour has to be tested as
+   * network behaviour.
+   */
+  it('sends no request before consent, and none after declining', async () => {
+    const { track, flush, __resetForTests } = await import('@/lib/analytics');
+    const beacon = vi.fn(() => true);
+    const fetchSpy = vi.fn(() => Promise.resolve(new Response(null, { status: 204 })));
+    vi.stubGlobal('navigator', { ...navigator, sendBeacon: beacon });
+    vi.stubGlobal('fetch', fetchSpy);
 
-    const { unmount } = wrap(<Analytics />);
-    // Nothing rendered: no request to the analytics host at all, which is
-    // stronger than loading the tracker with an opt-out flag set.
-    expect(document.querySelector('[data-testid="matomo"]')).toBeNull();
-    unmount();
+    // Never asked.
+    __resetForTests();
+    window.localStorage.clear();
+    track({ kind: 'page_view', target: '/ru', locale: 'ru' });
+    flush();
+    expect(beacon).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
 
-    window.localStorage.setItem('samari_analytics_consent', 'denied');
-    wrap(<Analytics />);
-    await waitFor(() => {
-      expect(document.querySelector('[data-testid="matomo"]')).toBeNull();
-    });
+    // Declined.
+    __resetForTests();
+    writeConsent('denied');
+    track({ kind: 'product_view', target: 'APJ-1000', source: 'belt_modal', locale: 'ru' });
+    flush();
+    expect(beacon).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // Accepted — now, and only now, something is sent.
+    __resetForTests();
+    writeConsent('granted');
+    track({ kind: 'product_view', target: 'APJ-1000', source: 'belt_modal', locale: 'ru' });
+    flush();
+    expect(beacon).toHaveBeenCalledTimes(1);
   });
 
-  it('renders nothing when no Matomo host is configured, even with consent', async () => {
-    vi.stubEnv('NEXT_PUBLIC_MATOMO_URL', '');
+  /**
+   * Consent given against the OLD wording is not consent for the new collection
+   * (docs/01-DECISIONS.md D12). v1 stored a bare string and described Matomo.
+   */
+  it('re-asks anyone holding consent from before the description changed', () => {
     window.localStorage.setItem('samari_analytics_consent', 'granted');
-    wrap(<Analytics />);
-    await waitFor(() => {
-      expect(document.querySelector('[data-testid="matomo"]')).toBeNull();
-    });
+    expect(readConsent()).toBe('unknown');
+
+    window.localStorage.setItem(
+      'samari_analytics_consent',
+      JSON.stringify({ value: 'granted', version: 1 }),
+    );
+    expect(readConsent()).toBe('unknown');
+
+    writeConsent('granted');
+    expect(readConsent()).toBe('granted');
+  });
+
+  it('lets a visitor change their mind', () => {
+    writeConsent('denied');
+    expect(readConsent()).toBe('denied');
+    resetConsent();
+    // Back to never-asked, so the banner returns.
+    expect(readConsent()).toBe('unknown');
   });
 });

@@ -149,6 +149,7 @@ var everyGuardedRoute = []routeCase{
 	{"GET", "/api/v1/export/documents", "documents:read", ""},
 	{"GET", "/api/v1/export/inquiries", "inquiries:read", ""},
 	{"GET", "/api/v1/export/audit", "audit:read", ""},
+	{"GET", "/api/v1/analytics/report", "analytics:read", ""},
 	{"GET", "/api/v1/audit", "audit:read", ""},
 }
 
@@ -368,11 +369,16 @@ func TestPublicRoutesAreExactlyTheDocumentedSet(t *testing.T) {
 	srv := mustServer(t, pool)
 
 	want := map[string]bool{
-		"POST /api/v1/auth/login":           true,
-		"POST /api/v1/auth/logout":          true,
-		"GET /api/v1/auth/me":               true,
-		"GET /api/v1/health":                true,
-		"POST /api/v1/public/inquiries":     true,
+		"POST /api/v1/auth/login":       true,
+		"POST /api/v1/auth/logout":      true,
+		"GET /api/v1/auth/me":           true,
+		"GET /api/v1/health":            true,
+		"POST /api/v1/public/inquiries": true,
+		// D12. The second unauthenticated write. Public because a visitor has no
+		// account; safe because every target is validated against the real
+		// catalogue, ingestion is rate-limited on a salted IP hash, and the
+		// endpoint answers 204 for everything so it cannot be used to enumerate.
+		"POST /api/v1/public/analytics":     true,
 		"GET /api/v1/public/products":       true,
 		"GET /api/v1/public/products/{sku}": true,
 		"GET /api/v1/public/news":           true,

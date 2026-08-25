@@ -13,6 +13,11 @@ import (
 )
 
 type Querier interface {
+	// Every day that has raw events, oldest first, excluding today — a day is only
+	// rolled up once it is complete.
+	AnalyticsDaysNeedingRollup(ctx context.Context) ([]pgtype.Date, error)
+	// The headline: how many visits, and how many of them looked at a product.
+	AnalyticsVisitTotals(ctx context.Context, since pgtype.Date) (AnalyticsVisitTotalsRow, error)
 	AssignRole(ctx context.Context, arg AssignRoleParams) error
 	ClearRolePermissions(ctx context.Context, roleID uuid.UUID) error
 	ClearUserRoles(ctx context.Context, userID uuid.UUID) error
@@ -20,6 +25,11 @@ type Querier interface {
 	// evidence, and the detail view shows it. Closes the day before the new price
 	// starts so the two never overlap.
 	CloseOpenItemPrices(ctx context.Context, arg CloseOpenItemPricesParams) error
+	// First-party website analytics (docs/01-DECISIONS.md D12).
+	// The ingestion rate limit, counted per batch rather than per event because the
+	// client buffers and flushes (D12). At click volume a per-event count would be
+	// a scan; per batch it is the same order as the inquiry limiter.
+	CountAnalyticsEventsSince(ctx context.Context, arg CountAnalyticsEventsSinceParams) (int32, error)
 	CountAssets(ctx context.Context, arg CountAssetsParams) (int64, error)
 	CountAudit(ctx context.Context, arg CountAuditParams) (int64, error)
 	CountAuditForResource(ctx context.Context, arg CountAuditForResourceParams) (int64, error)
@@ -171,6 +181,12 @@ type Querier interface {
 	// than 0: on a sales dashboard those read very differently, and expressing that
 	// in SQL means fighting sqlc's nullability inference through a cast.
 	DealOutcomeCounts(ctx context.Context) (DealOutcomeCountsRow, error)
+	// ---------------------------------------------------------------------------
+	// Retention
+	// ---------------------------------------------------------------------------
+	// A real DELETE, not a tombstone (D12). A soft-deleted row still contains the
+	// session id.
+	DeleteAnalyticsEventsBefore(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error)
 	DeleteExpiredSessions(ctx context.Context, retain pgtype.Interval) error
 	GetAsset(ctx context.Context, id uuid.UUID) (Asset, error)
 	// Mirrors ListAssets, including the two derived service dates, so an asset's
@@ -242,6 +258,9 @@ type Querier interface {
 	GetUserPermissions(ctx context.Context, userID uuid.UUID) ([]GetUserPermissionsRow, error)
 	GetUserRoles(ctx context.Context, userID uuid.UUID) ([]Role, error)
 	GrantPermission(ctx context.Context, arg GrantPermissionParams) error
+	// No RETURNING: nothing downstream needs the id, and the endpoint answers 204
+	// regardless of what happened (D12).
+	InsertAnalyticsEvent(ctx context.Context, arg InsertAnalyticsEventParams) error
 	// Audit log. Append-only: there is no update and no delete, by design
 	// (docs/02-SCHEMA.md:123). Every mutation in the system writes one row, inside
 	// the mutating transaction (docs/07-IMPLEMENTATION-PLAN.md I4).
@@ -269,6 +288,13 @@ type Querier interface {
 	// silently invalidates wrappers that may already be in production. Zero rows
 	// means it was already issued.
 	IssueBatchQR(ctx context.Context, arg IssueBatchQRParams) (Batch, error)
+	// Target validation. A product_view naming a SKU that is not in the catalogue is
+	// dropped, which is what stops the ranking being forged: the worst a prober can
+	// do is inflate something that genuinely exists.
+	ItemIDBySKU(ctx context.Context, sku string) (uuid.UUID, error)
+	// Drives the boot warning: a ticker that dies silently must be distinguishable
+	// from one that is working.
+	LastAnalyticsMaintenanceRun(ctx context.Context) (AnalyticsMaintenanceRun, error)
 	// ---------------------------------------------------------------------------
 	// Оборудование и ТО
 	// ---------------------------------------------------------------------------
@@ -443,6 +469,8 @@ type Querier interface {
 	// concurrent submissions can never receive the same number, which MAX()+1 could
 	// not guarantee because it reads only committed rows.
 	NextInquiryReference(ctx context.Context, prefix string) (string, error)
+	OldestAnalyticsEvent(ctx context.Context) (pgtype.Timestamptz, error)
+	RecordAnalyticsMaintenanceRun(ctx context.Context, arg RecordAnalyticsMaintenanceRunParams) (AnalyticsMaintenanceRun, error)
 	// Increments the counter and locks the account once the threshold is reached.
 	// Returning the row lets the caller report the resulting state without a re-read.
 	RecordLoginFailure(ctx context.Context, arg RecordLoginFailureParams) (User, error)
@@ -450,6 +478,14 @@ type Querier interface {
 	// Logout everywhere, required on password change (docs/03-API-CONTRACT.md:193).
 	RevokeAllUserSessions(ctx context.Context, userID uuid.UUID) error
 	RevokeSession(ctx context.Context, id uuid.UUID) error
+	// ---------------------------------------------------------------------------
+	// The nightly rollup
+	// ---------------------------------------------------------------------------
+	// Collapses one day into (kind, target, locale) with an event count and a
+	// DISTINCT SESSION count. Idempotent — re-running a day overwrites it rather
+	// than doubling it, which matters because the CLI exists so a missed day can be
+	// caught up.
+	RollUpAnalyticsDay(ctx context.Context, day pgtype.Date) (int64, error)
 	SetDealStage(ctx context.Context, arg SetDealStageParams) (Deal, error)
 	SetInquiryStatus(ctx context.Context, arg SetInquiryStatusParams) (Inquiry, error)
 	SetManufacturingOrderStatus(ctx context.Context, arg SetManufacturingOrderStatusParams) (ManufacturingOrder, error)
@@ -475,6 +511,17 @@ type Querier interface {
 	// Seed roles are is_system and cannot be deleted (D9); the guard is in the WHERE
 	// clause so it holds regardless of caller.
 	TombstoneRole(ctx context.Context, id uuid.UUID) (Role, error)
+	// `cta` and `outbound` only. Nav and footer are captured but never shown: they
+	// always win on volume and tell the owner nothing (D12).
+	TopLinksByVisits(ctx context.Context, arg TopLinksByVisitsParams) ([]TopLinksByVisitsRow, error)
+	// ---------------------------------------------------------------------------
+	// The dashboard panels
+	//
+	// Both read analytics_daily, never the raw table: the raw rows are gone after 90
+	// days and the panel must keep working. Ranked by SESSION count — ten views in
+	// one session are one visit (D12).
+	// ---------------------------------------------------------------------------
+	TopProductsByVisits(ctx context.Context, arg TopProductsByVisitsParams) ([]TopProductsByVisitsRow, error)
 	// Idle-timeout support: slides the expiry window on activity.
 	TouchSession(ctx context.Context, arg TouchSessionParams) error
 	// Guarded on the CURRENT status, so an illegal transition cannot slip through a
