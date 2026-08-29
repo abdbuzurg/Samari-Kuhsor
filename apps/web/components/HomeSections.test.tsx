@@ -186,6 +186,48 @@ describe('Tajikistan map', () => {
     expect(screen.getByText('≈2 200 м')).toBeInTheDocument();
     expect(screen.getByText('над уровнем моря')).toBeInTheDocument();
   });
+
+  it('labels Khorog outside the map rather than on top of it', async () => {
+    wrap(<TajikistanMap />);
+    const callout = await screen.findByTestId('map-callout');
+    expect(callout).toHaveTextContent('Хорог');
+
+    // Placement moved to .skc-map-callout so the two layouts can differ by
+    // width. Asserting the inline coordinates are GONE is the point: the pill
+    // used to be pinned at left:57.7%/top:63%, over the country it was naming.
+    expect(callout.style.left).toBe('');
+    expect(callout.style.top).toBe('');
+    expect(callout.className).toContain('skc-map-callout');
+  });
+
+  it('joins the label to the marker with an arrow in the border viewBox', async () => {
+    wrap(<TajikistanMap />);
+    const arrow = await screen.findByTestId('map-arrow');
+
+    // The same coordinate system as the border and the marker. A second viewBox
+    // would have to be reconciled with this one on every resize.
+    expect(arrow).toHaveAttribute('viewBox', '0 0 710 446');
+    // The tail sits at x=745, outside the 710-unit frame — that is what puts the
+    // label off the map, so clipping it would undo the change.
+    expect(arrow.style.overflow).toBe('visible');
+
+    const shafts = arrow.querySelectorAll('path');
+    expect(shafts).toHaveLength(2); // wide + stacked
+    expect(shafts[0].getAttribute('d')).toBe('M745,418 L460,383');
+    expect(shafts[0]).toHaveAttribute('pathLength', '1');
+  });
+
+  it('points the arrow at the marker without covering it', async () => {
+    wrap(<TajikistanMap />);
+    const head = (await screen.findByTestId('map-arrow')).querySelector('polygon');
+
+    // The heart occupies (386,337)–(434,385). The tip stops to its right, so the
+    // arrow indicates the marker instead of overlapping it.
+    const [tipX, tipY] = head!.getAttribute('points')!.split(' ')[0].split(',').map(Number);
+    expect(tipX).toBeGreaterThan(434);
+    expect(tipY).toBeGreaterThan(337);
+    expect(tipY).toBeLessThan(385);
+  });
 });
 
 // ---------------------------------------------------------------------------

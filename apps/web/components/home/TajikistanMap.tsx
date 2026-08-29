@@ -14,11 +14,15 @@ import { TAJIKISTAN_BORDER_PATH, TAJIKISTAN_VIEWBOX } from '@/lib/tajikistan-pat
  *
  *   1. the border draws itself (~2s)
  *   2. the raster map fades in behind the completed border (~0.8s)
- *   3. the heart marker pops in at Khorog, then its label
+ *   3. the heart marker pops in at Khorog, then the arrow draws out to its label
  *
  * The order is the point. Drawing the outline first and filling it afterwards
  * reads as "this is the country, and here is where we are"; showing the filled
  * map immediately and animating a pin onto it says nothing.
+ *
+ * The «Хорог» label sits OUTSIDE the map rather than on it, joined to the marker
+ * by an arrow. On the map it had to overlap the country to stay near the heart,
+ * which put a filled pill over the terrain it was pointing at.
  *
  * The draw is `stroke-dasharray: 1` with `pathLength="1"`, so the dash maths is
  * independent of the path's true length — the path is 6 000 characters of traced
@@ -30,6 +34,50 @@ import { TAJIKISTAN_BORDER_PATH, TAJIKISTAN_VIEWBOX } from '@/lib/tajikistan-pat
  */
 
 type Phase = 0 | 1 | 2 | 3;
+
+/**
+ * Arrow geometry, in the border path's own viewBox units (0 0 710 446).
+ *
+ * Sharing the border's coordinate system is what keeps the arrow on Khorog at
+ * every width: the marker is placed by percentage against the same raster, so
+ * expressing the arrow in pixels — or in a second viewBox — would need the two
+ * to be reconciled on every resize.
+ *
+ * The heart occupies (386,337)–(434,385) there. The shaft leaves from the right
+ * of the frame, below the country's eastern lobe, so it crosses empty map
+ * instead of the terrain it is pointing at, and stops short of the marker.
+ */
+const ARROW = {
+  tailX: 745,
+  tailY: 418,
+  tipX: 446,
+  tipY: 381,
+  /** Where the shaft stops and the head begins, along the tail→tip direction. */
+  baseX: 460,
+  baseY: 383,
+  head: '446,381 460.6,377.7 459.4,387.8',
+} as const;
+
+/**
+ * The same arrow for the stacked layout, where the label sits below the map.
+ *
+ * Slanted rather than vertical: the label is centred under the card at x=355,
+ * but Khorog is at x=410. A vertical shaft would have to choose between sitting
+ * under the label and pointing at the marker.
+ *
+ * The tail at y=490 is 44 units below the 446-unit frame, which is why
+ * `.skc-map-callout` sets its gap as a PERCENTAGE — a fixed px margin would
+ * drift away from this tail as the card resized.
+ */
+const ARROW_STACKED = {
+  tailX: 355,
+  tailY: 490,
+  tipX: 410,
+  tipY: 395,
+  baseX: 402.5,
+  baseY: 408,
+  head: '410,395 407.3,410.8 397.7,405.2',
+} as const;
 
 export function TajikistanMap() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -168,7 +216,12 @@ export function TajikistanMap() {
             padding: 22,
           }}
         >
-          <div style={{ position: 'relative', width: '100%' }}>
+          {/* The right gutter the label lives in. Percentage padding, so the
+              gutter keeps its ratio to the map and the arrow — expressed in map
+              units — lands in it at every width. Collapsed under 760px by
+              `.skc-map-figure`, where there is no horizontal room to give up. */}
+          <div className="skc-map-figure" style={{ position: 'relative', width: '100%' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
             {/* Stage 2. `unoptimized` because this is a hand-prepared raster whose
                 coordinates the traced border depends on — re-encoding it at a
                 different size is exactly the transformation that would slide the
@@ -244,16 +297,74 @@ export function TajikistanMap() {
                 pointerEvents: 'none',
               }}
             />
-            <div
+            {/* The arrow, drawn in the border's viewBox so it tracks the marker.
+                `overflow: visible` is load-bearing: the tail sits at x=745,
+                outside the 710-unit frame, which is the whole point. */}
+            <svg
+              viewBox={TAJIKISTAN_VIEWBOX}
+              preserveAspectRatio="xMidYMid meet"
+              aria-hidden
+              data-testid="map-arrow"
               style={{
                 position: 'absolute',
-                left: '57.7%',
-                top: '63%',
-                transform: `translateX(-50%) translateY(${phase >= 3 ? '0' : '6px'})`,
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                overflow: 'visible',
+                pointerEvents: 'none',
+              }}
+            >
+              {[
+                { a: ARROW, cls: 'skc-map-arrow-wide' },
+                { a: ARROW_STACKED, cls: 'skc-map-arrow-stacked' },
+              ].map(({ a, cls }) => (
+                <g key={cls} className={cls}>
+                  <path
+                    pathLength={1}
+                    d={`M${a.tailX},${a.tailY} L${a.baseX},${a.baseY}`}
+                    style={{
+                      fill: 'none',
+                      stroke: palette.deep,
+                      strokeWidth: 2.2,
+                      strokeLinecap: 'round',
+                      strokeDasharray: 1,
+                      // Drawn from the label towards the marker, so the eye is
+                      // led to Khorog rather than away from it.
+                      strokeDashoffset: phase >= 3 ? 0 : 1,
+                      transition: instant
+                        ? 'none'
+                        : 'stroke-dashoffset .55s ease .1s',
+                    }}
+                  />
+                  <polygon
+                    points={a.head}
+                    style={{
+                      fill: palette.deep,
+                      opacity: phase >= 3 ? 1 : 0,
+                      // Lands only once the shaft has finished drawing.
+                      transition: instant ? 'none' : 'opacity .25s ease .6s',
+                    }}
+                  />
+                </g>
+              ))}
+            </svg>
+
+            {/* The label. Anchored to the arrow's tail — 418/446 of the way down
+                the map — so the two stay joined however the card is sized. */}
+            <div
+              className="skc-map-callout"
+              data-testid="map-callout"
+              style={{
+                // The entrance offset travels as a custom property, NOT as an
+                // inline `transform`: the wide layout also needs translateY(-50%)
+                // to sit on the arrow, and an inline transform would silently
+                // win over the stylesheet and drop the centring.
+                ['--skc-enter' as string]: phase >= 3 ? '0px' : '6px',
                 opacity: phase >= 3 ? 1 : 0,
                 transition: instant
                   ? 'none'
-                  : 'opacity .5s ease .15s, transform .5s ease .15s',
+                  : 'opacity .5s ease .55s, transform .5s ease .55s',
                 pointerEvents: 'none',
               }}
             >
@@ -272,6 +383,7 @@ export function TajikistanMap() {
               >
                 Хорог
               </span>
+            </div>
             </div>
           </div>
           <p

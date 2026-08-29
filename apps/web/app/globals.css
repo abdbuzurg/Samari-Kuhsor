@@ -277,3 +277,64 @@ body {
     border-bottom: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+ * The Khorog callout on the map.
+ *
+ * The label sits outside the map, joined to the marker by an arrow. Two layouts,
+ * because the direction only works while there is width to spare:
+ *
+ *   wide     label in a right-hand gutter, arrow horizontal
+ *   stacked  label under the map, arrow vertical
+ *
+ * The gutter is a PERCENTAGE. The arrow is expressed in the map's own viewBox
+ * units, so a gutter that keeps its ratio to the map keeps the tail under the
+ * label at every width; a fixed 104px gutter would not, and the arrow would end
+ * up short of the label on a wide screen and past it on a narrow one.
+ *
+ * Here rather than in the component for the same reason as .skc-steps above:
+ * the rule is entirely about width.
+ * ------------------------------------------------------------------------- */
+.skc-map-figure {
+  /* 16/84 of the map's width == 135 viewBox units, which is where the arrow's
+     tail at x=745 falls. Change one and the other must follow. */
+  padding-right: 16%;
+}
+
+.skc-map-callout {
+  position: absolute;
+  /* 418/446 — the arrow's tail height, so label and shaft meet. */
+  top: 93.7%;
+  left: calc(100% + 12px);
+  /* --skc-enter is the component's entrance offset; it composes with the
+     centring here instead of replacing it. */
+  transform: translateY(calc(-50% + var(--skc-enter, 0px)));
+}
+
+.skc-map-arrow-stacked {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .skc-map-figure {
+    padding-right: 0;
+  }
+
+  /* Back into flow, directly under the map, where the slanted arrow points.
+     The gap is a percentage — of WIDTH, as margin percentages always are — so it
+     tracks the arrow's tail at y=490. A fixed px gap holds at one card width and
+     drifts off the tail at every other. */
+  .skc-map-callout {
+    position: static;
+    text-align: center;
+    margin-top: 6%;
+    transform: translateY(var(--skc-enter, 0px));
+  }
+
+  .skc-map-arrow-wide {
+    display: none;
+  }
+  .skc-map-arrow-stacked {
+    display: block;
+  }
+}
